@@ -1,0 +1,6 @@
+site/ 
+.vs/
+.venv/
+.idea/
+__pycache__/
+config.toml
