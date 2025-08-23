@@ -18,6 +18,7 @@ from lmm.markdown.parse_markdown import (
     Block,
 )
 from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.scan.scan_split import scan_split
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
@@ -410,7 +411,6 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
 
     async def test_query(self):
         import lmm_education.stores.chunks as chk
-        import lmm.scan.scan_split as spl
 
         from langchain_text_splitters import (
             RecursiveCharacterTextSplitter,
@@ -479,7 +479,7 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
                     b.content[GROUP_UUID_KEY] = b.content.pop(
                         UUID_KEY
                     )
-        blocks = spl.scan_split(
+        blocks = scan_split(
             blocks,
             text_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=750,

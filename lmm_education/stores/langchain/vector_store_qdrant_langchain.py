@@ -15,7 +15,7 @@ from langchain_core.callbacks.manager import (
 from qdrant_client import QdrantClient, AsyncQdrantClient
 from .. import vector_store_qdrant as vsq
 
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 
 # TODO: implement langchain approach to providing extra args
@@ -50,8 +50,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         self.collection_name = collection_name
         self.embedding_model = embedding_model
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _points_to_documents(
         self, points: list[vsq.ScoredPoint]
@@ -75,7 +74,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
         limit: int = 12,
-        payload: list[str] = ['page_content']
+        payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
         points: list[vsq.ScoredPoint] = vsq.query(
@@ -121,8 +120,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         self.collection_name = collection_name
         self.embedding_model = embedding_model
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _points_to_documents(
         self, points: list[vsq.ScoredPoint]
@@ -146,7 +144,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
         limit: int = 12,
-        payload: list[str] = ['page_content']
+        payload: list[str] = ['page_content'],
     ) -> list[Document]:
         # this is a required override, so we need to await the async
         import nest_asyncio  # type: ignore[stubFileNotFound]
@@ -184,7 +182,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         *,
         run_manager: AsyncCallbackManagerForRetrieverRun,
         limit: int = 12,
-        payload: list[str] = ['page_content']
+        payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
         points: list[vsq.ScoredPoint] = await vsq.aquery(
@@ -241,8 +239,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.embedding_model = embedding_model
         self.limit = limit
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _results_to_documents(
         self, results: vsq.GroupsResult
@@ -268,7 +265,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         query: str,
         *,
         run_manager: CallbackManagerForRetrieverRun,
-        payload: list[str] = ['page_content']
+        payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
         results: vsq.GroupsResult = vsq.query_grouped(
@@ -329,8 +326,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.embedding_model = embedding_model
         self.limit = limit
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _results_to_documents(
         self, results: vsq.GroupsResult
@@ -356,7 +352,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         query: str,
         *,
         run_manager: CallbackManagerForRetrieverRun,
-        payload: list[str] = ['page_content']
+        payload: list[str] = ['page_content'],
     ) -> list[Document]:
         # this is a required override, so we need to await the async
         import nest_asyncio  # type: ignore[stubFileNotFound]
@@ -397,7 +393,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         query: str,
         *,
         run_manager: AsyncCallbackManagerForRetrieverRun,
-        payload: list[str] = ['page_content']
+        payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
         results: vsq.GroupsResult = await vsq.aquery_grouped(
