@@ -14,6 +14,7 @@ dependencies = [
     "lmm @ git+https://git.uibk.ac.at/c7201031/lmm.git@main",
     "fastembed (>=0.7.1,<0.8.0)",
     "nest-asyncio (>=1.6.0,<2.0.0)",
+    "sentence-transformers (>=5.1.0,<6.0.0)",
 ]
 
 
