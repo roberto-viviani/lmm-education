@@ -109,7 +109,7 @@ _sparse_model_cache: SparseTextEmbedding | None = None
 SPARSE_MODEL_NAME: str = "Qdrant/bm25"
 
 
-def _get_sparse_model():
+def _get_sparse_model() -> SparseTextEmbedding:
     """Get memoized SparseTextEmbedding model instance."""
     global _sparse_model_cache
     if _sparse_model_cache is None:
