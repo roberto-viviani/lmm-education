@@ -274,7 +274,7 @@ def markdown_upload(
     *,
     save_files: bool = False,
     ingest: bool = True,
-) -> list[list[Chunk]]:
+) -> tuple[list[Chunk], list[Chunk]]:
     """Upload a list of markdown files in the vector database.
 
     Args:
@@ -323,13 +323,13 @@ def markdown_upload(
             continue
         parsed_documents.append(blocks)
     if not parsed_documents:
-        return []
+        return [], []
     if error_sources:
         logger.error(
             "Problems in markdowns, fix before continuing:\n\t"
             + "\n\t".join(error_sources.keys())
         )
-        return []
+        return [], []
 
     # initialize qdrant client. You pass index_opts to this
     # function and it will validate that the database that is
@@ -340,44 +340,42 @@ def markdown_upload(
         database_source, index_opts
     )
     if not client:
-        return []
+        return [], []
 
     # the encoding strategy may use two collections rather than
     # one: the chunks collection is used to match the query, and
     # the documents collection returns pre-ingested content
     # that exploits the structure of the directed acyclic graph
     # of documents to extract context.
-    doclist: list[list[Chunk]] = []
-    for docblocks in parsed_documents:
+    chunklist: list[Chunk] = []
+    doclist: list[Chunk] = []
+    for docblocks, source in zip(parsed_documents, sources):
         chunks, coll_chunks = blocklist_encode(docblocks, index_opts)
         if ingest:
             blocklist_upload(
                 client, chunks, coll_chunks, index_opts, ingest=ingest
             )
-        doclist.extend([chunks, coll_chunks])
+        chunklist.extend(chunks)
+        if doclist:
+            doclist.extend(coll_chunks)
 
-    if not doclist:
-        return []
-
-    # this allows users to inspect the annotations that were
-    # used to encode the document
-    if save_files and len(doclist) > 1:
-        newblocks: list[Block] = chunks_to_blocks(doclist[1])
-        for s in sources:
+        # this allows users to inspect the annotations that were
+        # used to encode the document
+        if save_files and bool(doclist):
+            newblocks: list[Block] = chunks_to_blocks(doclist)
             newfile: str = append_postfix_to_filename(
-                str(s), "_documents"
+                str(source), "_documents"
             )
             save_markdown(newfile, newblocks)
 
-    if save_files:
-        newblocks: list[Block] = chunks_to_blocks(doclist[0])
-        for s in sources:
+        if save_files:
+            newblocks: list[Block] = chunks_to_blocks(chunklist)
             newfile: str = append_postfix_to_filename(
-                str(s), "_chunks"
+                str(source), "_chunks"
             )
             save_markdown(newfile, newblocks)
 
-    return doclist
+    return chunklist, doclist
 
 
 def blocklist_encode(
@@ -534,6 +532,11 @@ def blocklist_upload(
 
     # ingest here the large text portions
     if opts.companion_collection:
+        if not (bool(coll_chunks)):
+            logger.warning(
+                "Companion collection specified, but no "
+                + "document chunks generated."
+            )
         doc_coll_name: str = opts.companion_collection
         try:
             if ingest and not upload(
