@@ -349,11 +349,12 @@ def markdown_upload(
     # of documents to extract context.
     doclist: list[list[Chunk]] = []
     for docblocks in parsed_documents:
-        doclist.extend(
-            blocklist_encode_and_upload(
-                client, docblocks, index_opts, ingest=ingest
+        chunks, coll_chunks = blocklist_encode(docblocks, index_opts)
+        if ingest:
+            blocklist_upload(
+                client, chunks, coll_chunks, index_opts, ingest=ingest
             )
-        )
+        doclist.extend([chunks, coll_chunks])
 
     if not doclist:
         return []
@@ -379,24 +380,14 @@ def markdown_upload(
     return doclist
 
 
-# This is the internal function doing the job of uploading parsed
-# markdown files into the database. It implements the encoding
-# strategy specified in the IndexOpts object, adding annotations
-# using a language model if the strategy requires it. It is the
-# key point where an encoding specification and strategies to
-# extract further information from mere text is coded.
-def blocklist_encode_and_upload(
-    client: QdrantClient,
+def blocklist_encode(
     blocklist: list[Block],
     opts: IndexOpts,
-    ingest: bool = True,
-) -> list[list[Chunk]]:
-    """Upload a list of markdown blocks to the database client.
-    Preprocessing will be executed at this stage as specified in the
-    IndexOpts object opts.
+) -> tuple[list[Chunk], list[Chunk]]:
+    """Encode a list of markdown blocks. Preprocessing will be
+    executed at this stage as specified in the IndexOpts object opts.
 
     Args:
-        client: the QdrantClient
         blocklist: the list of markdown blocks
         opts:
             collection_name: The collection in the database to store
@@ -412,8 +403,6 @@ def blocklist_encode_and_upload(
                 collection (default: False)
             text_splitter: The text splitter to use for chunking
                 (default: no splitting)
-        ingest: Whether to ingest documents into the vector database
-            (default: True)
 
     Returns:
         A list of two Document object list, representing the processed
@@ -422,10 +411,10 @@ def blocklist_encode_and_upload(
     """
 
     if not blocklist:
-        return []
+        return [], []
     if blocklist_haserrors(blocklist):
         logger.warning("Problems in markdown, fix before continuing")
-        return []
+        return [], []
 
     # preprocessing for RAG. You tell scan_rag what annotations
     # to make and the pooling of text blocks prior to the annotations
@@ -438,33 +427,16 @@ def blocklist_encode_and_upload(
     )
     blocks: list[Block] = scan_rag(blocklist, scan_opts)
     if not blocks:
-        return []
+        return [], []
 
     # ingest here the large text portions
     if opts.companion_collection:
-        doc_coll_name: str = opts.companion_collection
-
         # create embeddings
         coll_chunks: list[Chunk] = blocks_to_chunks(
             blocks, EncodingModel.NONE
         )
         if not coll_chunks:
-            return []
-
-        try:
-            if ingest and not upload(
-                client,
-                doc_coll_name,
-                EmbeddingModel.UUID,
-                coll_chunks,
-            ):
-                logger.error(
-                    "Could not upload documents to " + doc_coll_name
-                )
-                return []
-        except Exception as e:
-            logger.error("Could not upload documents:\n" + str(e))
-            return []
+            return [], []
     else:
         coll_chunks = []
 
@@ -511,7 +483,72 @@ def blocklist_encode_and_upload(
         splits, opts.encoding_model
     )
     if not chunks:
-        return []
+        return [], []
+
+    return chunks, coll_chunks
+
+
+# This is the internal function doing the job of uploading parsed
+# markdown files into the database. It implements the encoding
+# strategy specified in the IndexOpts object, adding annotations
+# using a language model if the strategy requires it. It is the
+# key point where an encoding specification and strategies to
+# extract further information from mere text is coded.
+def blocklist_upload(
+    client: QdrantClient,
+    chunks: list[Chunk],
+    coll_chunks: list[Chunk],
+    opts: IndexOpts,
+    ingest: bool = True,
+) -> bool:
+    """Upload a list of markdown blocks to the database client.
+    Preprocessing will be executed at this stage as specified in the
+    IndexOpts object opts.
+
+    Args:
+        client: the QdrantClient
+        chunks: list of chunks to be uploaded
+        coll_chunks: list of chunks for the companion collection
+        opts:
+            collection_name: The collection in the database to store
+                data in (default: "")
+            questions: Whether to generate questions from the
+                content (default: False)
+            summaries: Whether to generate summaries for the
+                content (default: False)
+            pool_threshold: Threshold for pooling text blocks (-1:
+                merge under headings, 0: no pooling, >0: pool until
+                threshold) (default: 0)
+            document_collection: Whether to build a separate document
+                collection (default: False)
+            text_splitter: The text splitter to use for chunking
+                (default: no splitting)
+        ingest: Whether to ingest documents into the vector database
+            (default: True)
+
+    Returns:
+        A list of two Document object list, representing the processed
+        content. If document_collection is True, the list contains a
+        second element with the pooled text document list.
+    """
+
+    # ingest here the large text portions
+    if opts.companion_collection:
+        doc_coll_name: str = opts.companion_collection
+        try:
+            if ingest and not upload(
+                client,
+                doc_coll_name,
+                EmbeddingModel.UUID,
+                coll_chunks,
+            ):
+                logger.error(
+                    "Could not upload documents to " + doc_coll_name
+                )
+                return False
+        except Exception as e:
+            logger.error("Could not upload documents:\n" + str(e))
+            return False
 
     # ingestion
     try:
@@ -522,12 +559,12 @@ def blocklist_encode_and_upload(
             client, opts.collection_name, model, chunks
         ):
             logger.error("Could not upload documents")
-            return []
+            return False
     except Exception as e:
         logger.error("Could not upload documents:\n" + str(e))
-        return []
+        return False
 
-    return [chunks, coll_chunks]
+    return True
 
 
 if __name__ == "__main__":
