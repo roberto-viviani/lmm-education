@@ -7,6 +7,7 @@ import unittest
 
 from lmm_education.stores.chunks import (
     blocks_to_chunks,
+    chunks_to_blocks,
     EncodingModel,
 )
 from lmm.markdown.parse_markdown import (
@@ -56,6 +57,17 @@ class TestChunkNulls(unittest.TestCase):
             EncodingModel.CONTENT,
         )
         self.assertEqual(len(chunks), 0)
+
+
+class TestChunkFormation(unittest.TestCase):
+
+    def test_transf_and_inverse(self) -> None:
+        chunks = blocks_to_chunks(blocks, EncodingModel.CONTENT)
+        reformed_blocks = chunks_to_blocks(chunks, "")
+        # expected result: a metadata and a text block
+        self.assertEqual(len(reformed_blocks), 2)
+        self.assertIsInstance(reformed_blocks[0], MetadataBlock)
+        self.assertIsInstance(reformed_blocks[1], TextBlock)
 
 
 class TestChunkInheritance(unittest.TestCase):

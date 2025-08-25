@@ -25,9 +25,9 @@ Main functions:
     chunks_to_blocks: the inverse transformation
 """
 
-from typing import Any
 from pydantic import BaseModel
 import copy
+from uuid import uuid4
 
 # LM markdown
 from lmm.markdown.parse_markdown import (
@@ -100,15 +100,13 @@ class Chunk(BaseModel):
     """
 
     content: str
-    metadata: dict[str, Any] = {}
+    metadata: MetadataDict = {}
     annotations: str = ""
     dense_encoding: str = ""
     sparse_encoding: str = ""
     uuid: str = ""
 
     def get_uuid(self) -> str:
-        from uuid import uuid4
-
         """Return the UUID of the document."""
         return self.uuid if self.uuid else str(uuid4())
 
@@ -134,6 +132,9 @@ def blocks_to_chunks(
         blocklist_copy(blocklist),
         ScanOpts(textid=True, UUID=True, titles=True),
     )
+    if blocklist_haserrors(blocks):
+        raise ValueError("blocks_to_chunks called with error blocks")
+
     root: MarkdownTree = blocks_to_tree(blocks)
     if not root:
         return []
@@ -211,10 +212,11 @@ def blocks_to_chunks(
                     chunk.annotations + ": " + chunk.content
                 )
 
-            case _:
-                raise ValueError(
-                    f"Unsupported encoding model: {encoding_model}"
-                )
+            # let type checker flag missing case's
+            # case _:
+            #     raise ValueError(
+            #         f"Unsupported encoding model: {encoding_model}"
+            #     )
         return chunk
 
     chunks = traverse_tree_nodetype(
@@ -234,6 +236,9 @@ def chunks_to_blocks(
 
     Returns: a list of markdown blocks that can be serialized as
             a Markdown document
+
+    Note: the content of the chunk is splitted into a metadata block
+        and a text block, containing the 'content' value of the chunk.
     """
 
     blocks: list[Block] = []
@@ -249,7 +254,7 @@ def chunks_to_blocks(
                 'dense_encoding': c.dense_encoding,
                 'sparse_encoding': c.sparse_encoding,
             }
-            blockmeta['~chunk'] = meta
+            blockmeta['~chunk'] = meta  # type: ignore (safe here)
             blocks.append(MetadataBlock(content=blockmeta))
         blocks.append(TextBlock(content=c.content))
 
