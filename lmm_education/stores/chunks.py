@@ -25,7 +25,7 @@ Main functions:
     chunks_to_blocks: the inverse transformation
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import copy
 from uuid import uuid4
 
@@ -93,22 +93,45 @@ class Chunk(BaseModel):
     """Class for storing a piece of text and associated metadata, with
     an additional uuid field. dense_encoding and sparse_encoding
     collect the text that is to be embedded with dense and sparse
-    embeddings.
+    embeddings. The annotation field collects concatenated text from
+    metadata for use in the encoding.
 
     This replaces the langchain_core.documents.Document class by
     adding an uuid and embedding fields
     """
 
-    content: str
-    metadata: MetadataDict = {}
-    annotations: str = ""
-    dense_encoding: str = ""
-    sparse_encoding: str = ""
-    uuid: str = ""
+    content: str = Field(
+        description="The textual content for storage in the database"
+        + "in the content field of the payload"
+    )
+    metadata: MetadataDict = Field(
+        default={},
+        description="Metadata of the original text block"
+        + "for storage in the database payload as fields",
+    )
+    annotations: str = Field(
+        default="",
+        description="Selected parts of the metadata that may be used "
+        + "for encoding",
+    )
+    dense_encoding: str = Field(
+        default="",
+        description="The content selected for dense encoding",
+    )
+    sparse_encoding: str = Field(
+        default="",
+        description="The content selected for sparse encoding",
+    )
+    uuid: str = Field(
+        default="",
+        description="Identification of the record in the database",
+    )
 
     def get_uuid(self) -> str:
         """Return the UUID of the document."""
-        return self.uuid if self.uuid else str(uuid4())
+        if not bool(self.uuid):
+            self.uuid = str(uuid4())
+        return self.uuid
 
 
 def blocks_to_chunks(
@@ -119,9 +142,11 @@ def blocks_to_chunks(
     Implements the encoding model by collecting appropriate data
         and metadata.
 
-    Args:   blocklist, a list of markdown blocks
+    Args:
+        blocklist, a list of markdown blocks
 
-    Returns:    a list of Chunk objects
+    Returns:
+        a list of Chunk objects
     """
 
     if not blocklist:
