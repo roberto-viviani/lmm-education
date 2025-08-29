@@ -388,14 +388,53 @@ async def ainitialize_collection(
     return True
 
 
+def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
+    """
+    Map content of Chunk object to payload (langchain schama)
+
+    Args:
+        x: a chunk object
+
+    Returns:
+        a dict object mapping a string key to a value
+    """
+    # One issue here is that llm frameworks like langchain store
+    # the text from which the embeddings were computed in a main
+    # key, putting all the rest in a metadata key. This is not
+    # the same model as the vector databases, which may store
+    # many things in the payload, with the text being one among
+    # many. This is important for filtering, etc.
+    # One can always filter through 'metadata.keyname', while this
+    # is not most natural. Alas, to maintain compatibility with
+    # langchain, we adopt its schema in the data saved into the
+    # vector database. This function does precisely this: maps
+    # the content for saveing from the Chunk object into the
+    # scheme recognised by langchain.
+    # The exception is the GROUP_UUID_KEY for 'look_up' queries.
+    if GROUP_UUID_KEY in x.metadata:
+        # Here, we bring out GROUP_UUID_KEY from the metadata
+        # so that qdrant can use it in 'look_up' queries.
+        return {
+            'page_content': x.content,
+            GROUP_UUID_KEY: x.metadata.pop(GROUP_UUID_KEY, ""),
+            'metadata': x.metadata,
+        }
+    else:
+        # The standard langchain schema.
+        return {'page_content': x.content, 'metadata': x.metadata}
+
+
 def chunks_to_points(
     chunks: list[Chunk],
     model: QdrantEmbeddingModel,
     logger: ILogger = default_logger,
+    chunk_to_payload: Callable[
+        [Chunk], dict[str, Any]
+    ] = _chunk_to_payload_langchain,
 ) -> list[Point]:
     """Converts a list of chunks into a list of the record objects
     understood by the Qdrant database, using an embedding model
-    for the conversion
+    for the conversion.
 
     Args:
         chunks: the chunks list
@@ -408,7 +447,7 @@ def chunks_to_points(
     if not chunks:
         return []
 
-    # load language model
+    # load embedding model
     from requests.exceptions import ConnectionError
     from lmm.language_models.langchain.kernel import create_embeddings
 
@@ -426,27 +465,8 @@ def chunks_to_points(
         )
         return []
 
-    # map chunk content and metadata to payload (langchain schema)
-    def chunk_to_payload(x: 'Chunk') -> dict[str, Any]:
-        # One issue here is that lm frameworks like langchain store
-        # the text from which the embeddings were computed in a main
-        # key, putting all the rest in a metadata key. This is not
-        # the same model as the vector databases, which may store
-        # many things in the payload, with the text being one among
-        # many. This is important for filtering, etc.
-        # One can always filter through 'metadata.keyname', but this
-        # is not most natural.
-        # Here, we need to bring out GROUP_UUID_KEY from the metadata
-        # so that the database can use it in 'look_up' queries.
-        if GROUP_UUID_KEY in x.metadata:
-            return {
-                'page_content': x.content,
-                GROUP_UUID_KEY: x.metadata.pop(GROUP_UUID_KEY, ""),
-                'metadata': x.metadata,
-            }
-        else:
-            return {'page_content': x.content, 'metadata': x.metadata}
-
+    # the payload saved in the database is given by chunk_to_payload,
+    # the emmbedding by the embedding model
     points: list[Point] = []
     match model:
         case QdrantEmbeddingModel.UUID:
