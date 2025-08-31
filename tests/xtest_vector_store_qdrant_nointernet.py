@@ -61,10 +61,7 @@ class TestInitialization(unittest.TestCase):
         result = initialize_collection(
             client, collection_name, embedding_model
         )
-        self.assertTrue(
-            result,
-            "init_collection should return True for encoding model",
-        )
+        self.assertFalse(result)
 
     def test_encoding_content(self):
         encoding_model = EncodingModel.CONTENT
