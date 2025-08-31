@@ -74,7 +74,9 @@ class TestChunkInheritance(unittest.TestCase):
 
     def test_annotate_questions(self):
         self.assertEqual(len(blocks), lenblocks)
-        chunks = blocks_to_chunks(blocks, EncodingModel.CONTENT)
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.CONTENT, [QUESTIONS_KEY]
+        )
         self.assertEqual(len(blocks), lenblocks)
         chunk = chunks[0]
         self.assertTrue(

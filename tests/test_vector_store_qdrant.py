@@ -52,14 +52,7 @@ blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 sets: Settings = Settings()
 
-
-def setUpModule() -> None:
-    pass
-
-
-def tearDownModule():
-    # export_settings(sets)
-    pass
+am = [TITLES_KEY]
 
 
 class TestInitialization(unittest.TestCase):
@@ -200,7 +193,7 @@ class TestIngestionAndQuery(unittest.TestCase):
     def test_ingestion_nontext(self):
         # blocklist w/o text blocks
         chunks = blocks_to_chunks(
-            [header, metadata, heading], EncodingModel.CONTENT
+            [header, metadata, heading], EncodingModel.CONTENT, am
         )
         self.assertEqual(len(chunks), 0)
         encoding_model = EncodingModel.CONTENT
@@ -243,7 +236,9 @@ class TestIngestionAndQuery(unittest.TestCase):
     def test_ingestion_CONTENT(self):
         # just one text here
         shortblocks = blocks[:5]
-        chunks = blocks_to_chunks(shortblocks, EncodingModel.CONTENT)
+        chunks = blocks_to_chunks(
+            shortblocks, EncodingModel.CONTENT, am
+        )
         self.assertEqual(len(chunks), 1)
         chunk = chunks[0]
         self.assertEqual(chunk.dense_encoding, text.get_content())
@@ -266,7 +261,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             self.assertEqual(p.id, u)
 
     def test_ingestion_MERGED(self):
-        chunks = blocks_to_chunks(blocks, EncodingModel.MERGED)
+        chunks = blocks_to_chunks(blocks, EncodingModel.MERGED, am)
         self.assertEqual(len(chunks), 2)
         chunk = chunks[0]
         self.assertEqual(
@@ -292,7 +287,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             self.assertEqual(p.id, u)
 
     def test_ingestion_SPARSE(self):
-        chunks = blocks_to_chunks(blocks, EncodingModel.SPARSE)
+        chunks = blocks_to_chunks(blocks, EncodingModel.SPARSE, am)
         self.assertEqual(len(chunks), 2)
         chunk = chunks[0]
         self.assertEqual(chunk.sparse_encoding, chunk.annotations)
@@ -316,7 +311,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_ingestion_SPARSE_CONTENT(self):
         chunks = blocks_to_chunks(
-            blocks, EncodingModel.SPARSE_CONTENT
+            blocks, EncodingModel.SPARSE_CONTENT, am
         )
         self.assertEqual(len(chunks), 2)
         chunk = chunks[0]
@@ -337,7 +332,9 @@ class TestIngestionAndQuery(unittest.TestCase):
         self.assertEqual(len(chunks), len(ps))
 
     def test_ingestion_SPARSE_MERGED(self):
-        chunks = blocks_to_chunks(blocks, EncodingModel.SPARSE_MERGED)
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.SPARSE_MERGED, am
+        )
         self.assertEqual(len(chunks), 2)
         chunk = chunks[0]
         self.assertEqual(chunk.sparse_encoding, chunk.annotations)
@@ -385,7 +382,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_CONTENT(self):
         encoding_model = EncodingModel.CONTENT
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -407,7 +404,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_CONTENT2(self):
         encoding_model = EncodingModel.CONTENT
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -428,7 +425,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_MERGED(self):
         encoding_model = EncodingModel.MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -449,7 +446,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_MERGED2(self):
         encoding_model = EncodingModel.MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -470,7 +467,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_MERGED3(self):
         encoding_model = EncodingModel.MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -491,7 +488,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -517,7 +514,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE_CONTENT(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -538,7 +535,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE_CONTENT2(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -562,7 +559,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         blocklist = scan_rag(
             blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
         )
-        chunks = blocks_to_chunks(blocklist, encoding_model)
+        chunks = blocks_to_chunks(blocklist, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -583,7 +580,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE_MERGED(self):
         encoding_model = EncodingModel.SPARSE_MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -604,7 +601,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE_MERGED2(self):
         encoding_model = EncodingModel.SPARSE_MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -625,7 +622,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE_MERGED3(self):
         encoding_model = EncodingModel.SPARSE_MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -646,7 +643,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_to_uuids(self):
         encoding_model = EncodingModel.SPARSE_MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -675,7 +672,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             for b in blocks
             if isinstance(b, TextBlock)
         ]
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )

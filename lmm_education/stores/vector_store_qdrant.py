@@ -139,13 +139,16 @@ def initialize_collection(
     """
 
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
 
     try:
+        from lmm.language_models.langchain.kernel import (
+            create_embeddings,
+        )
+
         encoder: Embeddings = create_embeddings()
     except ConnectionError:
         logger.error(
-            "Could not connect to language models.\n"
+            "Could not connect to the language model.\n"
             + "Check the internet connection."
         )
         return False
@@ -480,7 +483,7 @@ def chunks_to_points(
         case QdrantEmbeddingModel.DENSE:
             try:
                 vect = encoder.embed_documents(
-                    [t.content for t in chunks]
+                    [t.dense_encoding for t in chunks]
                 )
             except Exception:
                 logger.error("Could not create encoding")
@@ -501,7 +504,7 @@ def chunks_to_points(
                         [t.annotations for t in chunks]
                     ),
                     encoder.embed_documents(
-                        [t.content for t in chunks]
+                        [t.dense_encoding for t in chunks]
                     ),
                 ]
             except Exception:
@@ -544,7 +547,7 @@ def chunks_to_points(
         case QdrantEmbeddingModel.HYBRID_DENSE:
             try:
                 vect = encoder.embed_documents(
-                    [t.content for t in chunks]
+                    [t.dense_encoding for t in chunks]
                 )
                 sparse_model = _get_sparse_model()
                 sparse_embeddings = list(
@@ -577,7 +580,7 @@ def chunks_to_points(
                         [t.annotations for t in chunks]
                     ),
                     encoder.embed_documents(
-                        [t.content for t in chunks]
+                        [t.dense_encoding for t in chunks]
                     ),
                 ]
                 sparse_model = _get_sparse_model()

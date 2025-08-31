@@ -1,14 +1,30 @@
 """
-Converts a list of markdown blocks into a list of chunk objects. The
-Chunk class constitutes a framework-neutral replacement for the
-Document class, commonly used by framework in RAG applications. Chunk
-objects may carry additional information to direct the interaction
-with the vector database.
+Converts a list of markdown blocks into a list of chunk objects, which
+include all the information for being igested into a vector database.
+The list of markdown blocks will have been preprocessed as necessary,
+i.e. splitted into smaller text blocks, endowed with metadata.
 
-The Chunk module defines an EncodingModel enum to define the
-interaction with the vector database. Note: no embedding is computed
-here, but the list of chunks can be further processed to get the
-embeddings.
+When using a vector database to store information, data may be used to
+obtain embeddings (the semantic representation of the content, which
+the database uses to identify text from a query based on similarity),
+and to select parts of the information that is stored in the database
+and retrieved when records are selected. The Chunk class and its
+member methods collects and organizes this information. It constitutes
+a framework-neutral replacement for the Document class, commonly used
+by frameworks in RAG applications.
+
+Embeddings are increaseangly supported in a variety of configurations,
+based on two approaches: dense and sparse vector representations. Once
+the data are selected for embeddings and storage, the next logical
+step is the definition of how dense and sparse vector representations
+are used to compute the embeddings. The Chunk module defines an
+_encoding model_ to map the data selected for embedding to the
+embedding type supported by the database engine.
+
+Note:
+    no embedding is computed here; this is done when the chunks are
+    transformed into the format that the vector database requires
+    for ingestion.
 
 Responsibilities:
     define encoding models
@@ -18,11 +34,10 @@ Responsibilities:
         (collect the adequate information in dense_encoding and
         sparse_encoding)
 
-Main inputs: block list
-
 Main functions:
-    blocks_to_chunks: blocklist to list of chunks with splitting
-    chunks_to_blocks: the inverse transformation
+    blocks_to_chunks: list of blocks to list of chunks
+    chunks_to_blocks: the inverse transformation (for inspection and
+        verification).
 """
 
 from pydantic import BaseModel, Field
@@ -51,7 +66,6 @@ from lmm.scan.scan_keys import (
     EDIT_KEY,
     MESSAGE_KEY,
     TITLES_KEY,
-    QUESTIONS_KEY,
     UUID_KEY,
 )
 
@@ -91,10 +105,19 @@ class EncodingModel(Enum):
 
 class Chunk(BaseModel):
     """Class for storing a piece of text and associated metadata, with
-    an additional uuid field. dense_encoding and sparse_encoding
-    collect the text that is to be embedded with dense and sparse
-    embeddings. The annotation field collects concatenated text from
-    metadata for use in the encoding.
+    an additional uuid field.
+
+    The fields content and metadata contain information that is
+    stored in the database.
+
+    The field annotations contains concatenated metadata strings that,
+    depending on the encoding model, may end up in the sparse or in
+    the dense encoding.
+
+    The fields dense_encoding and sparse_encoding the text that is
+    used for embedding using the respective approaches.
+
+    The uuid field contains the id of the database record.
 
     This replaces the langchain_core.documents.Document class by
     adding an uuid and embedding fields
@@ -135,7 +158,9 @@ class Chunk(BaseModel):
 
 
 def blocks_to_chunks(
-    blocklist: list[Block], encoding_model: EncodingModel
+    blocklist: list[Block],
+    encoding_model: EncodingModel,
+    annotations_model: list[str] = [TITLES_KEY],
 ) -> list[Chunk]:
     """Transform a blocklist into a list of chunk objects.
 
@@ -144,6 +169,12 @@ def blocks_to_chunks(
 
     Args:
         blocklist, a list of markdown blocks
+        encoding_mode: how to allocate information to dense and
+            sparse encoding
+        annotations_model: the fields from the metadata to use for
+            encoding. Titles, if present, are included if there is
+            no model. This field is ignored if the encoding model
+            makes no use of annotations.
 
     Returns:
         a list of Chunk objects
@@ -151,6 +182,9 @@ def blocks_to_chunks(
 
     if not blocklist:
         return []
+
+    if not annotations_model:
+        annotations_model = [TITLES_KEY]
 
     # collect or create required metadata for RAG: uuid, titles
     blocks: list[Block] = scan_rag(
@@ -177,18 +211,14 @@ def blocks_to_chunks(
 
     # map a text node with the inherited metadata to a Chunk object
     def _textnode_to_chunk(n: TextNode) -> Chunk:
-
         # form content and annotations
         meta: MetadataDict = copy.deepcopy(n.metadata)
         annlist: list[str] = []
-        title: str | None = n.get_metadata_string_for_key(TITLES_KEY)
-        if title:
-            annlist.append(title)
-        question: str | None = n.get_metadata_string_for_key(
-            QUESTIONS_KEY
-        )
-        if question:
-            annlist.append(question)
+        for key in annotations_model:
+            value: str | None = n.get_metadata_string_for_key(key)
+            if value:
+                annlist.append(value)
+
         chunk: Chunk = Chunk(
             content=n.get_content(),
             annotations="\n".join(annlist),
@@ -311,7 +341,7 @@ if __name__ == "__main__":
             return []
 
         opts: EncodingModel = EncodingModel.MULTIVECTOR
-        chunks = blocks_to_chunks(blocks, opts)
+        chunks = blocks_to_chunks(blocks, opts, [TITLES_KEY])
         blocks = chunks_to_blocks(chunks, sep="------")
         if blocks:
             save_blocks(target, blocks)
