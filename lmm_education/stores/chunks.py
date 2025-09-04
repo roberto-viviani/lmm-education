@@ -71,8 +71,8 @@ from lmm.scan.scan_keys import (
 
 
 # embedding strategies allowed by the system
-from enum import Enum  # fmt: skip
-class EncodingModel(Enum):
+from enum import StrEnum  # fmt: skip
+class EncodingModel(StrEnum):
     """Enum for encoding strategies"""
 
     # No encoding
