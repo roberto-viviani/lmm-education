@@ -160,7 +160,7 @@ class Chunk(BaseModel):
 def blocks_to_chunks(
     blocklist: list[Block],
     encoding_model: EncodingModel,
-    annotations_model: list[str] = [TITLES_KEY],
+    annotations_model: list[str],
 ) -> list[Chunk]:
     """Transform a blocklist into a list of chunk objects.
 
@@ -182,9 +182,6 @@ def blocks_to_chunks(
 
     if not blocklist:
         return []
-
-    if not annotations_model:
-        annotations_model = [TITLES_KEY]
 
     # collect or create required metadata for RAG: uuid, titles
     blocks: list[Block] = scan_rag(

@@ -3,73 +3,40 @@ This module provides the facilities to ingest markdown files into a
 vector database for the LM markdown for education project.
 
 Prior to ingesting, the files are processed according to specifications
-stored in an IndexOpts object. The IndexOpts contains the specification of
-what annotations to create (questions, summaries) and how to use them
-in the encoding of the database. Once initialized, the IndexOpts object
-can be passed to the functions of the package as well as in the retrieval
-phase.
+read from the config_education.toml file. They include what annotations
+to create (questions, summaries) and how to use them in the encoding of
+the database. Because this specification determines the schema of the
+database, it should be altered after the database is created!
 
-The information and the stdorage options are the following:
+Please see config/config.py for more information on the configuration
+options. They contain the name of the file or source where the
+database is located, the name of the collection or collections used to
+store the data, and the information to extract from text prior to
+storage.
 
-    DatabaseSource: one of
-        'memory'
-        "./storage" | LocalStorage(folder = "./storage")
-        RemoteSource(url = "1.1.1.127", port = 21465)
+The LMM for education package allows two different models of creating
+storage for a RAG application. In the standard approach, the text is
+chunked, possibly with overlapping segments, combined with additional
+text (such as questions answered by the text) and ingested. In the
+hierarchical graph RAG approach, the chunks provide the emebddings for
+retrieving larger parts of text, determined by text blocks under
+headings.
 
-    IndexOpts:
-    collection_name: the collection to use for ingestion
-    encoding_model (enum EncodingModel): the model used for encoding
-        (what input is used to generate the embedding vectors)
-    questions (bool): create questions for the textual content for
-        each markdown heading (note: existing questions in the
-        metadata before the heading will be used if present). (note:
-        running titles will always be added); default False
-    summaries (bool): summarize textual content under each heading
-        while including the summaries of sub-headings (note: existing
-        summaries will be used, if the text was not changed since the
-        time of the summary generation); default False
-    pool_threshold (int): pool the text under each heading prior to
-        chunking. Possible values: 0 (do not pool), -1 (pool all text
-        under the heading together, positive number: pool text chunks
-        under a heading together unless the numer of words in the
-        pooled text crosses the threshold). Note: equation and code
-        chunks are pooled with surrounding text irrespective of the
-        option chosen here; default 0 (do not pool)
-    companion_collection (bool): create a companion collection
-        containing the pooled text prior to chunking. The companion
-        collection supports group_by queries returning the pooled text
-        instead of the text used for embedding; default False
-    text_splitter: the splitter class that will be used to split the
-        text into chunks (note: chunking takes place after pooling)
+The two approaches intermingle somewhat as the hierarchical structure
+is exploited to extract information from the text in both cases.
 
-Encoding models (.chunks.EncodingModel):
-
-    NONE: no encoding (used to retrieve data via UUID)
-    CONTENT: Encode only textual content in dense vector
-    MERGED: Encode textual content merged with metadata annotations in
-        dense vectors
-    MULTIVECTOR: Encode content and annotions using multivectors
-    SPARSE: Sparse encoding of annotations only
-    SPARSE_CONTENT: Sparse annotations, dense encoding of content
-    SPARSE_MERGED: Sparse annotations, dense encoding of merged
-        content and annotations
-    SPARSE_MULTIVECTOR: Sparse annotations, multivector encoding of
-        merged content and annotations
-
-Here, 'annotations' are the titles and questions added to the markdown
-
-Uses:
-    scan_rag, scan_split to modify parsed markdown blocks and split
-        text chunks
-    vector_store_qdrant: to implement encoding model and upload
-        material to the vector database
+The module may be called directly; the main function reads the
+configuration options and reads in all markdown filed in the input
+folder and ingests them into the database.
 
 Main functions:
     markdown_upload: ingest markdown files
+    __main__: uploads and ingests markdown files using default
+        configuration settings from a default input folder.
 """
 
 from pathlib import Path
-from pydantic import validate_call
+from pydantic import validate_call, ValidationError
 
 # LM markdown
 from lmm.markdown.parse_markdown import (
@@ -83,6 +50,8 @@ from lmm.markdown.parse_markdown import (
 from lmm.markdown.blockutils import (
     merge_code_blocks,
     merge_equation_blocks,
+    merge_textblocks,
+    unmerge_textblocks,
 )
 from lmm.markdown.tree import (
     blocks_to_tree,
@@ -102,6 +71,8 @@ from lmm.scan.scan_keys import (
     UUID_KEY,
     GROUP_UUID_KEY,
     SUMMARY_KEY,
+    QUESTIONS_KEY,
+    TITLES_KEY,
 )
 from lmm.scan.scan_split import (
     NullTextSplitter,
@@ -109,6 +80,7 @@ from lmm.scan.scan_split import (
     scan_split,
 )
 
+# LMM for education
 from lmm_education.stores import (
     Chunk,
     EncodingModel,
@@ -137,38 +109,50 @@ from qdrant_client import QdrantClient
 from lmm.utils import logger
 
 
-# The configurations settings are specified here, read from a
-# config file.
+# The configurations settings are contained in a config file.
 DEFAULT_CONFIG_FILE = "config_education.toml" # fmt: skip
 
-# Create a default config.toml file, if there is none.
+# Create a default config_education.toml file, if there is none. This
+# file becomes the default location from where the configuration
+# settings are loaded.
 if not Path(DEFAULT_CONFIG_FILE).exists():
     create_default_config_file(DEFAULT_CONFIG_FILE)
-config_settings: ConfigSettings = load_settings(DEFAULT_CONFIG_FILE)
 
 
 # Instead of providing calls such as create_database, open_connection
 # etc. we rely on an initialize_client function to create the database
 # if it does not exist, initializing the collections according to the
-# IndexOpts object. When writing or reading to the database, the
-# IndexOpts object will make sure that the data are consistent with
-# the schema of the database.
+# configuration settings. When writing or reading to the database, the
+# settings object will make sure that the data are consistent with the
+# schema of the database. This function returns a QdrantClient object
+# that may be called directly in further code, if required.
 @validate_call(config={'arbitrary_types_allowed': True})
 def initialize_client(
-    opts: ConfigSettings = config_settings,
+    opts: ConfigSettings | None = None,
 ) -> QdrantClient | None:
     """Initialize QDRANT database. Will open or create the specified
-    database and open or create the collection specified in opts.
+    database and open or create the collection specified in opts,
+    a settings object that reads the specifications in the configuration
+    file.
 
     Args:
-        opts.database_source: e.g. one of
-            'memory'
-            LocalStorage(folder = "./storage")
-            RemoteSource(url = "1.1.1.127", port = 21465)
-        opts: IndexOpts
+        opts: a ConfigurationSettings object.
 
     Returns: a Qdrant client object
     """
+
+    # Check the config file is ok.
+    if opts is None:
+        try:
+            opts = load_settings(DEFAULT_CONFIG_FILE)
+        except ValueError | ValidationError as e:
+            logger.error(
+                f"The configuration file has an invalid value:\n{e}"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Could not read configuration file:\n{e}")
+            return None
 
     collection_name: str = opts.collection_name
     if not collection_name:
@@ -176,7 +160,7 @@ def initialize_client(
 
     # TODO: errors and logs
     client: QdrantClient
-    match opts.database_source:
+    match opts.storage:
         case ':memory:':
             client = QdrantClient(':memory:')
         case LocalStorage(folder=folder):
@@ -197,7 +181,7 @@ def initialize_client(
     if bool(opts.companion_collection):
         flag = initialize_collection(
             client,
-            opts.companion_collection_name,  # type: ignore (pydantic check)
+            opts.companion_collection,
             EmbeddingModel.UUID,
         )
         if not flag:
@@ -213,7 +197,7 @@ def initialize_client(
 @validate_call(config={'arbitrary_types_allowed': True})
 def markdown_upload(
     sources: list[str] | list[Path],
-    config_opts: ConfigSettings = config_settings,
+    config_opts: ConfigSettings | None = None,
     *,
     annotations_model: list[str] = [],
     save_files: bool = False,
@@ -222,22 +206,9 @@ def markdown_upload(
     """Upload a list of markdown files in the vector database.
 
     Args:
-        database_source: one of
-            'memory'
-            "./storage" | LocalStorage(folder = "./storage")
-            RemoteSource(url = "1.1.1.127", port = 21465)
         sources: a list of file names containing the markdown files
-        index_opts:
-            collection_name: The collection in the database to store
-                data in
-            questions: Whether to generate questions from the
-                content (default: False)
-            summaries: Whether to generate summaries for the
-                content (default: False)
-            document_collection: Whether to build a separate document
-                collection (default: True)
-            text_splitter: The text splitter to use for chunking
-                (default: default splitter)
+        config_opts: a ConfigSettings object declaring the schema;
+            if None, will be read from config_education.toml
         annotiations_model: an optional list of metadata keys that
             are used during embedding
         ingest: Whether to ingest documents into the vector database
@@ -249,14 +220,26 @@ def markdown_upload(
         A list of Document objects representing the processed content
     """
 
+    # initialize qdrant client. The config_opts object will be used
+    # to validate the database schema, i.e that it has a schema that
+    # corresponds to the encoding model applied to the documents. If
+    # the database does not exist, it will be created.
+    client: QdrantClient | None = initialize_client(config_opts)
+    if not client or not config_opts:  # config_opts checked for types
+        logger.info("Database could not be initialized.")
+        return [], []
+
     # Load files. This is done using markdown_scan, which ensures
-    # that there is a header with a title (this is needed to idnetify
+    # that there is a header with a title (this is needed to identify
     # the documents at ingestion).
     # The markdown parser responds to errors by creating a special
     # type of block, the ErrorBlock. This blocks can be serialized
     # back to document, giving the user a chance to address the error,
     # but here we just stop the process if there are parse errors in
     # any of the documents.
+    if not bool(sources):
+        logger.info("No documents for ingestion in the database.")
+        return [], []
     parsed_documents: list[list[Block]] = []
     error_sources: dict[str, list[ErrorBlock]] = {}
     for s in sources:
@@ -265,22 +248,11 @@ def markdown_upload(
             error_sources[str(s)] = blocklist_errors(blocks)
             continue
         parsed_documents.append(blocks)
-    if not parsed_documents:
-        return [], []
     if error_sources:
         logger.error(
             "Problems in markdowns, fix before continuing:\n\t"
             + "\n\t".join(error_sources.keys())
         )
-        return [], []
-
-    # initialize qdrant client. You pass index_opts to this
-    # function and it will validate that the database that is
-    # being written into has a schema that corresponds to the
-    # encoding model applied to the documents. If the database
-    # does not exist, it will be created.
-    client: QdrantClient | None = initialize_client(config_opts)
-    if not client:
         return [], []
 
     # the encoding strategy may use two collections rather than
@@ -331,26 +303,14 @@ def blocklist_encode(
     opts: ConfigSettings,
 ) -> tuple[list[Chunk], list[Chunk]]:
     """Encode a list of markdown blocks. Preprocessing will be
-    executed at this stage as specified in the IndexOpts object opts.
+    executed at this stage as specified in the ConfigSettings opts
+    object.
 
     Args:
         blocklist: the list of markdown blocks
         annotiations_model: an optional list of metadata keys that
             are used during embedding
-        opts an object with the following fields:
-            collection_name: The collection in the database to store
-                data in (default: "")
-            questions: Whether to generate questions from the
-                content (default: False)
-            summaries: Whether to generate summaries for the
-                content (default: False)
-            pool_threshold: Threshold for pooling text blocks (-1:
-                merge under headings, 0: no pooling, >0: pool until
-                threshold) (default: 0)
-            document_collection: Whether to build a separate document
-                collection (default: False)
-            text_splitter: The text splitter to use for chunking
-                (default: no splitting)
+        opts: the ConfigSettings object
 
     Returns:
         A list of two Document object list, representing the processed
@@ -364,35 +324,55 @@ def blocklist_encode(
         logger.warning("Problems in markdown, fix before continuing")
         return [], []
 
+    # update the annotations with the properties generated by
+    # scan_rag
+    annotations_model.append(TITLES_KEY)
+    if bool(opts.questions):
+        annotations_model.append(QUESTIONS_KEY)
+    annotations_model = list(set(annotations_model))
+
+    # if we provide a companion collection, we merge textblocks
+    # under headings together prior to saving them in the documents
+    # collection
+    if bool(opts.companion_collection):
+        blocklist = merge_textblocks(blocklist)
+
     # preprocessing for RAG. You tell scan_rag what annotations
-    # to make and the pooling of text blocks prior to the annotations
+    # to make.
+    # * we always collect titles, as they cost little
+    # * we optionally collect questions answered by the text
+    # * summaries are additional text blocks encoded on their own (see
+    #       raptor paper)
     scan_opts = ScanOpts(
         titles=True,
-        textid=bool(opts.companion_collection),
-        UUID=bool(opts.companion_collection),
         questions=bool(opts.questions),
         summaries=bool(opts.summaries),
+        # if computing a companion collection (group queries)
+        # we need the data to link records between collections
+        textid=bool(opts.companion_collection),
+        UUID=bool(opts.companion_collection),
     )
     blocks: list[Block] = scan_rag(blocklist, scan_opts)
     if not blocks:
         return [], []
 
-    # ingest here the large text portions
+    # ingest here the whole portions of text under headings
     if opts.companion_collection:
         # create embeddings
         coll_chunks: list[Chunk] = blocks_to_chunks(
             blocks,
             EncodingModel.NONE,
-            annotations_model,
+            [TITLES_KEY],
         )
         if not coll_chunks:
             return [], []
+        blocks = unmerge_textblocks(blocks)
     else:
         coll_chunks = []
 
     # before chunking, copy the UUID in the metadata to a group_UUID
     # key in the metadata of the chunks to allow qdrant GROUP_BY
-    # queries
+    # queries. The uuid has been set in the previous scan_rag call.
     for b in blocks:
         if isinstance(b, MetadataBlock):
             if UUID_KEY in b.content.keys():
@@ -453,7 +433,7 @@ def blocklist_encode(
 
 # This is the internal function doing the job of uploading parsed
 # markdown files into the database. It implements the encoding
-# strategy specified in the IndexOpts object, adding annotations
+# strategy specified in the ConfigSettings object, adding annotations
 # using a language model if the strategy requires it. It is the
 # key point where an encoding specification and strategies to
 # extract further information from mere text is coded.
@@ -472,20 +452,7 @@ def blocklist_upload(
         client: the QdrantClient
         chunks: list of chunks to be uploaded
         coll_chunks: list of chunks for the companion collection
-        opts:
-            collection_name: The collection in the database to store
-                data in (default: "")
-            questions: Whether to generate questions from the
-                content (default: False)
-            summaries: Whether to generate summaries for the
-                content (default: False)
-            pool_threshold: Threshold for pooling text blocks (-1:
-                merge under headings, 0: no pooling, >0: pool until
-                threshold) (default: 0)
-            document_collection: Whether to build a separate document
-                collection (default: False)
-            text_splitter: The text splitter to use for chunking
-                (default: no splitting)
+        opts: the ConfigSettings object
         ingest: Whether to ingest documents into the vector database
             (default: True)
 
@@ -496,7 +463,7 @@ def blocklist_upload(
     """
 
     # ingest here the large text portions
-    if opts.companion_collection:
+    if bool(opts.companion_collection):
         if not (bool(coll_chunks)):
             logger.warning(
                 "Companion collection specified, but no "
@@ -535,25 +502,83 @@ def blocklist_upload(
     return True
 
 
+def _list_files_by_extension(
+    path: str, extensions: list[str]
+) -> list[str]:
+    """
+    Determines if a given path is a file or a folder.
+
+    If it's a file, it returns a list with that file as member.
+    If it's a folder, it returns a list of files within that folder
+    that match a list of given extensions.
+
+    Args:
+        path (str): The path to a file or folder.
+        extensions (list[str]): A list of file extensions to
+            filter by (e.g., ['.txt', '.log']).
+
+    Returns:
+        list: A list of matching filenames if the path is a folder,
+              or a single-item list with the file if the path is a
+              file. Returns an empty list if the path does not exist
+              or there are no files.
+    """
+    import os
+
+    if not os.path.exists(path):
+        raise ValueError(f"Error: The path '{path}' does not exist.")
+
+    if os.path.isfile(path):
+        return [path]
+
+    if os.path.isdir(path):
+        matching_files: list[str] = []
+        for file_name in os.listdir(path):
+            (
+                file_name_without_extension,  # type: ignore
+                file_extension,
+            ) = os.path.splitext(file_name)
+
+            if file_extension.lower() in [
+                ext.lower() for ext in extensions
+            ]:
+                full_path: str = os.path.join(path, file_name)
+                matching_files.append(full_path)
+        return matching_files
+    return []
+
+
 if __name__ == "__main__":
-    """Interactive loop to test module"""
+    """CLI interface to ingest files"""
     import sys
 
-    from lmm_education.config.config import load_settings
-
     if len(sys.argv) > 1:
-        filename = sys.argv[1]
+        filenames = _list_files_by_extension(
+            sys.argv[1], ["md", "Rmd"]
+        )
     else:
         logger.info("Usage: first command line arg is source file")
-        filename = ""
+        filenames = ""
+        exit()
 
-    if filename:
-        opts = load_settings(DEFAULT_CONFIG_FILE)
-        annotations_model: list[str] = []
-        markdown_upload(
-            [filename],
-            opts,
-            annotations_model=['titles', 'questions'],
-            save_files=True,
-            ingest=False,
-        )
+    if filenames:
+        try:
+            opts = load_settings(DEFAULT_CONFIG_FILE)
+        except ValueError | ValidationError as e:
+            logger.error(f"Invalid settings:\n{e}")
+            exit()
+        except Exception as e:
+            logger.error(f"Could not load config settings:\n{e}")
+            exit()
+
+        try:
+            markdown_upload(
+                filenames,
+                opts,
+                annotations_model=['titles', 'questions'],
+                save_files=True,
+                ingest=False,
+            )
+        except Exception as e:
+            logger.error(f"Error during processing documents:\n{e}")
+            exit()

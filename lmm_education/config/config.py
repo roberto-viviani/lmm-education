@@ -1,22 +1,14 @@
 """
-This module provides the facilities to ingest markdown files into a
-vector database for the LM markdown for education project.
+This module provides the configuration of the project, i.e. the
+configuable ways in which we will extract properties from our markdown
+documents, so that one can experiment with different options.
 
-Prior to ingesting, the files are processed according to specifications
-stored in an IndexOpts object. The IndexOpts contains the specification of
-what annotations to create (questions, summaries) and how to use them
-in the encoding of the database. Once initialized, the IndexOpts object
-can be passed to the functions of the package as well as in the retrieval
-phase.
+The configuation options are the following:
 
-The information and the stdorage options are the following:
-
-    DatabaseSource: one of
-        'memory'
-        "./storage" | LocalStorage(folder = "./storage")
+    storage: one of
+        ':memory:'
+        LocalStorage(folder = "./storage")
         RemoteSource(url = "1.1.1.127", port = 21465)
-
-    IndexOpts:
     collection_name: the collection to use for ingestion
     encoding_model (enum EncodingModel): the model used for encoding
         (what input is used to generate the embedding vectors)
@@ -39,6 +31,8 @@ The information and the stdorage options are the following:
         containing the pooled text prior to chunking. The companion
         collection supports group_by queries returning the pooled text
         instead of the text used for embedding; default False
+    companion_collection_name (string): the name of the companion
+        collection
     text_splitter: the splitter class that will be used to split the
         text into chunks (note: chunking takes place after pooling)
 
@@ -58,14 +52,6 @@ Encoding models (.chunks.EncodingModel):
 
 Here, 'annotations' are the titles and questions added to the markdown
 
-Uses:
-    scan_rag, scan_split to modify parsed markdown blocks and split
-        text chunks
-    vector_store_qdrant: to implement encoding model and upload
-        material to the vector database
-
-Main functions:
-    markdown_upload: ingest markdown files
 """
 
 from pathlib import Path
@@ -87,13 +73,6 @@ from typing import Literal, Self
 # LM markdown
 from lmm.config.config import export_settings
 from lmm_education.stores import EncodingModel
-
-
-# We set up here the different ways in which we will extract
-# properties from our markdown documents, so that we can experiment
-# with different options. By inheriting from BaseSettings, we
-# add the functionality to read these specifications from a config
-# file.
 
 
 # In the qdrant implementation used here, the database may be located
@@ -139,8 +118,10 @@ class TextSplitters(BaseModel):
 DEFAULT_CONFIG_FILE = "ConfigEducation.toml" # fmt: skip
 
 
+# By inheriting from BaseSettings, we add the functionality to read
+# these specifications from a config file.
 class ConfigSettings(BaseSettings):
-    database_source: DatabaseSource = Field(
+    storage: DatabaseSource = Field(
         ..., description="The vector database local or remote source"
     )
     collection_name: str = Field(
@@ -157,15 +138,15 @@ class ConfigSettings(BaseSettings):
         + "sparse embeddings and multivector embeddings.",
     )
     questions: bool = Field(
-        default=False,
+        default=True,
         description="Annotate text with questions to aid retrieval",
     )
     summaries: bool = Field(
-        default=False,
+        default=True,
         description="Add summaries as chunks to aid retrieval",
     )
     companion_collection: str | None = Field(
-        default=None,
+        default='documents',
         description="Use a companion collection to store the text "
         + "from which the chunks were taken, providing the language "
         + "model with larger, context-rich input, instead of the "
@@ -176,10 +157,6 @@ class ConfigSettings(BaseSettings):
         + "name of the collection to create one, for example "
         + "'documents'.",
     )
-    companion_collection_name: str | None = Field(
-        default=None,
-        description="The name of the companion collection",
-    )
     text_splitter: TextSplitters = Field(
         default=TextSplitters(),
         description="Provide the text splitter name to split "
@@ -189,14 +166,6 @@ class ConfigSettings(BaseSettings):
 
     @model_validator(mode='after')
     def validate_comp_coll_name(self) -> Self:
-        if bool(self.companion_collection) and not bool(
-            self.companion_collection_name
-        ):
-            raise ValueError(
-                "If using a companion collection, the "
-                + "companion collection name must be"
-                + " specified"
-            )
         if self.text_splitter.splitter not in Splitter.__args__:
             raise ValueError(
                 f"Invalid splitter: {self.text_splitter.splitter}\n"
@@ -263,7 +232,7 @@ def create_default_config_file(
         # otherwise, it will be read in
         file_path.unlink()
 
-    settings = ConfigSettings(database_source=":memory:")
+    settings = ConfigSettings(storage=":memory:")
 
     export_settings(settings, file_path)
 
@@ -303,7 +272,7 @@ def load_settings(file_name: str | Path) -> ConfigSettings:
         # Create a temporary ConfigSettings class that uses the specified file
         class TempConfigSettings(ConfigSettings):
             # Provide a default for the required field
-            database_source: DatabaseSource = Field(
+            storage: DatabaseSource = Field(
                 default=":memory:",
                 description="The vector database local or remote source",
             )
