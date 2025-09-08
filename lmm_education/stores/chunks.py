@@ -160,7 +160,7 @@ class Chunk(BaseModel):
 def blocks_to_chunks(
     blocklist: list[Block],
     encoding_model: EncodingModel,
-    annotations_model: list[str],
+    annotations_model: list[str] = [TITLES_KEY],
 ) -> list[Chunk]:
     """Transform a blocklist into a list of chunk objects.
 

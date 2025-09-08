@@ -15,7 +15,7 @@ from lmm.markdown.parse_markdown import (
 )
 from lmm.scan.scan_rag import scan_rag, ScanOpts
 from lmm.scan.scan_split import scan_split
-from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY
+from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, TITLES_KEY
 from lmm_education.stores.chunks import blocks_to_chunks
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
@@ -226,7 +226,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
 
         # ingest text into companion collection
         companion_chunks: list[Chunk] = blocks_to_chunks(
-            blocks, encoding_model_companion
+            blocks, encoding_model_companion, [TITLES_KEY]
         )
         companion_points: list[Point] = await aupload(
             client,
@@ -259,7 +259,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
 
         # ingest chunks of splitted text
         chunks: list[Chunk] = blocks_to_chunks(
-            blocks, encoding_model_main
+            blocks, encoding_model_main, []
         )
         points: list[Point] = await aupload(
             client, COLLECTION_MAIN, embedding_model_main, chunks

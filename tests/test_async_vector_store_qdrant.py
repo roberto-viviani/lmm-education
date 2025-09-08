@@ -7,6 +7,7 @@ from lmm_education.stores.chunks import (
     blocks_to_chunks,
 )
 from lmm.markdown.parse_markdown import blocklist_copy, TextBlock
+from lmm.scan.scan_keys import TITLES_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
@@ -66,7 +67,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_NULL(self):
         encoding_model = EncodingModel.NONE
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(
+            blocks, encoding_model, [TITLES_KEY]
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )

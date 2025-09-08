@@ -12,6 +12,8 @@ from lmm_education.config.config import (
 )
 from lmm_education.stores import EncodingModel
 
+# pyright: basic
+
 # Create a test TOML file
 test_content = '''
 storage = ':memory:'

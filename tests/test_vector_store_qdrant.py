@@ -10,7 +10,7 @@ import unittest
 from lmm.markdown.parse_markdown import *
 from lmm_education.stores.chunks import *
 from lmm_education.stores.vector_store_qdrant import *
-from lmm.config.config import Settings, export_settings
+from lmm.config.config import Settings
 
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
@@ -211,7 +211,9 @@ class TestIngestionAndQuery(unittest.TestCase):
             self.assertEqual(p.id, u)
 
     def test_ingestion_NULL(self):
-        chunks = blocks_to_chunks(blocks, EncodingModel.NONE)
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.NONE, [TITLES_KEY]
+        )
         self.assertEqual(len(chunks), 2)
         chunk = chunks[0]
         self.assertEqual(chunk.dense_encoding, "")
@@ -360,7 +362,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_NULL(self):
         encoding_model = EncodingModel.NONE
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(blocks, encoding_model, [])
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )

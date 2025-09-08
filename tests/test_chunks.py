@@ -1,6 +1,6 @@
 """tests for chunk.py"""
 
-# pyright: low
+# pyright: basic
 # pyright: reportMissingTypeStubs=false
 
 import unittest
@@ -80,7 +80,7 @@ class TestChunkInheritance(unittest.TestCase):
         self.assertEqual(len(blocks), lenblocks)
         chunk = chunks[0]
         self.assertTrue(
-            metadata.content[QUESTIONS_KEY] in chunk.annotations
+            str(metadata.content[QUESTIONS_KEY]) in chunk.annotations
         )
 
     def test_inherit_summary(self):
