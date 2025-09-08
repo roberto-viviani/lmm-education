@@ -1,12 +1,20 @@
 import unittest
-
-from lmm_education.config.config import upload_settings
 import tempfile
 import os
+from pydantic import ValidationError
+
+from lmm_education.config.config import (
+    load_settings,
+    ConfigSettings,
+    LocalStorage,
+    RemoteSource,
+    TextSplitters,
+)
+from lmm_education.stores import EncodingModel
 
 # Create a test TOML file
 test_content = '''
-database_source = ':memory:'
+storage = ':memory:'
 collection_name = 'test_chunks'
 questions = true
 summaries = false
@@ -28,18 +36,254 @@ def tearDownModule() -> None:
     os.unlink(temp_file['temp_file'])
 
 
-class test_read_config(unittest.TestCase):
+class TestReadConfig(unittest.TestCase):
 
-    def test_upload_settings(self):
-        # Test the upload_settings function
-        settings = upload_settings(temp_file['temp_file'])
+    def test_load_settings(self):
+        # Test the load_settings function
+        settings = load_settings(temp_file['temp_file'])
         self.assertTrue(bool(settings))
         print('Successfully loaded settings:')
-        print(f'  database_source: {settings.database_source}')
+        print(f'  storage: {settings.storage}')
         print(f'  collection_name: {settings.collection_name}')
         print(f'  questions: {settings.questions}')
         print(f'  summaries: {settings.summaries}')
-        print('✓ upload_settings function works correctly!')
+        print('✓ load_settings function works correctly!')
+
+
+class TestLocalStorageValidation(unittest.TestCase):
+    """Test validation errors for LocalStorage model."""
+
+    def test_empty_folder_raises_error(self):
+        """Test that empty folder string raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            LocalStorage(folder="")
+
+        error = context.exception
+        self.assertIn(
+            "String should have at least 1 character", str(error)
+        )
+
+    def test_missing_folder_raises_error(self):
+        """Test that missing folder field raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            LocalStorage()
+
+        error = context.exception
+        self.assertIn("Field required", str(error))
+
+    def test_valid_folder_succeeds(self):
+        """Test that valid folder path succeeds."""
+        storage = LocalStorage(folder="./test_storage")
+        self.assertEqual(storage.folder, "./test_storage")
+
+
+class TestRemoteSourceValidation(unittest.TestCase):
+    """Test validation errors for RemoteSource model."""
+
+    def test_invalid_url_raises_error(self):
+        """Test that invalid URL raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            RemoteSource(url="not-a-url", port=8080)
+
+        error = context.exception
+        self.assertIn("URL", str(error))
+
+    def test_missing_url_raises_error(self):
+        """Test that missing URL raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            RemoteSource(port=8080)
+
+        error = context.exception
+        self.assertIn("Field required", str(error))
+
+    def test_port_zero_raises_error(self):
+        """Test that port 0 raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            RemoteSource(url="http://example.com", port=0)
+
+        error = context.exception
+        self.assertIn("Input should be greater than 0", str(error))
+
+    def test_port_too_high_raises_error(self):
+        """Test that port > 65535 raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            RemoteSource(url="http://example.com", port=65536)
+
+        error = context.exception
+        self.assertIn("Input should be less than 65536", str(error))
+
+    def test_negative_port_raises_error(self):
+        """Test that negative port raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            RemoteSource(url="http://example.com", port=-1)
+
+        error = context.exception
+        self.assertIn("Input should be greater than 0", str(error))
+
+    def test_missing_port_raises_error(self):
+        """Test that missing port raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            RemoteSource(url="http://example.com")
+
+        error = context.exception
+        self.assertIn("Field required", str(error))
+
+    def test_valid_remote_source_succeeds(self):
+        """Test that valid RemoteSource succeeds."""
+        remote = RemoteSource(url="http://example.com", port=8080)
+        self.assertEqual(str(remote.url), "http://example.com/")
+        self.assertEqual(remote.port, 8080)
+
+
+class TestTextSplittersValidation(unittest.TestCase):
+    """Test validation errors for TextSplitters model."""
+
+    def test_zero_threshold_raises_error(self):
+        """Test that threshold 0 raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            TextSplitters(threshold=0)
+
+        error = context.exception
+        self.assertIn("Input should be greater than 0", str(error))
+
+    def test_negative_threshold_raises_error(self):
+        """Test that negative threshold raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            TextSplitters(threshold=-1)
+
+        error = context.exception
+        self.assertIn("Input should be greater than 0", str(error))
+
+    def test_invalid_splitter_raises_error(self):
+        """Test that invalid splitter raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            TextSplitters(splitter="invalid_splitter")
+
+        error = context.exception
+        self.assertIn(
+            "Input should be 'none' or 'default'", str(error)
+        )
+
+    def test_valid_text_splitters_succeed(self):
+        """Test that valid TextSplitters succeed."""
+        splitter1 = TextSplitters(splitter="none", threshold=100)
+        self.assertEqual(splitter1.splitter, "none")
+        self.assertEqual(splitter1.threshold, 100)
+
+        splitter2 = TextSplitters(splitter="default", threshold=200)
+        self.assertEqual(splitter2.splitter, "default")
+        self.assertEqual(splitter2.threshold, 200)
+
+    def test_default_values(self):
+        """Test that default values are set correctly."""
+        splitter = TextSplitters()
+        self.assertEqual(splitter.splitter, "none")
+        self.assertEqual(splitter.threshold, 125)
+
+
+class TestConfigSettingsValidation(unittest.TestCase):
+    """Test validation errors for ConfigSettings model."""
+
+    def test_empty_collection_name_raises_error(self):
+        """Test that empty collection_name raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            ConfigSettings(storage=":memory:", collection_name="")
+
+        error = context.exception
+        self.assertIn(
+            "String should have at least 1 character", str(error)
+        )
+
+    def test_invalid_encoding_model_raises_error(self):
+        """Test that invalid encoding_model raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            ConfigSettings(
+                storage=":memory:", encoding_model="INVALID_MODEL"
+            )
+
+        error = context.exception
+        self.assertIn("Input should be", str(error))
+
+    def test_invalid_storage_type_raises_error(self):
+        """Test that invalid storage type raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            ConfigSettings(storage="invalid_storage")
+
+        error = context.exception
+        # Should fail because it's not a valid DatabaseSource
+        self.assertTrue(len(str(error)) > 0)
+
+    def test_extra_field_raises_error(self):
+        """Test that extra fields raise ValidationError due to extra='forbid'."""
+        with self.assertRaises(ValidationError) as context:
+            ConfigSettings(
+                storage=":memory:",
+                collection_name="test",
+                invalid_extra_field="should_fail",
+            )
+
+        error = context.exception
+        self.assertIn("Extra inputs are not permitted", str(error))
+
+    def test_invalid_text_splitter_in_custom_validator(self):
+        """Test that custom validator catches invalid splitter."""
+        # This should be caught by the custom validator validate_comp_coll_name
+        # However, the Pydantic validation will catch it first
+        with self.assertRaises(ValidationError) as context:
+            ConfigSettings(
+                storage=":memory:",
+                text_splitter=TextSplitters(splitter="invalid"),
+            )
+
+        error = context.exception
+        self.assertIn(
+            "Input should be 'none' or 'default'", str(error)
+        )
+
+    def test_valid_config_settings_succeed(self):
+        """Test that valid ConfigSettings succeed."""
+        # Test with memory storage
+        config1 = ConfigSettings(storage=":memory:")
+        self.assertEqual(config1.storage, ":memory:")
+        self.assertEqual(config1.collection_name, "chunks")
+        self.assertEqual(
+            config1.encoding_model, EncodingModel.CONTENT
+        )
+
+        # Test with LocalStorage
+        config2 = ConfigSettings(
+            storage=LocalStorage(folder="./test"),
+            collection_name="test_chunks",
+            encoding_model=EncodingModel.MERGED,
+            questions=False,
+            summaries=False,
+            companion_collection=None,
+            text_splitter=TextSplitters(
+                splitter="default", threshold=200
+            ),
+        )
+        self.assertIsInstance(config2.storage, LocalStorage)
+        self.assertEqual(config2.collection_name, "test_chunks")
+        self.assertEqual(config2.encoding_model, EncodingModel.MERGED)
+        self.assertFalse(config2.questions)
+        self.assertFalse(config2.summaries)
+        self.assertIsNone(config2.companion_collection)
+
+        # Test with RemoteSource
+        config3 = ConfigSettings(
+            storage=RemoteSource(url="http://localhost", port=6333),
+            collection_name="remote_chunks",
+        )
+        self.assertIsInstance(config3.storage, RemoteSource)
+        self.assertEqual(config3.collection_name, "remote_chunks")
+
+    def test_missing_required_storage_raises_error(self):
+        """Test that missing required storage field raises ValidationError."""
+        with self.assertRaises(ValidationError) as context:
+            ConfigSettings()
+
+        error = context.exception
+        self.assertIn("Field required", str(error))
 
 
 if __name__ == "__main__":
