@@ -44,6 +44,10 @@ class TestReadConfig(unittest.TestCase):
         # Test the load_settings function
         settings = load_settings(temp_file['temp_file'])
         self.assertTrue(bool(settings))
+        self.assertEqual(settings.storage, ":memory:")
+        self.assertEqual(settings.collection_name, "test_chunks")
+        self.assertTrue(settings.questions)
+        self.assertFalse(settings.summaries)
         print('Successfully loaded settings:')
         print(f'  storage: {settings.storage}')
         print(f'  collection_name: {settings.collection_name}')
