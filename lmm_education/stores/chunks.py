@@ -1,25 +1,30 @@
 """
-Converts a list of markdown blocks into a list of chunk objects, which
-include all the information for being igested into a vector database.
-The list of markdown blocks will have been preprocessed as necessary,
-i.e. splitted into smaller text blocks, endowed with metadata.
+Converts a list of markdown blocks into a list of `Chunk` objects,
+which include all the information for being ingested into a vector
+database. The list of markdown blocks will have been preprocessed as
+necessary, i.e. splitted into smaller text blocks, endowed with
+metadata and an uuid identification code.
 
 When using a vector database to store information, data may be used to
 obtain embeddings (the semantic representation of the content, which
 the database uses to identify text from a query based on similarity),
 and to select parts of the information that is stored in the database
-and retrieved when records are selected. The Chunk class and its
+and retrieved when records are selected. These two sets of information
+are often the same, but they not need be. The `Chunk` class and its
 member methods collects and organizes this information. It constitutes
 a framework-neutral replacement for the Document class, commonly used
 by frameworks in RAG applications.
 
-Embeddings are increaseangly supported in a variety of configurations,
+Embeddings are increasingly supported in a variety of configurations,
 based on two approaches: dense and sparse vector representations. Once
 the data are selected for embeddings and storage, the next logical
 step is the definition of how dense and sparse vector representations
-are used to compute the embeddings. The Chunk module defines an
+are used to compute the embeddings. This module defines an
 _encoding model_ to map the data selected for embedding to the
-embedding type supported by the database engine.
+embedding type supported by the database engine. In what follows, the
+metadata properties used to generate embeddings are called
+'annotations', to distinguish them from other properties (among others,
+metadata properties used for housekeeping purposes).
 
 Note:
     no embedding is computed here; this is done when the chunks are
@@ -73,7 +78,25 @@ from lmm.scan.scan_keys import (
 # embedding strategies allowed by the system
 from enum import StrEnum  # fmt: skip
 class EncodingModel(StrEnum):
-    """Enum for encoding strategies"""
+    """
+    Enum for encoding strategies
+
+    Attributes:
+        NONE: no encoding (no embedding).
+        CONTENT: the textual content of the chunk is also used for
+            the emebdding
+        MERGED: merge textual content and annotations in a larger
+            piece of text for the emebdding
+        MULTIVECTOR: textual content and annotations are encoded
+            by multivectors
+        SPARSE: use annotations only and use sparse encoding
+        SPARSE_CONTENT: annotations for sparse encoding, textual
+            content for dense encoding
+        SPARSE_MERGED: annotations for sparse encoding, merged
+            annotations and textual content for dense encoding
+        SPARSE_MULTIVECTOR: annotations for sparse encoding,
+            annotations and textual content for multivector encoding
+    """
 
     # No encoding
     NONE = "none"
@@ -104,20 +127,23 @@ class EncodingModel(StrEnum):
 
 
 class Chunk(BaseModel):
-    """Class for storing a piece of text and associated metadata, with
-    an additional uuid field.
+    """
+    Class for storing a piece of text and associated metadata, with
+    an additional uuid field for its identification in the database.
+    Each instanch of this class becomes a record or 'point' in the
+    database.
 
-    The fields content and metadata contain information that is
+    The fields `content` and `metadata` contain information that is
     stored in the database.
 
-    The field annotations contains concatenated metadata strings that,
-    depending on the encoding model, may end up in the sparse or in
-    the dense encoding.
+    The field `annotations` contains concatenated metadata strings
+    that, depending on the encoding model, may end up in the sparse
+    or in the dense encoding.
 
-    The fields dense_encoding and sparse_encoding the text that is
-    used for embedding using the respective approaches.
+    The fields `dense_encoding` and `sparse_encoding` contain the text
+    that is used for embedding using the respective approaches.
 
-    The uuid field contains the id of the database record.
+    The `uuid` field contains the id of the database record.
 
     This replaces the langchain_core.documents.Document class by
     adding an uuid and embedding fields
@@ -162,7 +188,8 @@ def blocks_to_chunks(
     encoding_model: EncodingModel,
     annotations_model: list[str] = [TITLES_KEY],
 ) -> list[Chunk]:
-    """Transform a blocklist into a list of chunk objects.
+    """
+    Transform a blocklist into a list of `Chunk` objects.
 
     Implements the encoding model by collecting appropriate data
         and metadata.
@@ -177,7 +204,7 @@ def blocks_to_chunks(
             makes no use of annotations.
 
     Returns:
-        a list of Chunk objects
+        a list of `Chunk` objects
     """
 
     if not blocklist:
@@ -280,17 +307,21 @@ def blocks_to_chunks(
 def chunks_to_blocks(
     chunks: list[Chunk], sep: str = ""
 ) -> list[Block]:
-    """Transform a list of chunks to a list of blocks.
+    """
+    Transform a list of `Chunk` objects to a list of blocks.
 
-    Args:   chunks, a list of Chunk objects
-            sep (opt), an optional separator to visualize the breaks
+    Args:
+        chunks: a list of `Chunk` objects
+        sep: an optional separator to visualize the breaks
             between chunks
 
-    Returns: a list of markdown blocks that can be serialized as
+    Returns:
+        a list of markdown blocks that can be serialized as
             a Markdown document
 
-    Note: the content of the chunk is splitted into a metadata block
-        and a text block, containing the 'content' value of the chunk.
+    Note:
+        the content of the chunk is splitted into a metadata block
+            and a text block, containing the 'content' value of the chunk.
     """
 
     blocks: list[Block] = []
