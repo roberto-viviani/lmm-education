@@ -58,7 +58,7 @@ from lmm.markdown.tree import (
     tree_to_blocks,
 )
 from lmm.markdown.treeutils import propagate_property
-from lmm.markdown.ioutils import save_markdown
+from lmm.markdown.ioutils import save_markdown, report_error_blocks
 from lmm.utils.ioutils import append_postfix_to_filename
 from lmm.scan.scan import (
     markdown_scan,
@@ -252,7 +252,7 @@ def markdown_upload(
         # markdown documents are loaded from files rather than strings
         # or streams, because markdown_scan can initialize default
         # properties such as 'title' from the file name.
-        blocks = markdown_scan(s, False)
+        blocks = markdown_scan(s, False, logger)
         if blocklist_haserrors(blocks):
             error_sources[str(s)] = blocklist_errors(blocks)
             continue
@@ -331,7 +331,8 @@ def blocklist_encode(
     if not blocklist:
         return [], []
     if blocklist_haserrors(blocklist):
-        logger.warning("Problems in markdown, fix before continuing")
+        report_error_blocks(blocklist, logger)
+        logger.error("Problems in markdown, fix before continuing")
         return [], []
 
     # if we provide a companion collection, we merge textblocks
