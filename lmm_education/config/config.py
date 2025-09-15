@@ -72,6 +72,7 @@ from typing import Literal, Self
 
 # LM markdown
 from lmm.config.config import export_settings
+from lmm.scan.scan_keys import QUESTIONS_KEY
 
 
 # embedding strategies allowed by the system
@@ -290,6 +291,20 @@ class ConfigSettings(BaseSettings):
         + "text into chunks. The default uses the text blocks of"
         + "the markdown as the chunks (no additional splitting).",
     )
+
+    def get_annotation_model(self) -> AnnotationModel:
+        """
+        Returns an annotation model that is consistent with other
+        ConfigSettings options. The annotation model will add to
+        the model saved in the config file the appropriate keys.
+
+        Returns:
+            an annotation model object
+        """
+        annotation_model = self.annotation_model.model_copy()
+        if self.questions:
+            annotation_model.add_inherited_properties(QUESTIONS_KEY)
+        return annotation_model
 
     @model_validator(mode='after')
     def validate_comp_coll_name(self) -> Self:
