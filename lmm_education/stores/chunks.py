@@ -328,7 +328,7 @@ if __name__ == "__main__":
                 "differ from input file"
             )
             return []
-        blocks = load_blocks(filename)
+        blocks = load_blocks(filename, logger)
         if not blocks:
             return []
         if blocklist_haserrors(blocks):
@@ -339,7 +339,7 @@ if __name__ == "__main__":
         chunks = blocks_to_chunks(blocks, opts)
         blocks = chunks_to_blocks(chunks, sep="------")
         if blocks:
-            save_blocks(target, blocks)
+            save_blocks(target, blocks, logger)
         return blocks
 
     create_interface(interactive_scan, sys.argv)
