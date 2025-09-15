@@ -72,6 +72,10 @@ from lmm.scan.scan_keys import (
     MESSAGE_KEY,
     UUID_KEY,
 )
+from lmm.utils.logging import LoggerBase, get_logger
+
+# Set up logger
+logger: LoggerBase = get_logger(__name__)
 
 from lmm_education.config.config import AnnotationModel
 
@@ -188,6 +192,7 @@ def blocks_to_chunks(
     blocklist: list[Block],
     encoding_model: EncodingModel,
     annotation_model: AnnotationModel = AnnotationModel(),
+    logger: LoggerBase = logger,
 ) -> list[Chunk]:
     """
     Transform a blocklist into a list of `Chunk` objects.
@@ -215,11 +220,12 @@ def blocks_to_chunks(
     blocks: list[Block] = scan_rag(
         blocklist_copy(blocklist),
         ScanOpts(textid=True, UUID=True, titles=True),
+        logger,
     )
     if blocklist_haserrors(blocks):
-        raise ValueError("blocks_to_chunks called with error blocks")
+        logger.error("blocks_to_chunks called with error blocks")
 
-    root: MarkdownTree = blocks_to_tree(blocks)
+    root: MarkdownTree = blocks_to_tree(blocks, logger)
     if not root:
         return []
 
@@ -360,10 +366,6 @@ if __name__ == "__main__":
     import sys
     from lmm.utils.ioutils import create_interface
     from lmm.markdown.parse_markdown import load_blocks, save_blocks
-    from lmm.utils.logging import LoggerBase, get_logger
-
-    # Set up logger
-    logger: LoggerBase = get_logger(__name__)
 
     def interactive_scan(filename: str, target: str) -> list[Block]:
         if filename == target:

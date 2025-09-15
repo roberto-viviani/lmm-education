@@ -171,7 +171,15 @@ def initialize_collection(
             embedding_model == QdrantEmbeddingModel.UUID
             or embedding_model == QdrantEmbeddingModel.SPARSE
         ):
-            data: list[float] = encoder.embed_query("Test query")
+            try:
+                data: list[float] = encoder.embed_query("Test query")
+            except Exception as e:
+                logger.error(
+                    "Could not determine embedding vector size, "
+                    + f"cannot embed.\n{e}"
+                )
+                return False
+
             embedding_size: int = len(data)
         else:
             embedding_size: int = 0

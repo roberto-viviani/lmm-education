@@ -374,6 +374,7 @@ def blocklist_encode(
             blocks,
             EncodingModel.NONE,
             AnnotationModel(),  # no annotations here
+            logger,
         )
         if not coll_chunks:
             return [], []
