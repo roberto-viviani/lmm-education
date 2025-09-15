@@ -70,9 +70,10 @@ from lmm.scan.scan_keys import (
     QUERY_KEY,
     EDIT_KEY,
     MESSAGE_KEY,
-    TITLES_KEY,
     UUID_KEY,
 )
+
+from lmm_education.config.config import AnnotationModel
 
 
 # embedding strategies allowed by the system
@@ -186,7 +187,7 @@ class Chunk(BaseModel):
 def blocks_to_chunks(
     blocklist: list[Block],
     encoding_model: EncodingModel,
-    annotations_model: list[str] = [TITLES_KEY],
+    annotation_model: AnnotationModel = AnnotationModel(),
 ) -> list[Chunk]:
     """
     Transform a blocklist into a list of `Chunk` objects.
@@ -223,7 +224,9 @@ def blocks_to_chunks(
         return []
 
     # integrate text node metadata by collecting metadata from parent,
-    # unless the metadata properties are already in the text node
+    # unless metadata are already specified in the text node. This will
+    # not inherit specific properties from ancestors, only the first
+    # metadata block on the ancestor's path
     exclude_set: list[str] = [
         TXTHASH_KEY,
         CHAT_KEY,
@@ -235,14 +238,22 @@ def blocks_to_chunks(
 
     # map a text node with the inherited metadata to a Chunk object
     def _textnode_to_chunk(n: TextNode) -> Chunk:
-        # form content and annotations
-        meta: MetadataDict = copy.deepcopy(n.metadata)
+        # annotations
         annlist: list[str] = []
-        for key in annotations_model:
-            value: str | None = n.get_metadata_string_for_key(key)
+        value: str | None = None
+        for key in annotation_model.inherited_properties:
+            value = n.fetch_metadata_string_for_key(key, False)
+            if value:
+                annlist.append(value)
+        for key in annotation_model.own_properties:
+            value = n.get_metadata_string_for_key(key)
             if value:
                 annlist.append(value)
 
+        # metadata for payload
+        meta: MetadataDict = copy.deepcopy(n.metadata)
+        for key in exclude_set:
+            meta.pop(key, None)
         chunk: Chunk = Chunk(
             content=n.get_content(),
             annotations="\n".join(annlist),
@@ -250,7 +261,7 @@ def blocks_to_chunks(
             metadata=meta,
         )
 
-        # determine content to be encoded according to model
+        # determine content to be encoded according to encoding model
         match encoding_model:
             case EncodingModel.NONE:
                 # no encoding
@@ -349,10 +360,10 @@ if __name__ == "__main__":
     import sys
     from lmm.utils.ioutils import create_interface
     from lmm.markdown.parse_markdown import load_blocks, save_blocks
-    from lmm.utils.logging import ILogger, get_logger
+    from lmm.utils.logging import LoggerBase, get_logger
 
     # Set up logger
-    logger: ILogger = get_logger(__name__)
+    logger: LoggerBase = get_logger(__name__)
 
     def interactive_scan(filename: str, target: str) -> list[Block]:
         if filename == target:
@@ -369,7 +380,7 @@ if __name__ == "__main__":
             return []
 
         opts: EncodingModel = EncodingModel.MULTIVECTOR
-        chunks = blocks_to_chunks(blocks, opts, [TITLES_KEY])
+        chunks = blocks_to_chunks(blocks, opts)
         blocks = chunks_to_blocks(chunks, sep="------")
         if blocks:
             save_blocks(target, blocks)

@@ -55,9 +55,9 @@ from lmm.markdown.parse_markdown import (
 )
 
 # Set up logger
-from lmm.utils.logging import ILogger, get_logger
+from lmm.utils.logging import LoggerBase, get_logger
 
-default_logger: ILogger = get_logger(__name__)
+default_logger: LoggerBase = get_logger(__name__)
 
 
 from fastembed import SparseEmbedding, SparseTextEmbedding
@@ -124,7 +124,7 @@ def initialize_collection(
     client: QdrantClient,
     collection_name: str,
     embedding_model: QdrantEmbeddingModel,
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> bool:
     """Check that the collection supports the embedding model, if
     already in the database. If not, create a collection supporting
@@ -261,7 +261,7 @@ async def ainitialize_collection(
     client: AsyncQdrantClient,
     collection_name: str,
     embedding_model: QdrantEmbeddingModel,
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> bool:
     """Check that the collection supports the embedding model, if
     already in the database. If not, create a collection supporting
@@ -430,7 +430,7 @@ def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
 def chunks_to_points(
     chunks: list[Chunk],
     model: QdrantEmbeddingModel,
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
     chunk_to_payload: Callable[
         [Chunk], dict[str, Any]
     ] = _chunk_to_payload_langchain,
@@ -621,7 +621,7 @@ def upload(
     collection_name: str,
     model: QdrantEmbeddingModel,
     chunks: list[Chunk],
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> list[Point]:
     """Upload a list of chunks into the Qdrant database
 
@@ -657,7 +657,7 @@ async def aupload(
     collection_name: str,
     model: QdrantEmbeddingModel,
     chunks: list[Chunk],
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> list[Point]:
     """Upload a list of chunks into the Qdrant database
 
@@ -699,7 +699,7 @@ def query(
     querytext: str,
     limit: int = 12,
     payload: list[str] = ['page_content'],
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> list[ScoredPoint]:
 
     # load language model
@@ -820,7 +820,7 @@ async def aquery(
     querytext: str,
     limit: int = 12,
     payload: list[str] = ['page_content'],
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> list[ScoredPoint]:
 
     # load language model
@@ -944,7 +944,7 @@ def query_grouped(
     querytext: str,
     limit: int,
     payload: list[str] = ['page_content'],
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> GroupsResult:
 
     # Essentially, the qdrant API declares different
@@ -1093,7 +1093,7 @@ async def aquery_grouped(
     querytext: str,
     limit: int,
     payload: list[str] = ['page_content'],
-    logger: ILogger = default_logger,
+    logger: LoggerBase = default_logger,
 ) -> GroupsResult:
 
     # Essentially, the qdrant API declares different

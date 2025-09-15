@@ -113,9 +113,46 @@ class TextSplitters(BaseModel):
     )
 
 
+class AnnotationModel(BaseModel):
+    """
+    Specifies what metadata properties are selected to form
+    annotations and how. Also selects properties to be indexed
+    for filtering.
+    """
+
+    inherited_properties: list[str] = Field(
+        default=[],
+        description="Metadata properties inherited from ancestors",
+    )
+    own_properties: list[str] = Field(
+        default=[],
+        description="Metadata properties of the node",
+    )
+    filters: list[str] = Field(
+        default=[],
+        description="Metadata properties to be indexed for filtering",
+    )
+
+    def add_inherited_properties(
+        self, props: str | list[str]
+    ) -> None:
+        if isinstance(props, str):
+            props = [props]
+        for p in props:
+            if p not in self.inherited_properties:
+                self.inherited_properties.append(p)
+
+    def add_own_properties(self, props: str | list[str]) -> None:
+        if isinstance(props, str):
+            props = [props]
+        for p in props:
+            if p not in self.own_properties:
+                self.own_properties.append(p)
+
+
 # The configurations settings are specified here, read from a
 # config file.
-DEFAULT_CONFIG_FILE = "ConfigEducation.toml" # fmt: skip
+DEFAULT_CONFIG_FILE = "config_education.toml"
 
 
 # By inheriting from BaseSettings, we add the functionality to read
@@ -136,6 +173,11 @@ class ConfigSettings(BaseSettings):
         description="How the chunk propoerties are being encoded. "
         + "Encoding options that are availble include hybrid dense+"
         + "sparse embeddings and multivector embeddings.",
+    )
+    annotation_model: AnnotationModel = Field(
+        default=AnnotationModel(),
+        description="Model to select metadata for annotations and "
+        + "filtering",
     )
     questions: bool = Field(
         default=True,
@@ -206,8 +248,8 @@ def create_default_config_file(
     """Create a default settings file.
 
     Args:
-        settings: Custom settings object (defaults to Settings())
-        file_path: Target file path (defaults to config.toml)
+        settings: settings object (defaults to ConfigSettings())
+        file_path: config file (defaults to config_education.toml)
 
     Raises:
         ImportError: If tomlkit is not available
@@ -217,10 +259,10 @@ def create_default_config_file(
     Example:
         ```python
         # Creates config.toml in base folder with default values
-        create_default_settings_file()
+        create_default_config_file()
 
         # Creates custom config file
-        create_default_settings_file(file_path="custom_config.toml")
+        create_default_config_file(file_path="custom_config.toml")
         ```
     """
     if file_path is None:
