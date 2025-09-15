@@ -110,6 +110,7 @@ from qdrant_client import QdrantClient
 
 # We import from utils a logger to the console
 from lmm.utils import logger
+from lmm.utils.logging import LoggerBase
 
 
 # The configurations settings are contained in a config file.
@@ -132,6 +133,7 @@ if not Path(DEFAULT_CONFIG_FILE).exists():
 @validate_call(config={'arbitrary_types_allowed': True})
 def initialize_client(
     opts: ConfigSettings | None = None,
+    logger: LoggerBase = logger,
 ) -> QdrantClient | None:
     """Initialize QDRANT database. Will open or create the specified
     database and open or create the collection specified in opts,
@@ -177,6 +179,7 @@ def initialize_client(
         client,
         collection_name,
         encoding_to_embedding_model(opts.encoding_model),
+        logger,
     )
     if not flag:
         return None
@@ -186,6 +189,7 @@ def initialize_client(
             client,
             opts.companion_collection,
             EmbeddingModel.UUID,
+            logger,
         )
         if not flag:
             return None
@@ -204,6 +208,7 @@ def markdown_upload(
     *,
     save_files: bool = False,
     ingest: bool = True,
+    logger: LoggerBase = logger,
 ) -> tuple[list[Chunk], list[Chunk]]:
     """Upload a list of markdown files in the vector database.
 
@@ -224,7 +229,9 @@ def markdown_upload(
     # to validate the database schema, i.e that it has a schema that
     # corresponds to the encoding model applied to the documents. If
     # the database does not exist, it will be created.
-    client: QdrantClient | None = initialize_client(config_opts)
+    client: QdrantClient | None = initialize_client(
+        config_opts, logger
+    )
     if not client or not config_opts:  # config_opts checked for types
         logger.info("Database could not be initialized.")
         return [], []
@@ -266,14 +273,17 @@ def markdown_upload(
     chunklist: list[Chunk] = []
     doclist: list[Chunk] = []
     for docblocks, source in zip(parsed_documents, sources):
-        chunks, coll_chunks = blocklist_encode(docblocks, config_opts)
+        chunks, coll_chunks = blocklist_encode(
+            docblocks, config_opts, logger
+        )
         if ingest:
             blocklist_upload(
                 client,
                 chunks,
                 coll_chunks,
                 config_opts,
-                ingest=ingest,
+                ingest,
+                logger,
             )
         chunklist.extend(chunks)
         if doclist:
@@ -286,14 +296,14 @@ def markdown_upload(
             newfile: str = append_postfix_to_filename(
                 str(source), "_documents"
             )
-            save_markdown(newfile, newblocks)
+            save_markdown(newfile, newblocks, logger)
 
         if save_files:
             newblocks: list[Block] = chunks_to_blocks(chunklist)
             newfile: str = append_postfix_to_filename(
                 str(source), "_chunks"
             )
-            save_markdown(newfile, newblocks)
+            save_markdown(newfile, newblocks, logger)
 
     return chunklist, doclist
 
@@ -301,6 +311,7 @@ def markdown_upload(
 def blocklist_encode(
     blocklist: list[Block],
     opts: ConfigSettings,
+    logger: LoggerBase = logger,
 ) -> tuple[list[Chunk], list[Chunk]]:
     """Encode a list of markdown blocks. Preprocessing will be
     executed at this stage as specified in the ConfigSettings opts
@@ -352,7 +363,7 @@ def blocklist_encode(
         textid=bool(opts.companion_collection),
         UUID=bool(opts.companion_collection),
     )
-    blocks: list[Block] = scan_rag(blocklist, scan_opts)
+    blocks: list[Block] = scan_rag(blocklist, scan_opts, logger)
     if not blocks:
         return [], []
 
@@ -400,7 +411,7 @@ def blocklist_encode(
     # summaries. To add summaries as additional chunks, we transform
     # the summary property into a child text block of the heading node
     def _propagate_summaries(blocks: list[Block]) -> list[Block]:
-        root = blocks_to_tree(blocklist_copy(blocks))
+        root = blocks_to_tree(blocklist_copy(blocks), logger)
         if not root:
             return []
 
@@ -443,6 +454,7 @@ def blocklist_upload(
     coll_chunks: list[Chunk],
     opts: ConfigSettings,
     ingest: bool = True,
+    logger: LoggerBase = logger,
 ) -> bool:
     """Upload a list of markdown blocks to the database client.
     Preprocessing will be executed at this stage as specified in the
@@ -470,34 +482,32 @@ def blocklist_upload(
                 + "document chunks generated."
             )
         doc_coll_name: str = opts.companion_collection
-        try:
-            if ingest and not upload(
-                client,
-                doc_coll_name,
-                EmbeddingModel.UUID,
-                coll_chunks,
-            ):
-                logger.error(
-                    "Could not upload documents to " + doc_coll_name
-                )
-                return False
-        except Exception as e:
-            logger.error("Could not upload documents:\n" + str(e))
+        if ingest and not upload(
+            client,
+            doc_coll_name,
+            EmbeddingModel.UUID,
+            coll_chunks,
+            logger,
+        ):
+            logger.error(
+                "Could not upload documents to " + doc_coll_name
+            )
             return False
 
     # ingestion
-    try:
-        model: EmbeddingModel = encoding_to_embedding_model(
-            opts.encoding_model
-        )
-        if ingest and not upload(
-            client, opts.collection_name, model, chunks
+    model: EmbeddingModel = encoding_to_embedding_model(
+        opts.encoding_model
+    )
+    if ingest:
+        if not upload(
+            client,
+            opts.collection_name,
+            model,
+            chunks,
+            logger,
         ):
             logger.error("Could not upload documents")
             return False
-    except Exception as e:
-        logger.error("Could not upload documents:\n" + str(e))
-        return False
 
     return True
 
@@ -577,6 +587,7 @@ if __name__ == "__main__":
                 opts,
                 save_files=True,
                 ingest=False,
+                logger=logger,
             )
         except Exception as e:
             logger.error(f"Error during processing documents:\n{e}")
