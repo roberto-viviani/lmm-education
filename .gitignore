@@ -4,3 +4,4 @@ site/
 .idea/
 __pycache__/
 config.toml
+config_education.toml
