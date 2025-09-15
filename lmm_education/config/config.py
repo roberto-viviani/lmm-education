@@ -163,11 +163,27 @@ class TextSplitters(BaseModel):
     )
 
 
+# AnnotationModel object are low-level specification of how
+# to look from metadata properties to include in encodings
 class AnnotationModel(BaseModel):
     """
     Specifies what metadata properties are selected to form
     annotations and how. Also selects properties to be indexed
     for filtering.
+
+    The AnnotationModel is meant to allow users to add annotations
+    to an encoding model by specifying them in the config file.
+    Note that an annotation model is implicit when using scan_rag
+    to generate metadata properties such as questions, etc. In this
+    case, the annotation model must add the key of the metadata
+    property explicitly, such that the property is not only generated,
+    but also added to the encoding.
+
+    Attributes:
+        inherited_properties: properties are sought among ancestors.
+        own_properties: limit propertis to those owned by node.
+        filters: properties that should be indexed to allow filter
+            searches.
     """
 
     inherited_properties: list[str] = Field(
@@ -208,6 +224,25 @@ DEFAULT_CONFIG_FILE = "config_education.toml"
 # By inheriting from BaseSettings, we add the functionality to read
 # these specifications from a config file.
 class ConfigSettings(BaseSettings):
+    """
+    This object reads and writes to file the configuration options.
+
+    Attributes:
+        storage: where the database is located. Use ':memory:' for in-
+            memory database
+        collection_name: the name of the collection that stores chunks
+        encoding_model: the encoding model used
+        annotation_model: definition of additional properties to
+            include in annotations (ignored if annotations not used in
+            encoding)
+        questions: create questions answered by text
+        summaries: summarize text under headings
+        companion_collection: if not None, creates a companion
+            collection holding text under the headings that is
+            returned as text from a query
+        text_splitter: the text splitter used to create chunks
+    """
+
     storage: DatabaseSource = Field(
         ..., description="The vector database local or remote source"
     )
