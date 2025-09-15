@@ -3,6 +3,7 @@
 
 from .chunks import (
     EncodingModel,
+    AnnotationModel,
     Chunk,
     blocks_to_chunks,
     chunks_to_blocks,

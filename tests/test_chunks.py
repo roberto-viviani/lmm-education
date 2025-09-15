@@ -5,6 +5,7 @@
 
 import unittest
 
+from lmm_education.config.config import AnnotationModel
 from lmm_education.stores.chunks import (
     blocks_to_chunks,
     chunks_to_blocks,
@@ -21,6 +22,7 @@ from lmm.scan.scan_keys import (
     QUESTIONS_KEY,
     CHAT_KEY,
     SUMMARY_KEY,
+    TITLES_KEY,
 )
 
 header = HeaderBlock(content={'title': "Test blocklist"})
@@ -73,14 +75,29 @@ class TestChunkFormation(unittest.TestCase):
 class TestChunkInheritance(unittest.TestCase):
 
     def test_annotate_questions(self):
+        from lmm.scan.scan_rag import scan_rag, ScanOpts
+        from lmm.markdown.parse_markdown import blocklist_copy
+
         self.assertEqual(len(blocks), lenblocks)
-        chunks = blocks_to_chunks(
-            blocks, EncodingModel.CONTENT, [QUESTIONS_KEY]
+        blocklist = scan_rag(
+            blocklist_copy(blocks),
+            ScanOpts(titles=True, questions=True),
         )
-        self.assertEqual(len(blocks), lenblocks)
+        print(blocklist)
+        annotation_model = AnnotationModel(
+            inherited_properties=[QUESTIONS_KEY, TITLES_KEY],
+        )
+        chunks = blocks_to_chunks(
+            blocklist, EncodingModel.CONTENT, annotation_model
+        )
+        self.assertEqual(len(blocklist), lenblocks)
         chunk = chunks[0]
+        print(chunk.annotations)
         self.assertTrue(
             str(metadata.content[QUESTIONS_KEY]) in chunk.annotations
+        )
+        self.assertTrue(
+            str("Test blocklist - First title") in chunk.annotations
         )
 
     def test_inherit_summary(self):

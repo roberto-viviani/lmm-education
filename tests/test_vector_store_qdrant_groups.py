@@ -226,7 +226,7 @@ class TestEncoding(unittest.TestCase):
 
         # ingest text into companion collection
         companion_chunks: list[Chunk] = blocks_to_chunks(
-            blocks, encoding_model_companion, []
+            blocks, encoding_model_companion
         )
         companion_points: list[Point] = upload(
             client,
@@ -259,7 +259,7 @@ class TestEncoding(unittest.TestCase):
 
         # ingest chunks of splitted text
         chunks: list[Chunk] = blocks_to_chunks(
-            blocks, encoding_model_main, []
+            blocks, encoding_model_main
         )
         points: list[Point] = upload(
             client, COLLECTION_MAIN, embedding_model_main, chunks

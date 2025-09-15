@@ -19,7 +19,7 @@ from lmm.markdown.parse_markdown import (
 )
 from lmm.scan.scan_rag import scan_rag, ScanOpts
 from lmm.scan.scan_split import scan_split
-from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY
+from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
     QdrantEmbeddingModel,
@@ -229,7 +229,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(
+            blocks, encoding_model, [QUESTIONS_KEY]
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )

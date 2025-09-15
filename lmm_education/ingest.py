@@ -81,9 +81,9 @@ from lmm.scan.scan_split import (
 )
 
 # LMM for education
+from lmm_education.config.config import EncodingModel
 from lmm_education.stores.chunks import (
     Chunk,
-    EncodingModel,
     blocks_to_chunks,
     chunks_to_blocks,
 )

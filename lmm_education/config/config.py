@@ -72,7 +72,57 @@ from typing import Literal, Self
 
 # LM markdown
 from lmm.config.config import export_settings
-from lmm_education.stores import EncodingModel
+
+
+# embedding strategies allowed by the system
+from enum import StrEnum  # fmt: skip
+class EncodingModel(StrEnum):
+    """
+    Enum for encoding strategies
+
+    Attributes:
+        NONE: no encoding (no embedding).
+        CONTENT: the textual content of the chunk is also used for
+            the emebdding
+        MERGED: merge textual content and annotations in a larger
+            piece of text for the emebdding
+        MULTIVECTOR: textual content and annotations are encoded
+            by multivectors
+        SPARSE: use annotations only and use sparse encoding
+        SPARSE_CONTENT: annotations for sparse encoding, textual
+            content for dense encoding
+        SPARSE_MERGED: annotations for sparse encoding, merged
+            annotations and textual content for dense encoding
+        SPARSE_MULTIVECTOR: annotations for sparse encoding,
+            annotations and textual content for multivector encoding
+    """
+
+    # No encoding
+    NONE = "none"
+
+    # Encode only textual content in dense vector
+    CONTENT = "content"
+
+    # Encode textual content merged with metadata
+    # annotations in dense vectors
+    MERGED = "merged"
+
+    # Encode content and annotations using multivectors
+    MULTIVECTOR = "multivector"
+
+    # Sparse encoding of annotations only
+    SPARSE = "sparse"
+
+    # Sparse annotations, dense encoding of content
+    SPARSE_CONTENT = "sparse_content"
+
+    # Sparse annotations, dense encoding of merged
+    # content and annotations
+    SPARSE_MERGED = "sparse_merged"
+
+    # Sparse annotations, multivector encoding of merged
+    # content and annotations
+    SPARSE_MULTIVECTOR = "sparse_multivector"
 
 
 # In the qdrant implementation used here, the database may be located
@@ -180,11 +230,11 @@ class ConfigSettings(BaseSettings):
         + "filtering",
     )
     questions: bool = Field(
-        default=True,
+        default=False,
         description="Annotate text with questions to aid retrieval",
     )
     summaries: bool = Field(
-        default=True,
+        default=False,
         description="Add summaries as chunks to aid retrieval",
     )
     companion_collection: str | None = Field(

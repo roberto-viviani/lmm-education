@@ -7,8 +7,9 @@ from lmm_education.stores.chunks import (
     blocks_to_chunks,
 )
 from lmm.markdown.parse_markdown import blocklist_copy, TextBlock
-from lmm.scan.scan_keys import TITLES_KEY
+from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm_education.config.config import AnnotationModel
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
     QdrantEmbeddingModel,
@@ -68,7 +69,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_NULL(self):
         encoding_model = EncodingModel.NONE
         chunks = blocks_to_chunks(
-            blocks, encoding_model, [TITLES_KEY]
+            blocks,
+            encoding_model,
+            AnnotationModel(inherited_properties=[TITLES_KEY]),
         )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
@@ -168,7 +171,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_MERGED3(self):
         encoding_model = EncodingModel.MERGED
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(
+            blocks, encoding_model, [QUESTIONS_KEY]
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -187,7 +192,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(
+            blocks, encoding_model, [QUESTIONS_KEY]
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )

@@ -13,8 +13,9 @@ from lmm.markdown.parse_markdown import (
     TextBlock,
     blocklist_copy,
 )
-from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY
+from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm_education.config.config import AnnotationModel
 from lmm_education.stores.chunks import Chunk, blocks_to_chunks
 from lmm_education.stores.vector_store_qdrant import (
     QdrantClient,
@@ -215,7 +216,11 @@ class TestQuery(unittest.TestCase):
 
     def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
-        chunks = blocks_to_chunks(blocks, encoding_model)
+        chunks = blocks_to_chunks(
+            blocks,
+            encoding_model,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -237,6 +242,7 @@ class TestQuery(unittest.TestCase):
         results: list[Document] = retriever.invoke(
             "What is the ingested text?"
         )
+        self.assertTrue(len(results) > 0)
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
 

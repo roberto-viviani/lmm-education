@@ -77,58 +77,7 @@ from lmm.utils.logging import LoggerBase, get_logger
 # Set up logger
 logger: LoggerBase = get_logger(__name__)
 
-from lmm_education.config.config import AnnotationModel
-
-
-# embedding strategies allowed by the system
-from enum import StrEnum  # fmt: skip
-class EncodingModel(StrEnum):
-    """
-    Enum for encoding strategies
-
-    Attributes:
-        NONE: no encoding (no embedding).
-        CONTENT: the textual content of the chunk is also used for
-            the emebdding
-        MERGED: merge textual content and annotations in a larger
-            piece of text for the emebdding
-        MULTIVECTOR: textual content and annotations are encoded
-            by multivectors
-        SPARSE: use annotations only and use sparse encoding
-        SPARSE_CONTENT: annotations for sparse encoding, textual
-            content for dense encoding
-        SPARSE_MERGED: annotations for sparse encoding, merged
-            annotations and textual content for dense encoding
-        SPARSE_MULTIVECTOR: annotations for sparse encoding,
-            annotations and textual content for multivector encoding
-    """
-
-    # No encoding
-    NONE = "none"
-
-    # Encode only textual content in dense vector
-    CONTENT = "content"
-
-    # Encode textual content merged with metadata
-    # annotations in dense vectors
-    MERGED = "merged"
-
-    # Encode content and annotations using multivectors
-    MULTIVECTOR = "multivector"
-
-    # Sparse encoding of annotations only
-    SPARSE = "sparse"
-
-    # Sparse annotations, dense encoding of content
-    SPARSE_CONTENT = "sparse_content"
-
-    # Sparse annotations, dense encoding of merged
-    # content and annotations
-    SPARSE_MERGED = "sparse_merged"
-
-    # Sparse annotations, multivector encoding of merged
-    # content and annotations
-    SPARSE_MULTIVECTOR = "sparse_multivector"
+from lmm_education.config.config import AnnotationModel, EncodingModel
 
 
 class Chunk(BaseModel):
@@ -191,7 +140,7 @@ class Chunk(BaseModel):
 def blocks_to_chunks(
     blocklist: list[Block],
     encoding_model: EncodingModel,
-    annotation_model: AnnotationModel = AnnotationModel(),
+    annotation_model: AnnotationModel | list[str] = AnnotationModel(),
     logger: LoggerBase = logger,
 ) -> list[Chunk]:
     """
@@ -215,6 +164,11 @@ def blocks_to_chunks(
 
     if not blocklist:
         return []
+
+    if isinstance(annotation_model, list):
+        annotation_model = AnnotationModel(
+            inherited_properties=annotation_model
+        )
 
     # collect or create required metadata for RAG: uuid, titles
     blocks: list[Block] = scan_rag(

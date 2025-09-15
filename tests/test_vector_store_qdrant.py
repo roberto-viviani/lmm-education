@@ -11,6 +11,7 @@ from lmm.markdown.parse_markdown import *
 from lmm_education.stores.chunks import *
 from lmm_education.stores.vector_store_qdrant import *
 from lmm.config.config import Settings
+from lmm.scan.scan_keys import TITLES_KEY
 
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
@@ -52,7 +53,7 @@ blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 sets: Settings = Settings()
 
-am = [TITLES_KEY]
+am = AnnotationModel(inherited_properties=[TITLES_KEY])
 
 
 class TestInitialization(unittest.TestCase):
@@ -212,7 +213,9 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_ingestion_NULL(self):
         chunks = blocks_to_chunks(
-            blocks, EncodingModel.NONE, [TITLES_KEY]
+            blocks,
+            EncodingModel.NONE,
+            AnnotationModel(inherited_properties=[TITLES_KEY]),
         )
         self.assertEqual(len(chunks), 2)
         chunk = chunks[0]
@@ -362,7 +365,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_NULL(self):
         encoding_model = EncodingModel.NONE
-        chunks = blocks_to_chunks(blocks, encoding_model, [])
+        chunks = blocks_to_chunks(blocks, encoding_model)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
