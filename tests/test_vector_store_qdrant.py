@@ -11,7 +11,7 @@ from lmm.markdown.parse_markdown import *
 from lmm_education.stores.chunks import *
 from lmm_education.stores.vector_store_qdrant import *
 from lmm.config.config import Settings
-from lmm.scan.scan_keys import TITLES_KEY
+from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
@@ -493,7 +493,11 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
-        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        chunks = blocks_to_chunks(
+            blocks,
+            encoding_model,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
@@ -505,7 +509,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         ps = upload(
             client,
             collection_name,
-            embedding_model,  # type: ignore
+            embedding_model,
             chunks,
         )
         results: list[ScoredPoint] = query(
@@ -519,7 +523,11 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_query_SPARSE_CONTENT(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        chunks = blocks_to_chunks(
+            blocks,
+            encoding_model,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
