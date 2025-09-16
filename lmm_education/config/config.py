@@ -245,7 +245,8 @@ class ConfigSettings(BaseSettings):
     """
 
     storage: DatabaseSource = Field(
-        ..., description="The vector database local or remote source"
+        default=":memory:",
+        description="The vector database local or remote source",
     )
     collection_name: str = Field(
         default="chunks",

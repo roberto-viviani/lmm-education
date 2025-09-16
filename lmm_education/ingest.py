@@ -5,8 +5,8 @@ vector database for the LM markdown for education project.
 Prior to ingesting, the files are processed according to specifications
 read from the config_education.toml file. They include what annotations
 to create (questions, summaries) and how to use them in the encoding of
-the database. Because this specification determines the schema of the
-database, it should be altered after the database is created!
+the data. Because these specifications determine the schema of the
+database, they should not be changed after the database is created!
 
 Please see config/config.py for more information on the configuration
 options. They contain the name of the file or source where the
@@ -18,7 +18,7 @@ The LMM for education package allows two different models of creating
 storage for a RAG application. In the standard approach, the text is
 chunked, possibly with overlapping segments, combined with additional
 text (such as questions answered by the text) and ingested. In the
-hierarchical graph RAG approach, the chunks provide the emebddings for
+hierarchical graph RAG approach, the chunks provide the embeddings for
 retrieving larger parts of text, determined by text blocks under
 headings.
 
@@ -35,6 +35,7 @@ Main functions:
         configuration settings from a default input folder.
 """
 
+import io
 from pathlib import Path
 from pydantic import validate_call, ValidationError
 
@@ -91,6 +92,7 @@ from lmm_education.stores.vector_store_qdrant import (
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
     initialize_collection,
     upload,
+    chunks_to_points,
 )
 from lmm_education.config.config import (
     create_default_config_file,
@@ -113,7 +115,7 @@ from lmm.utils.logging import LoggerBase
 
 
 # The configurations settings are contained in a config file.
-DEFAULT_CONFIG_FILE = "config_education.toml" # fmt: skip
+from lmm_education.config.config import DEFAULT_CONFIG_FILE
 
 # Create a default config_education.toml file, if there is none. This
 # file becomes the default location from where the configuration
@@ -134,7 +136,8 @@ def initialize_client(
     opts: ConfigSettings | None = None,
     logger: LoggerBase = logger,
 ) -> QdrantClient | None:
-    """Initialize QDRANT database. Will open or create the specified
+    """
+    Initialize QDRANT database. Will open or create the specified
     database and open or create the collection specified in opts,
     a settings object that reads the specifications in the configuration
     file.
@@ -142,7 +145,8 @@ def initialize_client(
     Args:
         opts: a ConfigurationSettings object.
 
-    Returns: a Qdrant client object
+    Returns:
+        a Qdrant client object
     """
 
     # Check the config file is ok.
@@ -202,14 +206,15 @@ def initialize_client(
 # passes them to the upload_blocks function for further processing.
 @validate_call(config={'arbitrary_types_allowed': True})
 def markdown_upload(
-    sources: list[str] | list[Path],
-    config_opts: ConfigSettings | None = None,
+    sources: list[str] | list[Path] | str,
     *,
-    save_files: bool = False,
+    config_opts: ConfigSettings | None = None,
+    save_files: bool | io.TextIOBase = False,
     ingest: bool = True,
     logger: LoggerBase = logger,
-) -> tuple[list[Chunk], list[Chunk]]:
-    """Upload a list of markdown files in the vector database.
+) -> list[tuple[str] | tuple[str, str]]:
+    """
+    Upload a list of markdown files in the vector database.
 
     Args:
         sources: a list of file names containing the markdown files
@@ -224,6 +229,21 @@ def markdown_upload(
         A list of Document objects representing the processed content
     """
 
+    # Check the config file is ok. The ConfigSettings constructor
+    # will read the config_education.toml file if no arguments
+    # are provided.
+    if config_opts is None:
+        try:
+            config_opts = ConfigSettings()
+        except ValueError | ValidationError as e:
+            logger.error(
+                f"The configuration file has an invalid value:\n{e}"
+            )
+            return []
+        except Exception as e:
+            logger.error(f"Could not read configuration file:\n{e}")
+            return []
+
     # initialize qdrant client. The config_opts object will be used
     # to validate the database schema, i.e that it has a schema that
     # corresponds to the encoding model applied to the documents. If
@@ -231,88 +251,121 @@ def markdown_upload(
     client: QdrantClient | None = initialize_client(
         config_opts, logger
     )
-    if not client or not config_opts:  # config_opts checked for types
-        logger.info("Database could not be initialized.")
-        return [], []
+    if not client:
+        logger.warning("Database could not be initialized.")
+        return []
 
-    # Load files. This is done using markdown_scan, which ensures
-    # that there is a header with a title (this is needed to identify
-    # the documents at ingestion).
     # The markdown parser responds to errors by creating a special
     # type of block, the ErrorBlock. This blocks can be serialized
     # back to document, giving the user a chance to address the error,
     # but here we just stop the process if there are parse errors in
-    # any of the documents.
+    # any of the documents. Hence, we do a priminary scan of all
+    # documents to check for errors.
     if not bool(sources):
-        logger.info("No documents for ingestion in the database.")
-        return [], []
-    parsed_documents: list[list[Block]] = []
+        logger.warning("No documents for ingestion in the database.")
+        return []
+    if isinstance(sources, str):
+        sources = [sources]
     error_sources: dict[str, list[ErrorBlock]] = {}
-    for s in sources:
-        # markdown documents are loaded from files rather than strings
-        # or streams, because markdown_scan can initialize default
-        # properties such as 'title' from the file name.
-        blocks = markdown_scan(s, False, logger)
-        if blocklist_haserrors(blocks):
-            error_sources[str(s)] = blocklist_errors(blocks)
-            continue
-        parsed_documents.append(blocks)
+    logger_level = logger.get_level()
+    logger.set_level(40)  # avoid info
+    for source in sources:
+        blocks = markdown_scan(source, False, logger)
+        if not bool(blocks):
+            error_sources[str(source)] = [
+                ErrorBlock(
+                    content=f"Empy or nonexistent file: {source}"
+                )
+            ]
+        elif blocklist_haserrors(blocks):
+            error_sources[str(source)] = blocklist_errors(blocks)
     if error_sources:
         logger.error(
             "Problems in markdowns, fix before continuing:\n\t"
             + "\n\t".join(error_sources.keys())
         )
-        return [], []
+        return []
+    logger.set_level(logger_level)
 
-    # the encoding strategy may use two collections rather than
-    # one: the chunks collection is used to match the query, and
-    # the documents collection returns pre-ingested content
-    # that exploits the structure of the directed acyclic graph
-    # of documents to extract context.
-    chunklist: list[Chunk] = []
-    doclist: list[Chunk] = []
-    for docblocks, source in zip(parsed_documents, sources):
-        chunks, coll_chunks = blocklist_encode(
-            docblocks, config_opts, logger
+    # the key loop. Each file is encoded and uploaded. We go through
+    # the files again to avoid loading all files into memory at
+    # once.
+    ids: list[tuple[str] | tuple[str, str]] = []
+    for source in sources:
+        # Markdown documents are loaded from files with markdown_scan
+        # beacause this function can initialize default properties
+        # such as 'title' from the file name.
+        blocks = markdown_scan(source, False, logger)
+        # Process the markdown documents prior to ingesting.
+        chunks, comp_chunks = blocklist_encode(
+            blocks, config_opts, logger
         )
-        if ingest:
-            blocklist_upload(
-                client,
-                chunks,
-                coll_chunks,
-                config_opts,
-                ingest,
-                logger,
-            )
-        chunklist.extend(chunks)
-        if doclist:
-            doclist.extend(coll_chunks)
+        if not bool(chunks):
+            logger.warning(f"{source} could not be encoded.")
+            continue
+        # Ingestion.
+        idss = blocklist_upload(
+            client,
+            chunks,
+            comp_chunks,
+            config_opts,
+            ingest,
+            logger,
+        )
+        if bool(idss):
+            if ingest:
+                logger.info(
+                    f"{source} added to {config_opts.storage}."
+                )
+            ids.extend(idss)
+        else:
+            logger.warning(f"{source} could not be ingested.")
+            continue
 
         # this allows users to inspect the annotations that were
         # used to encode the document
-        if save_files and bool(doclist):
-            newblocks: list[Block] = chunks_to_blocks(doclist)
-            newfile: str = append_postfix_to_filename(
-                str(source), "_documents"
-            )
-            save_markdown(newfile, newblocks, logger)
+        if bool(save_files) and bool(idss):
+            chunk_blocks = chunks_to_blocks(chunks, '+++++')
+            comp_blocks = chunks_to_blocks(comp_chunks, ".....")
+            if isinstance(save_files, bool):
+                out_file = append_postfix_to_filename(
+                    str(source), "_chunks"
+                )
+                save_markdown(out_file, chunk_blocks, logger)
+                if bool(comp_blocks):
+                    out_file = append_postfix_to_filename(
+                        str(source), "_documents"
+                    )
+                    save_markdown(out_file, comp_blocks, logger)
+            else:  # it's a stream
+                from lmm.markdown.parse_markdown import TextBlock
 
-        if save_files:
-            newblocks: list[Block] = chunks_to_blocks(chunklist)
-            newfile: str = append_postfix_to_filename(
-                str(source), "_chunks"
-            )
-            save_markdown(newfile, newblocks, logger)
+                if bool(comp_blocks):
+                    chunk_blocks.append(
+                        TextBlock(
+                            content="-----------------------------------------"
+                        )
+                    )
+                save_markdown(
+                    save_files, chunk_blocks + comp_blocks, logger
+                )
 
-    return chunklist, doclist
+    return ids
 
 
+# This is the function that does the actual processing of the
+# markdown blocks. It implements the annotation strategy specified in
+# the ConfigSettings object: adds annotations using a language model
+# if the settings require it. It is the key point where a strategy
+# to extract further information from mere text is executed. Returns
+# the chunks for ingestion in the database.
 def blocklist_encode(
     blocklist: list[Block],
     opts: ConfigSettings,
     logger: LoggerBase = logger,
 ) -> tuple[list[Chunk], list[Chunk]]:
-    """Encode a list of markdown blocks. Preprocessing will be
+    """
+    Encode a list of markdown blocks. Preprocessing will be
     executed at this stage as specified in the ConfigSettings opts
     object.
 
@@ -323,9 +376,11 @@ def blocklist_encode(
         opts: the ConfigSettings object
 
     Returns:
-        A list of two Document object list, representing the processed
-        content. If document_collection is True, the list contains a
-        second element with the pooled text document list.
+        A tuple of two lists of chunks. The first list contains the
+        chunks to be ingested into the main collection, the second
+        list contains the chunks to be ingested into the companion
+        collection. If no companion collection is specified in opts,
+        the second list will be empty.
     """
 
     if not blocklist:
@@ -439,8 +494,8 @@ def blocklist_encode(
     return chunks, coll_chunks
 
 
-# This is the internal function doing the job of uploading parsed
-# markdown files into the database. It implements the encoding
+# This is the internal function doing the job of uploading the
+# chunks of text into the database. It implements the encoding
 # strategy specified in the ConfigSettings object, adding annotations
 # using a language model if the strategy requires it. It is the
 # key point where an encoding specification and strategies to
@@ -448,14 +503,15 @@ def blocklist_encode(
 def blocklist_upload(
     client: QdrantClient,
     chunks: list[Chunk],
-    coll_chunks: list[Chunk],
+    companion_chunks: list[Chunk],
     opts: ConfigSettings,
     ingest: bool = True,
     logger: LoggerBase = logger,
-) -> bool:
-    """Upload a list of markdown blocks to the database client.
-    Preprocessing will be executed at this stage as specified in the
-    IndexOpts object opts.
+) -> list[tuple[str] | tuple[str, str]]:
+    """
+    Upload a list of preprocessed chunks (including document chunks)
+    to the database. Uses the encoding strategy specified in the
+    ConfigSettings object opts.
 
     Args:
         client: the QdrantClient
@@ -466,48 +522,55 @@ def blocklist_upload(
             (default: True)
 
     Returns:
-        A list of two Document object list, representing the processed
-        content. If document_collection is True, the list contains a
-        second element with the pooled text document list.
+        A list of tuples containing the id's of the ingested objects,
+        If document_collection is True, the second element of the
+        tuples contains the id's of pooled text documents. The first
+        element always contains the id of the chunk.
     """
 
-    # ingest here the large text portions
-    if bool(opts.companion_collection):
-        if not (bool(coll_chunks)):
-            logger.warning(
-                "Companion collection specified, but no "
-                + "document chunks generated."
-            )
-        doc_coll_name: str = opts.companion_collection
-        if ingest:
-            if not upload(
-                client,
-                doc_coll_name,
-                EmbeddingModel.UUID,
-                coll_chunks,
-                logger,
-            ):
-                logger.error(
-                    "Could not upload documents to " + doc_coll_name
-                )
-                return False
-
-    # ingestion
+    # ingestion of the chunks
     model: EmbeddingModel = encoding_to_embedding_model(
         opts.encoding_model
     )
     if ingest:
-        if not upload(
-            client,
-            opts.collection_name,
-            model,
-            chunks,
-            logger,
-        ):
-            logger.error("Could not upload documents")
-            return False
+        points = upload(
+            client, opts.collection_name, model, chunks, logger
+        )
+    else:
+        points = chunks_to_points(chunks, model)
+    if not bool(points):
+        logger.error("Could not upload documents")
+        return []
 
-    return True
+    # ingestion of the document collection (if specified)
+    if bool(opts.companion_collection):
+        if not (bool(companion_chunks)):
+            logger.error(
+                "Companion collection specified, but no "
+                + "document chunks generated."
+            )
+            return []
+        doc_coll: str = opts.companion_collection
+        if ingest:
+            docpoints = upload(
+                client,
+                doc_coll,
+                EmbeddingModel.UUID,
+                companion_chunks,
+                logger,
+            )
+        else:
+            docpoints = chunks_to_points(chunks, EmbeddingModel.UUID)
+        if not bool(docpoints):
+            logger.error("Could not upload documents to " + doc_coll)
+            return []
+
+        return [
+            (str(p.id), str(d.id)) for p, d in zip(points, docpoints)
+        ]
+
+    else:
+        return [(str(p.id),) for p in points]
 
 
 def _list_files_by_extension(
@@ -582,7 +645,7 @@ if __name__ == "__main__":
         try:
             markdown_upload(
                 filenames,
-                opts,
+                config_opts=opts,
                 save_files=True,
                 ingest=False,
                 logger=logger,

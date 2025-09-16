@@ -173,7 +173,7 @@ def blocks_to_chunks(
     # collect or create required metadata for RAG: uuid, titles
     blocks: list[Block] = scan_rag(
         blocklist_copy(blocklist),
-        ScanOpts(textid=True, UUID=True, titles=True),
+        ScanOpts(textid=True, UUID=True),
         logger,
     )
     if blocklist_haserrors(blocks):
@@ -276,7 +276,7 @@ def blocks_to_chunks(
 
 
 def chunks_to_blocks(
-    chunks: list[Chunk], sep: str = ""
+    chunks: list[Chunk], sep: str = "", key_chunk: str = "~chunk"
 ) -> list[Block]:
     """
     Transform a list of `Chunk` objects to a list of blocks.
@@ -308,7 +308,7 @@ def chunks_to_blocks(
                 'dense_encoding': c.dense_encoding,
                 'sparse_encoding': c.sparse_encoding,
             }
-            blockmeta['~chunk'] = meta  # type: ignore (safe here)
+            blockmeta[key_chunk] = meta  # type: ignore (safe here)
             blocks.append(MetadataBlock(content=blockmeta))
         blocks.append(TextBlock(content=c.content))
 
