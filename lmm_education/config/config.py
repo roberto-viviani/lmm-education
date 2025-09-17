@@ -175,10 +175,7 @@ class AnnotationModel(BaseModel):
     The AnnotationModel is meant to allow users to add annotations
     to an encoding model by specifying them in the config file.
     Note that an annotation model is implicit when using scan_rag
-    to generate metadata properties such as questions, etc. In this
-    case, the annotation model must add the key of the metadata
-    property explicitly, such that the property is not only generated,
-    but also added to the encoding.
+    to generate metadata properties such as questions, etc.
 
     Attributes:
         inherited_properties: properties are sought among ancestors.
@@ -242,6 +239,15 @@ class ConfigSettings(BaseSettings):
             collection holding text under the headings that is
             returned as text from a query
         text_splitter: the text splitter used to create chunks
+
+    Note:
+        The annotation model will usually want to include in the
+        annotation information such as questions, that were generated
+        as specified by the encoding model in the settings. To obtain
+        an annotation model that is consistent with the encoding
+        model, get the model through the member function
+        `get_annotation_model`. Additional properties given to this
+        function will include the properties as inherited properties.
     """
 
     storage: DatabaseSource = Field(
@@ -293,7 +299,9 @@ class ConfigSettings(BaseSettings):
         + "the markdown as the chunks (no additional splitting).",
     )
 
-    def get_annotation_model(self) -> AnnotationModel:
+    def get_annotation_model(
+        self, keys: list[str] = []
+    ) -> AnnotationModel:
         """
         Returns an annotation model that is consistent with other
         ConfigSettings options. The annotation model will add to
@@ -305,6 +313,7 @@ class ConfigSettings(BaseSettings):
         annotation_model = self.annotation_model.model_copy()
         if self.questions:
             annotation_model.add_inherited_properties(QUESTIONS_KEY)
+        annotation_model.add_inherited_properties(keys)
         return annotation_model
 
     @model_validator(mode='after')
