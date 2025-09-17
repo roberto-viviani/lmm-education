@@ -533,7 +533,6 @@ class TestQueryGrouped(unittest.TestCase):
             GROUP_UUID_KEY,
             3,
             embedding_model_main,
-            2,
         )
         results: list[Document] = retriever.invoke(
             "How can I estimate the predicted depressiveness from this model?"

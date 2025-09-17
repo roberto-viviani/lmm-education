@@ -17,6 +17,7 @@ from .. import vector_store_qdrant as vsq
 
 from pydantic import Field, ConfigDict
 
+from lmm.scan.scan_keys import GROUP_UUID_KEY
 from lmm_education.config.config import ConfigSettings
 from lmm_education.stores.vector_store_qdrant import (
     client_from_config,
@@ -271,7 +272,6 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         return self._points_to_documents(points)
 
 
-# TODO: move limitgrouops and limit to the query memebr function
 class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     """
     Langchain retriever interface to the Qdrant vector store
@@ -283,12 +283,11 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     )
     collection_name: str = Field(default="", init=False)
     group_collection: str = Field(default="", init=False)
-    group_field: str = Field(default="", init=False)
+    group_field: str = Field(default=GROUP_UUID_KEY, init=False)
     limitgroups: int = Field(default=4, init=False)
     embedding_model: vsq.QdrantEmbeddingModel = Field(
         default=vsq.QdrantEmbeddingModel.DENSE, init=False
     )
-    limit: int = Field(default=1, init=False)
 
     def __init__(
         self,
@@ -298,7 +297,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         group_field: str,
         limitgroups: int,
         embedding_model: vsq.QdrantEmbeddingModel,
-        limit: int,
     ):
         flag: bool = vsq.initialize_collection(
             client, collection_name, embedding_model
@@ -317,7 +315,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.group_field = group_field
         self.limitgroups = limitgroups
         self.embedding_model = embedding_model
-        self.limit = limit
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -353,7 +350,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             GROUP_UUID_KEY,
             4,
             encoding_to_qdrantembedding_model(opts.encoding_model),
-            1,
         )
 
     def _results_to_documents(
@@ -388,12 +384,12 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             self.client,
             self.collection_name,
             self.group_collection,
-            self.group_field,
-            limit,  # limitgroups
             self.embedding_model,
             query,
-            self.limit,
-            payload,
+            group_field=self.group_field,
+            group_size=self.limitgroups,
+            limit=limit,
+            payload=payload,
         )
 
         return self._results_to_documents(results)
@@ -410,12 +406,11 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     )
     collection_name: str = Field(default="", init=False)
     group_collection: str = Field(default="", init=False)
-    group_field: str = Field(default="", init=False)
+    group_field: str = Field(default=GROUP_UUID_KEY, init=False)
     limitgroups: int = Field(default=4, init=False)
     embedding_model: vsq.QdrantEmbeddingModel = Field(
         default=vsq.QdrantEmbeddingModel.DENSE, init=False
     )
-    limit: int = Field(default=1, init=False)
 
     def __init__(
         self,
@@ -425,7 +420,6 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         group_field: str,
         limitgroups: int,
         embedding_model: vsq.QdrantEmbeddingModel,
-        limit: int,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -445,7 +439,6 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.group_field = group_field
         self.limitgroups = limitgroups
         self.embedding_model = embedding_model
-        self.limit = limit
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -484,7 +477,6 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             GROUP_UUID_KEY,
             4,
             encoding_to_qdrantembedding_model(opts.encoding_model),
-            1,
         )
 
     def _results_to_documents(
@@ -532,12 +524,12 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 self.client,
                 self.collection_name,
                 self.group_collection,
-                self.group_field,
-                limit,  # limitgroups
                 self.embedding_model,
                 query,
-                self.limit,
-                payload,
+                group_field=self.group_field,
+                limit=limit,
+                group_size=self.limitgroups,
+                payload=payload,
             )
         )
 
@@ -553,6 +545,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         query: str,
         *,
         run_manager: AsyncCallbackManagerForRetrieverRun,
+        limit: int = 4,
         payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
@@ -560,12 +553,12 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             self.client,
             self.collection_name,
             self.group_collection,
-            self.group_field,
-            self.limitgroups,
             self.embedding_model,
             query,
-            self.limit,
-            payload,
+            limit=limit,
+            group_field=self.group_field,
+            group_size=self.limitgroups,
+            payload=payload,
         )
 
         return self._results_to_documents(results)

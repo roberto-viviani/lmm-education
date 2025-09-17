@@ -780,7 +780,7 @@ def query(
     model: QdrantEmbeddingModel,
     querytext: str,
     limit: int = 12,
-    payload: list[str] = ['page_content'],
+    payload: list[str] | bool = ['page_content'],
     logger: LoggerBase = default_logger,
 ) -> list[ScoredPoint]:
     """
@@ -917,7 +917,7 @@ async def aquery(
     model: QdrantEmbeddingModel,
     querytext: str,
     limit: int = 12,
-    payload: list[str] = ['page_content'],
+    payload: list[str] | bool = ['page_content'],
     logger: LoggerBase = default_logger,
 ) -> list[ScoredPoint]:
     """
@@ -1052,12 +1052,13 @@ def query_grouped(
     client: QdrantClient,
     collection_name: str,
     group_collection: str,
-    group_field: str,
-    limitgroups: int,
     model: QdrantEmbeddingModel,
     querytext: str,
-    limit: int,
+    *,
+    limit: int = 4,
     payload: list[str] = ['page_content'],
+    group_size: int = 1,
+    group_field: str = GROUP_UUID_KEY,
     logger: LoggerBase = default_logger,
 ) -> GroupsResult:
     """
@@ -1115,6 +1116,7 @@ def query_grouped(
                 querytext,
                 limit,
                 payload,
+                logger,
             )
             return GroupsResult(
                 groups=[PointGroup(hits=hits, id=querytext)]
@@ -1131,7 +1133,7 @@ def query_grouped(
                 'using': DENSE_VECTOR_NAME,
                 'group_by': group_field,
                 'limit': limit,
-                'group_size': limitgroups,
+                'group_size': group_size,
                 'with_lookup': models.WithLookup(
                     collection=group_collection,
                     with_payload=payload,
@@ -1154,7 +1156,7 @@ def query_grouped(
                 'using': SPARSE_VECTOR_NAME,
                 'group_by': group_field,
                 'limit': limit,
-                'group_size': limitgroups,
+                'group_size': group_size,
                 'with_lookup': models.WithLookup(
                     collection=group_collection,
                     with_payload=payload,
@@ -1199,7 +1201,7 @@ def query_grouped(
                 ],
                 'query': models.FusionQuery(fusion=models.Fusion.RRF),
                 'group_by': group_field,
-                'group_size': limitgroups,
+                'group_size': group_size,
                 'with_lookup': models.WithLookup(
                     collection=group_collection,
                     with_payload=payload,
@@ -1221,12 +1223,13 @@ async def aquery_grouped(
     client: AsyncQdrantClient,
     collection_name: str,
     group_collection: str,
-    group_field: str,
-    limitgroups: int,
     model: QdrantEmbeddingModel,
     querytext: str,
-    limit: int,
+    *,
+    limit: int = 4,
     payload: list[str] = ['page_content'],
+    group_size: int = 1,
+    group_field: str = GROUP_UUID_KEY,
     logger: LoggerBase = default_logger,
 ) -> GroupsResult:
     """
@@ -1284,6 +1287,7 @@ async def aquery_grouped(
                 querytext,
                 limit,
                 payload,
+                logger,
             )
             return GroupsResult(
                 groups=[PointGroup(hits=hits, id=querytext)]
@@ -1300,7 +1304,7 @@ async def aquery_grouped(
                 'using': DENSE_VECTOR_NAME,
                 'group_by': group_field,
                 'limit': limit,
-                'group_size': limitgroups,
+                'group_size': group_size,
                 'with_lookup': models.WithLookup(
                     collection=group_collection,
                     with_payload=payload,
@@ -1323,7 +1327,7 @@ async def aquery_grouped(
                 'using': SPARSE_VECTOR_NAME,
                 'group_by': group_field,
                 'limit': limit,
-                'group_size': limitgroups,
+                'group_size': group_size,
                 'with_lookup': models.WithLookup(
                     collection=group_collection,
                     with_payload=payload,
@@ -1368,7 +1372,7 @@ async def aquery_grouped(
                 ],
                 'query': models.FusionQuery(fusion=models.Fusion.RRF),
                 'group_by': group_field,
-                'group_size': limitgroups,
+                'group_size': group_size,
                 'with_lookup': models.WithLookup(
                     collection=group_collection,
                     with_payload=payload,

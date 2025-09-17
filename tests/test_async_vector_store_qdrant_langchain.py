@@ -512,7 +512,6 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
             GROUP_UUID_KEY,
             3,
             embedding_model_main,
-            2,
         )
         results: list[Document] = await retriever.ainvoke(
             "How can I estimate the predicted depressiveness from this model?"

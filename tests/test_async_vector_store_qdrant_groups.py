@@ -305,11 +305,10 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
             client,
             COLLECTION_MAIN,
             COLLECTION_DOCS,
-            GROUP_UUID_KEY,
-            1,
             embedding_model_main,
             "How can I estimate the predicted depressiveness from this model?",
-            2,
+            group_field=GROUP_UUID_KEY,
+            limit=1,
         )
         result_points: list[ScoredPoint] = groups_to_points(results)
         result_text: list[str] = points_to_text(result_points)
