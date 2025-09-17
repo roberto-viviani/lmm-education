@@ -1,6 +1,8 @@
 import unittest
 import io
 
+from qdrant_client import QdrantClient
+
 from lmm.markdown.parse_markdown import parse_markdown_text
 from lmm.utils.logging import LoglistLogger
 
@@ -10,6 +12,7 @@ from lmm_education.ingest import (
     blocklist_encode,
     markdown_upload,
     ConfigSettings,
+    initialize_client,
 )
 from lmm_education.stores import EncodingModel
 
@@ -241,18 +244,279 @@ class TestLoadMarkdown(unittest.TestCase):
 
     def test_load_markdown(self):
         opts = self._create_config_settings()
+        logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if client is None:
+            print("\n".join(logger.get_logs(level=0)))
+            raise Exception("Could not initialize client")
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        ids = markdown_upload(
+            "Chapter_1.Rmd",
+            config_opts=opts,
+            save_files=False,
+            ingest=True,
+            client=client,
+            logger=logger,
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(ids) > 0)
+
+        # check using qdrant API that records are there
+        from qdrant_client.models import Record
+
+        id = ids[0][0]
+        records: list[Record] = client.retrieve(
+            collection_name=opts.collection_name,
+            ids=[id],
+            with_payload=True,
+        )
+        self.assertTrue(len(records) > 0)
+
+    def test_load_markdown_companion(self):
+        opts = ConfigSettings(
+            storage=":memory:",
+            encoding_model=EncodingModel.CONTENT,
+            questions=False,
+            summaries=False,
+            companion_collection="documents",
+            text_splitter={'splitter': "default", 'threshold': 75},
+        )
+
+        logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if client is None:
+            print("\n".join(logger.get_logs(level=0)))
+            raise Exception("Could not initialize client")
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        ids = markdown_upload(
+            "Chapter_1.Rmd",
+            config_opts=opts,
+            save_files=False,
+            ingest=True,
+            client=client,
+            logger=logger,
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(ids) > 0)
+
+        # check using qdrant API that records are there
+        from qdrant_client.models import Record
+
+        id = ids[0][1]
+        records: list[Record] = client.retrieve(
+            collection_name=opts.companion_collection,
+            ids=[id],
+            with_payload=True,
+        )
+        self.assertTrue(len(records) > 0)
+
+
+class TestMarkdownQueries(unittest.TestCase):
+
+    @staticmethod
+    def _create_config_settings(
+        companion: bool = False,
+    ) -> ConfigSettings:
+        return ConfigSettings(
+            storage=":memory:",
+            encoding_model=EncodingModel.CONTENT,
+            questions=False,
+            summaries=False,
+            companion_collection="documents" if companion else None,
+            text_splitter={'splitter': "default", 'threshold': 75},
+        )
+
+    def test_ingest_markdown(self):
+        opts = self._create_config_settings()
         output = io.StringIO()
         logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if not client:
+            print("\n".join(logger.get_logs(level=1)))
+            Exception("Database could not be initialized.")
+            return
+        self.assertTrue(logger.count_logs(level=1) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
             save_files=output,
-            ingest=False,
+            ingest=True,
+            client=client,
             logger=logger,
         )
-        print("\n".join(logger.get_logs()))
         self.assertTrue(logger.count_logs(level=1) == 0)
-        self.assertTrue(bool(ids))
+        self.assertTrue(len(ids) > 0)
+        self.assertTrue(len(output.getvalue()) > 0)
+
+        from lmm_education.stores import query
+        from lmm_education.stores.vector_store_qdrant import (
+            encoding_to_qdrantembedding_model,
+        )
+
+        results = query(
+            client,
+            opts.collection_name,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+            "What are the main uses of linear models?",
+            4,
+            ['page_content'],
+            logger,
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(results) > 0)
+
+    def test_ingest_markdown_langchain(self):
+        opts = self._create_config_settings()
+        output = io.StringIO()
+        logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if not client:
+            print("\n".join(logger.get_logs(level=1)))
+            Exception("Database could not be initialized.")
+            return
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        ids = markdown_upload(
+            "Chapter_1.Rmd",
+            config_opts=opts,
+            save_files=output,
+            ingest=True,
+            client=client,
+            logger=logger,
+        )
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(ids) > 0)
+        self.assertTrue(len(output.getvalue()) > 0)
+
+        from lmm_education.stores.langchain import (
+            QdrantVectorStoreRetriever,
+        )
+        from lmm_education.stores.vector_store_qdrant import (
+            encoding_to_qdrantembedding_model,
+        )
+
+        retriever = QdrantVectorStoreRetriever(
+            client,
+            opts.collection_name,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+        )
+
+        # this how to call our function directly
+        # from langchain_core.callbacks.manager import CallbackManager
+
+        # results = retriever._get_relevant_documents(
+        #     "What are the main uses of linear models?",
+        #     run_manager=CallbackManager.configure().on_retriever_start(
+        #         None, ""
+        #     ),
+        # )
+        results = retriever.invoke(
+            "What are the main uses of linear models?"
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(results) > 0)
+
+    def xtest_load_ingest_markdown_langchain2(self):
+        # does not work if opts are :memory:
+        opts = ConfigSettings(
+            storage=":memory:",
+            encoding_model=EncodingModel.CONTENT,
+            questions=True,
+            summaries=False,
+            companion_collection=None,
+            text_splitter={'splitter': "default", 'threshold': 75},
+        )
+
+        output = io.StringIO()
+        logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if not client:
+            print("\n".join(logger.get_logs(level=1)))
+            Exception("Database could not be initialized.")
+            return
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        ids = markdown_upload(
+            "Chapter_1.Rmd",
+            config_opts=opts,
+            save_files=output,
+            ingest=True,
+            client=client,
+            logger=logger,
+        )
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(ids) > 0)
+        self.assertTrue(len(output.getvalue()) > 0)
+
+        from lmm_education.stores.langchain import (
+            QdrantVectorStoreRetriever as QdrantRetriever,
+        )
+
+        retriever = QdrantRetriever.from_config_settings(opts)
+        results = retriever.invoke(
+            "What are the main uses of linear models?"
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(results) > 0)
+
+    def test_ingest_markdown_grouped(self):
+        from lmm.scan.scan_keys import GROUP_UUID_KEY
+
+        opts = self._create_config_settings(True)
+        output = io.StringIO()
+        logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if not client:
+            print("\n".join(logger.get_logs(level=1)))
+            Exception("Database could not be initialized.")
+            return
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        ids = markdown_upload(
+            "Chapter_1.Rmd",
+            config_opts=opts,
+            save_files=output,
+            ingest=True,
+            client=client,
+            logger=logger,
+        )
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(len(ids) > 0)
+        self.assertTrue(len(output.getvalue()) > 0)
+
+        from lmm_education.stores import (
+            query_grouped,
+            groups_to_points,
+            points_to_text,
+        )
+        from lmm_education.stores.vector_store_qdrant import (
+            encoding_to_qdrantembedding_model,
+            ScoredPoint,
+        )
+
+        results = query_grouped(
+            client,
+            opts.collection_name,
+            opts.companion_collection,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+            "What are the main uses of linear models?",
+            limit=1,
+            group_field=GROUP_UUID_KEY,
+            logger=logger,
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+
+        result_points: list[ScoredPoint] = groups_to_points(results)
+        result_text: list[str] = points_to_text(result_points)
+
+        self.assertLess(0, len(result_points))
+        companion_uuids = set([id[1] for id in ids])
+        self.assertTrue(results.groups[0].id in companion_uuids)
+        self.assertTrue(len(result_text) > 0)
+        print(len(result_text))
 
 
 if __name__ == "__main__":

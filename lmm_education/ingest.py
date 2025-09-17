@@ -90,6 +90,7 @@ from lmm_education.stores.chunks import (
 from lmm_education.stores.vector_store_qdrant import (
     QdrantEmbeddingModel as EmbeddingModel,
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
+    client_from_config,
     initialize_collection,
     upload,
     chunks_to_points,
@@ -99,8 +100,6 @@ from lmm_education.config.config import (
     load_settings,
     ConfigSettings,
     AnnotationModel,
-    LocalStorage,
-    RemoteSource,
 )
 
 # langchain, import text splitters from here
@@ -166,17 +165,13 @@ def initialize_client(
     if not collection_name:
         return None
 
-    # TODO: errors and logs
+    # obtain a QdrantClient object using the config file settings
     client: QdrantClient
-    match opts.storage:
-        case ':memory:':
-            client = QdrantClient(':memory:')
-        case LocalStorage(folder=folder):
-            client = QdrantClient(path=folder)
-        case RemoteSource(url=url, port=port):
-            client = QdrantClient(url=str(url), port=port)
-        case _:
-            raise ValueError("Invalid database source")
+    try:
+        client = client_from_config(opts)
+    except Exception as e:
+        logger.error(f"Could not initialize client.\n{e}")
+        return None
 
     flag: bool = initialize_collection(
         client,
@@ -211,6 +206,7 @@ def markdown_upload(
     config_opts: ConfigSettings | None = None,
     save_files: bool | io.TextIOBase = False,
     ingest: bool = True,
+    client: QdrantClient | None = None,
     logger: LoggerBase = logger,
 ) -> list[tuple[str] | tuple[str, str]]:
     """
@@ -224,6 +220,12 @@ def markdown_upload(
             (default: True)
         save_files: Whether to save processed blocks to files
             (default: False)
+        client: if None (default) a QdrantClient will be initialized
+            from the config_opts spec. Note that for the :memory:
+            client, the client must be created once and passed around,
+            otherwise any initialization of the client will create
+            a new database instance.
+        logger: a logger object
 
     Returns:
         A list of Document objects representing the processed content
@@ -248,9 +250,8 @@ def markdown_upload(
     # to validate the database schema, i.e that it has a schema that
     # corresponds to the encoding model applied to the documents. If
     # the database does not exist, it will be created.
-    client: QdrantClient | None = initialize_client(
-        config_opts, logger
-    )
+    if client is None:
+        client = initialize_client(config_opts, logger)
     if not client:
         logger.warning("Database could not be initialized.")
         return []
@@ -480,8 +481,7 @@ def blocklist_encode(
     # the blocks_to_chunks function transforms the chunks into the
     # format recognized by qdrant for ingestion, also adding the
     # embedding specified by the encoding model.
-    annotation_model: AnnotationModel = opts.get_annotation_model()
-    annotation_model.add_own_properties(TITLES_KEY)
+    annotation_model = opts.get_annotation_model([TITLES_KEY])
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
         opts.encoding_model,
