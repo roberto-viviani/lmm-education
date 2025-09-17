@@ -54,6 +54,9 @@ from lmm.markdown.parse_markdown import (
     MetadataBlock,
 )
 
+# lmm markdown for education
+from lmm_education.config.config import ConfigSettings
+
 # Set up logger
 from lmm.utils.logging import LoggerBase, get_logger
 
@@ -120,13 +123,45 @@ def _get_sparse_model() -> SparseTextEmbedding:
     return _sparse_model_cache
 
 
+def client_from_config(opts: ConfigSettings | None) -> QdrantClient:
+    """ "
+    Create a qdrant clients from config settings. Reads from config
+    toml file settings if none gievn.
+
+    Args:
+        opts: the config settings
+
+    Returns:
+        a QdrantClient object
+    """
+    from lmm_education.config.config import (
+        LocalStorage,
+        RemoteSource,
+    )
+
+    if opts is None:
+        opts = ConfigSettings()
+    client: QdrantClient
+    match opts.storage:
+        case ':memory:':
+            client = QdrantClient(':memory:')
+        case LocalStorage(folder=folder):
+            client = QdrantClient(path=folder)
+        case RemoteSource(url=url, port=port):
+            client = QdrantClient(url=str(url), port=port)
+        case _:
+            raise ValueError("Invalid database source")
+    return client
+
+
 def initialize_collection(
     client: QdrantClient,
     collection_name: str,
     embedding_model: QdrantEmbeddingModel,
     logger: LoggerBase = default_logger,
 ) -> bool:
-    """Check that the collection supports the embedding model, if
+    """
+    Check that the collection supports the embedding model, if
     already in the database. If not, create a collection supporting
     the embedding model
 
@@ -135,7 +170,8 @@ def initialize_collection(
         collection_name: the collection
         embedding_model: the embedding model
 
-    Return: a boolean
+    Returns:
+        a boolean
     """
 
     from requests.exceptions import ConnectionError
@@ -265,13 +301,47 @@ def initialize_collection(
     return True
 
 
+def async_client_from_config(
+    opts: ConfigSettings | None,
+) -> AsyncQdrantClient:
+    """ "
+    Create a qdrant clients from config settings. Reads from config
+    toml file settings if none gievn.
+
+    Args:
+        opts: the config settings
+
+    Returns:
+        a QdrantClient object
+    """
+    from lmm_education.config.config import (
+        LocalStorage,
+        RemoteSource,
+    )
+
+    if opts is None:
+        opts = ConfigSettings()
+    client: AsyncQdrantClient
+    match opts.storage:
+        case ':memory:':
+            client = AsyncQdrantClient(':memory:')
+        case LocalStorage(folder=folder):
+            client = AsyncQdrantClient(path=folder)
+        case RemoteSource(url=url, port=port):
+            client = AsyncQdrantClient(url=str(url), port=port)
+        case _:
+            raise ValueError("Invalid database source")
+    return client
+
+
 async def ainitialize_collection(
     client: AsyncQdrantClient,
     collection_name: str,
     embedding_model: QdrantEmbeddingModel,
     logger: LoggerBase = default_logger,
 ) -> bool:
-    """Check that the collection supports the embedding model, if
+    """
+    Check that the collection supports the embedding model, if
     already in the database. If not, create a collection supporting
     the embedding model
 
@@ -280,7 +350,8 @@ async def ainitialize_collection(
         collection_name: the collection
         embedding_model: the embedding model
 
-    Return: a boolean
+    Returns:
+        a boolean
     """
 
     from requests.exceptions import ConnectionError
@@ -443,7 +514,8 @@ def chunks_to_points(
         [Chunk], dict[str, Any]
     ] = _chunk_to_payload_langchain,
 ) -> list[Point]:
-    """Converts a list of chunks into a list of the record objects
+    """
+    Converts a list of chunks into a list of the record objects
     understood by the Qdrant database, using an embedding model
     for the conversion.
 
@@ -631,7 +703,8 @@ def upload(
     chunks: list[Chunk],
     logger: LoggerBase = default_logger,
 ) -> list[Point]:
-    """Upload a list of chunks into the Qdrant database
+    """
+    Upload a list of chunks into the Qdrant database
 
     Args:
         client: the connection to the database
@@ -667,7 +740,8 @@ async def aupload(
     chunks: list[Chunk],
     logger: LoggerBase = default_logger,
 ) -> list[Point]:
-    """Upload a list of chunks into the Qdrant database
+    """
+    Upload a list of chunks into the Qdrant database
 
     Args:
         client: the connection to the database
@@ -709,6 +783,22 @@ def query(
     payload: list[str] = ['page_content'],
     logger: LoggerBase = default_logger,
 ) -> list[ScoredPoint]:
+    """
+    Executes a query on the client.
+
+    Args:
+        client: a QdrantClient object
+        collection_name: the collection to query
+        model: the embedding model
+        querytext: the target text
+        limit: max number of chunks retrieved
+        payload: what properties to be retrieved; defaults to the text
+            retrieved for similarity to the querytext
+        logger: a logger object
+
+    Returns:
+        a list of ScoredPoint objects.
+    """
 
     # load language model
     from requests.exceptions import ConnectionError
@@ -830,6 +920,22 @@ async def aquery(
     payload: list[str] = ['page_content'],
     logger: LoggerBase = default_logger,
 ) -> list[ScoredPoint]:
+    """
+    Executes a query on the client asynchronously.
+
+    Args:
+        client: a QdrantClient object
+        collection_name: the collection to query
+        model: the embedding model
+        querytext: the target text
+        limit: max number of chunks retrieved
+        payload: what properties to be retrieved; defaults to the text
+            retrieved for similarity to the querytext
+        logger: a logger object
+
+    Returns:
+        a list of ScoredPoint objects.
+    """
 
     # load language model
     from requests.exceptions import ConnectionError
@@ -954,6 +1060,26 @@ def query_grouped(
     payload: list[str] = ['page_content'],
     logger: LoggerBase = default_logger,
 ) -> GroupsResult:
+    """
+    Executes a grouped query on the client.
+
+    Args:
+        client: a QdrantClient object
+        collection_name: the collection to query
+        group_collection: the companion collection that will provide
+            the output of the query
+        group_field: the filed to group on
+        limitgroups: max retrieved output from the group collection
+        model: the embedding model
+        querytext: the target text
+        limit: max number of chunks retrieved
+        payload: what properties to be retrieved; defaults to the text
+            retrieved for similarity to the querytext
+        logger: a logger object
+
+    Returns:
+        a list of ScoredPoint objects.
+    """
 
     # Essentially, the qdrant API declares different
     # types for any search API.
@@ -1103,6 +1229,26 @@ async def aquery_grouped(
     payload: list[str] = ['page_content'],
     logger: LoggerBase = default_logger,
 ) -> GroupsResult:
+    """
+    Executes a grouped query on the client asynchronously.
+
+    Args:
+        client: a QdrantClient object
+        collection_name: the collection to query
+        group_collection: the companion collection that will provide
+            the output of the query
+        group_field: the filed to group on
+        limitgroups: max retrieved output from the group collection
+        model: the embedding model
+        querytext: the target text
+        limit: max number of chunks retrieved
+        payload: what properties to be retrieved; defaults to the text
+            retrieved for similarity to the querytext
+        logger: a logger object
+
+    Returns:
+        a list of ScoredPoint objects.
+    """
 
     # Essentially, the qdrant API declares different
     # types for any search API.

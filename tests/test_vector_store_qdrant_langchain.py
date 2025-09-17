@@ -97,7 +97,7 @@ class TestQuery(unittest.TestCase):
         )
         results: list[Document] = retriever.invoke(uuids[0])
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
+        self.assertEqual(results[0].page_content, text.get_content())
 
     def test_query_CONTENT(self):
         encoding_model = EncodingModel.CONTENT
@@ -385,6 +385,48 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[1].page_content)
         self.assertEqual(results[1].page_content, text.get_content())  # type: ignore
+
+    def test_query_SPARSE_MERGED3_config(self):
+        from lmm_education.config.config import ConfigSettings
+        from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
+        from lmm_education.stores.vector_store_qdrant import (
+            client_from_config,
+        )
+
+        collection_name: str = "adsfosi"
+        annotation_model = AnnotationModel(
+            inherited_properties=[TITLES_KEY, QUESTIONS_KEY]
+        )
+        opts = ConfigSettings(
+            storage=":memory:",
+            encoding_model=EncodingModel.SPARSE_MERGED,
+            annotation_model=annotation_model,
+            questions=True,
+            collection_name=collection_name,
+        )
+        client = client_from_config(opts)
+        embedding_model = encoding_to_qdrantembedding_model(
+            opts.encoding_model
+        )
+        flag = initialize_collection(
+            client, collection_name, embedding_model
+        )
+        if not flag:
+            raise Exception("Could not initialize collection")
+        chunks = blocks_to_chunks(
+            blocks, opts.encoding_model, annotation_model
+        )
+        ps = upload(client, collection_name, embedding_model, chunks)
+
+        retriever: Retriever = Retriever(
+            client, collection_name, embedding_model
+        )
+        results: list[Document] = retriever.invoke(
+            "Why is the sky blue?"
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertTrue(results[1].page_content)
+        self.assertEqual(results[1].page_content, text.get_content())
 
 
 class TestQueryGrouped(unittest.TestCase):

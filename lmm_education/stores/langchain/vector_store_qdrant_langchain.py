@@ -17,10 +17,21 @@ from .. import vector_store_qdrant as vsq
 
 from pydantic import Field, ConfigDict
 
+from lmm_education.config.config import ConfigSettings
+from lmm_education.stores.vector_store_qdrant import (
+    client_from_config,
+    async_client_from_config,
+    encoding_to_qdrantembedding_model,
+)
+
 
 # TODO: implement langchain approach to providing extra args
 # to invoke()
 class QdrantVectorStoreRetriever(BaseRetriever):
+    """
+    Langchain retriever interface to the Qdrant vector store.
+    """
+
     client: QdrantClient = Field(
         default=QdrantClient(':memory:'), init=False
     )
@@ -51,6 +62,35 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         self.embedding_model = embedding_model
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @staticmethod
+    def from_config_settings(
+        opts: ConfigSettings | None = None,
+    ) -> BaseRetriever:
+        """
+        Initializes a QdrantVectorStoreRetriever from a ConfigSettings
+        object, or from the config_education.toml file.
+
+        Args:
+            opts: a ConfigSettings object, or none to read settings
+                from the configutation file
+
+        Returns:
+            A QdrantVectorStoreRetriever object
+        """
+        if opts is None:
+            opts = ConfigSettings()
+
+        if bool(opts.companion_collection):
+            return QdrantVectorStoreRetrieverGrouped.from_config_settings(
+                opts
+            )
+
+        return QdrantVectorStoreRetriever(
+            client_from_config(opts),
+            opts.collection_name,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+        )
 
     def _points_to_documents(
         self, points: list[vsq.ScoredPoint]
@@ -90,6 +130,11 @@ class QdrantVectorStoreRetriever(BaseRetriever):
 
 
 class AsyncQdrantVectorStoreRetriever(BaseRetriever):
+    """
+    Langchain asynchronous retriever interface to the Qdrant
+    vector store.
+    """
+
     client: AsyncQdrantClient = Field(
         default=AsyncQdrantClient(':memory:'), init=False
     )
@@ -121,6 +166,35 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         self.embedding_model = embedding_model
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @staticmethod
+    def from_config_settings(
+        opts: ConfigSettings | None = None,
+    ) -> BaseRetriever:
+        """
+        Initializes a ansynchronous QdrantVectorStoreRetriever from a
+        ConfigSettings object, or from the config_education.toml file.
+
+        Args:
+            opts: a ConfigSettings object, or none to read settings
+                from the configutation file
+
+        Returns:
+            An AsyncQdrantVectorStoreRetriever object
+        """
+        if opts is None:
+            opts = ConfigSettings()
+
+        if bool(opts.companion_collection):
+            return AsyncQdrantVectorStoreRetrieverGrouped.from_config_settings(
+                opts
+            )
+
+        return AsyncQdrantVectorStoreRetriever(
+            async_client_from_config(opts),
+            opts.collection_name,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+        )
 
     def _points_to_documents(
         self, points: list[vsq.ScoredPoint]
@@ -197,7 +271,13 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         return self._points_to_documents(points)
 
 
+# TODO: move limitgrouops and limit to the query memebr function
 class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
+    """
+    Langchain retriever interface to the Qdrant vector store
+    for grouped queries.
+    """
+
     client: QdrantClient = Field(
         default=QdrantClient(':memory:'), init=False
     )
@@ -241,6 +321,41 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @staticmethod
+    def from_config_settings(
+        opts: ConfigSettings | None = None,
+    ) -> BaseRetriever:
+        """
+        Initializes a QdrantVectorStoreRetrieverGrouped from a
+        ConfigSettings object, or from the config_education.toml file.
+
+        Args:
+            opts: a ConfigSettings object, or none to read settings
+                from the configutation file
+
+        Returns:
+            A QdrantVectorStoreRetrieverGrouped object
+        """
+        from lmm.scan.scan_keys import GROUP_UUID_KEY
+
+        if opts is None:
+            opts = ConfigSettings()
+
+        if not bool(opts.companion_collection):
+            return QdrantVectorStoreRetriever.from_config_settings(
+                opts
+            )
+
+        return QdrantVectorStoreRetrieverGrouped(
+            client_from_config(opts),
+            opts.collection_name,
+            opts.companion_collection,
+            GROUP_UUID_KEY,
+            4,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+            1,
+        )
+
     def _results_to_documents(
         self, results: vsq.GroupsResult
     ) -> list[Document]:
@@ -265,6 +380,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         query: str,
         *,
         run_manager: CallbackManagerForRetrieverRun,
+        limit: int = 4,
         payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
@@ -273,7 +389,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             self.collection_name,
             self.group_collection,
             self.group_field,
-            self.limitgroups,
+            limit,  # limitgroups
             self.embedding_model,
             query,
             self.limit,
@@ -284,6 +400,11 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
 
 class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
+    """
+    Langchain asynchronous retriever interface to the Qdrant vector
+    store for grouped queries.
+    """
+
     client: AsyncQdrantClient = Field(
         default=AsyncQdrantClient(':memory:'), init=False
     )
@@ -328,6 +449,44 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @staticmethod
+    def from_config_settings(
+        opts: ConfigSettings | None = None,
+    ) -> BaseRetriever:
+        """
+        Initializes a ansynchronous QdrantVectorStoreRetrieverGrouped
+        instance from a ConfigSettings object, or from the
+        config_education.toml file.
+
+        Args:
+            opts: a ConfigSettings object, or none to read settings
+                from the configutation file
+
+        Returns:
+            An AsyncQdrantVectorStoreRetrieverGrouped object
+        """
+        from lmm.scan.scan_keys import GROUP_UUID_KEY
+
+        if opts is None:
+            opts = ConfigSettings()
+
+        if not bool(opts.companion_collection):
+            return (
+                AsyncQdrantVectorStoreRetriever.from_config_settings(
+                    opts
+                )
+            )
+
+        return AsyncQdrantVectorStoreRetrieverGrouped(
+            async_client_from_config(opts),
+            opts.collection_name,
+            opts.companion_collection,
+            GROUP_UUID_KEY,
+            4,
+            encoding_to_qdrantembedding_model(opts.encoding_model),
+            1,
+        )
+
     def _results_to_documents(
         self, results: vsq.GroupsResult
     ) -> list[Document]:
@@ -352,6 +511,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         query: str,
         *,
         run_manager: CallbackManagerForRetrieverRun,
+        limit: int = 4,
         payload: list[str] = ['page_content'],
     ) -> list[Document]:
         # this is a required override, so we need to await the async
@@ -373,7 +533,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 self.collection_name,
                 self.group_collection,
                 self.group_field,
-                self.limitgroups,
+                limit,  # limitgroups
                 self.embedding_model,
                 query,
                 self.limit,
