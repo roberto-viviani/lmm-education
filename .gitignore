@@ -6,3 +6,5 @@ __pycache__/
 config.toml
 config_education.toml
 Chapter_1.Rmd
+appChat.log
+messages.csv
