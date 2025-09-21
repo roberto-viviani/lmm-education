@@ -123,13 +123,18 @@ def _get_sparse_model() -> SparseTextEmbedding:
     return _sparse_model_cache
 
 
-def client_from_config(opts: ConfigSettings | None) -> QdrantClient:
+def client_from_config(
+    opts: ConfigSettings | None, logger: LoggerBase = default_logger
+) -> QdrantClient | None:
     """ "
     Create a qdrant clients from config settings. Reads from config
     toml file settings if none gievn.
 
+    Please note that a client should be closed before exiting.
+
     Args:
         opts: the config settings
+        logger: a logger object
 
     Returns:
         a QdrantClient object
@@ -139,18 +144,24 @@ def client_from_config(opts: ConfigSettings | None) -> QdrantClient:
         RemoteSource,
     )
 
-    if opts is None:
-        opts = ConfigSettings()
-    client: QdrantClient
-    match opts.storage:
-        case ':memory:':
-            client = QdrantClient(':memory:')
-        case LocalStorage(folder=folder):
-            client = QdrantClient(path=folder)
-        case RemoteSource(url=url, port=port):
-            client = QdrantClient(url=str(url), port=port)
-        case _:
-            raise ValueError("Invalid database source")
+    try:
+        if opts is None:
+            opts = ConfigSettings()
+        client: QdrantClient
+        match opts.storage:
+            case ':memory:':
+                client = QdrantClient(':memory:')
+            case LocalStorage(folder=folder):
+                client = QdrantClient(path=folder)
+            case RemoteSource(url=url, port=port):
+                client = QdrantClient(url=str(url), port=port)
+            case _:
+                logger.error("Invalid database source")
+                return None
+    except Exception as e:
+        logger.error(f"Could not initialize qdrant client:\n{e}")
+        return None
+
     return client
 
 
@@ -303,13 +314,15 @@ def initialize_collection(
 
 def async_client_from_config(
     opts: ConfigSettings | None,
-) -> AsyncQdrantClient:
+    logger: LoggerBase = default_logger,
+) -> AsyncQdrantClient | None:
     """ "
     Create a qdrant clients from config settings. Reads from config
     toml file settings if none gievn.
 
     Args:
         opts: the config settings
+        logger: a logger object
 
     Returns:
         a QdrantClient object
@@ -319,18 +332,23 @@ def async_client_from_config(
         RemoteSource,
     )
 
-    if opts is None:
-        opts = ConfigSettings()
-    client: AsyncQdrantClient
-    match opts.storage:
-        case ':memory:':
-            client = AsyncQdrantClient(':memory:')
-        case LocalStorage(folder=folder):
-            client = AsyncQdrantClient(path=folder)
-        case RemoteSource(url=url, port=port):
-            client = AsyncQdrantClient(url=str(url), port=port)
-        case _:
-            raise ValueError("Invalid database source")
+    try:
+        if opts is None:
+            opts = ConfigSettings()
+        client: AsyncQdrantClient
+        match opts.storage:
+            case ':memory:':
+                client = AsyncQdrantClient(':memory:')
+            case LocalStorage(folder=folder):
+                client = AsyncQdrantClient(path=folder)
+            case RemoteSource(url=url, port=port):
+                client = AsyncQdrantClient(url=str(url), port=port)
+            case _:
+                raise ValueError("Invalid database source")
+    except Exception as e:
+        logger.error(f"Could not initialize qdrant client:\n{e}")
+        return None
+
     return client
 
 

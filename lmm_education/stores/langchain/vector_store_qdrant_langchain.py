@@ -18,6 +18,7 @@ from .. import vector_store_qdrant as vsq
 from pydantic import Field, ConfigDict
 
 from lmm.scan.scan_keys import GROUP_UUID_KEY
+from lmm.utils.logging import ExceptionConsoleLogger
 from lmm_education.config.config import ConfigSettings
 from lmm_education.stores.vector_store_qdrant import (
     client_from_config,
@@ -79,6 +80,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         Returns:
             A QdrantVectorStoreRetriever object
         """
+
         if opts is None:
             opts = ConfigSettings()
 
@@ -87,8 +89,12 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 opts
             )
 
+        logger = ExceptionConsoleLogger()
+        client: QdrantClient | None = client_from_config(opts, logger)
+        if client is None:
+            raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetriever(
-            client_from_config(opts),
+            client,
             opts.collection_name,
             encoding_to_qdrantembedding_model(opts.encoding_model),
         )
@@ -191,8 +197,14 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 opts
             )
 
+        logger = ExceptionConsoleLogger()
+        client: AsyncQdrantClient | None = async_client_from_config(
+            opts, logger
+        )
+        if client is None:
+            raise ValueError("Could not initialize client")
         return AsyncQdrantVectorStoreRetriever(
-            async_client_from_config(opts),
+            client,
             opts.collection_name,
             encoding_to_qdrantembedding_model(opts.encoding_model),
         )
@@ -343,8 +355,12 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 opts
             )
 
+        logger = ExceptionConsoleLogger()
+        client: QdrantClient | None = client_from_config(opts, logger)
+        if client is None:
+            raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetrieverGrouped(
-            client_from_config(opts),
+            client,
             opts.collection_name,
             opts.companion_collection,
             GROUP_UUID_KEY,
@@ -470,8 +486,14 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 )
             )
 
+        logger = ExceptionConsoleLogger()
+        client: AsyncQdrantClient | None = async_client_from_config(
+            opts, logger
+        )
+        if client is None:
+            raise ValueError("Could not initialize client")
         return AsyncQdrantVectorStoreRetrieverGrouped(
-            async_client_from_config(opts),
+            client,
             opts.collection_name,
             opts.companion_collection,
             GROUP_UUID_KEY,

@@ -173,6 +173,41 @@ class TestInitialization(unittest.TestCase):
         )
 
 
+class TestInitializationLocal(unittest.TestCase):
+
+    def test_encoding_content(self):
+        from lmm.utils.logging import LoglistLogger
+
+        logger = LoglistLogger()
+
+        try:
+            local_client = QdrantClient(path="./test_storage")
+        except Exception as e:
+            print(f"{e}")
+            self.assertTrue(False)
+
+        encoding_model = EncodingModel.CONTENT
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        collection_name: str = encoding_model.value
+        result = initialize_collection(
+            local_client, "chunks", embedding_model, logger
+        )
+        if logger.count_logs(level=1):
+            print("\n".join(logger.get_logs()))
+        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+        local_client.close()
+        # delete the storage directory and all its contents
+        import shutil
+
+        shutil.rmtree("./test_storage")
+
+
 class TestIngestionAndQuery(unittest.TestCase):
 
     # ------ ingestion ------------------------------------------------

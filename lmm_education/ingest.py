@@ -166,11 +166,8 @@ def initialize_client(
         return None
 
     # obtain a QdrantClient object using the config file settings
-    client: QdrantClient
-    try:
-        client = client_from_config(opts)
-    except Exception as e:
-        logger.error(f"Could not initialize client.\n{e}")
+    client: QdrantClient | None = client_from_config(opts, logger)
+    if client is None:
         return None
 
     flag: bool = initialize_collection(
@@ -250,8 +247,10 @@ def markdown_upload(
     # to validate the database schema, i.e that it has a schema that
     # corresponds to the encoding model applied to the documents. If
     # the database does not exist, it will be created.
+    local_client_flag: bool = False
     if client is None:
         client = initialize_client(config_opts, logger)
+        local_client_flag = True
     if not client:
         logger.warning("Database could not be initialized.")
         return []
@@ -350,6 +349,9 @@ def markdown_upload(
                 save_markdown(
                     save_files, chunk_blocks + comp_blocks, logger
                 )
+
+    if local_client_flag:
+        client.close()
 
     return ids
 
