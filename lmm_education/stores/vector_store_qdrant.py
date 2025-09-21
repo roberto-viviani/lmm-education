@@ -177,7 +177,7 @@ def initialize_collection(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.kernel import (
+        from lmm.language_models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -355,7 +355,9 @@ async def ainitialize_collection(
     """
 
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
 
     try:
         encoder: Embeddings = create_embeddings()
@@ -532,7 +534,9 @@ def chunks_to_points(
 
     # load embedding model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
 
     try:
         encoder: Embeddings = create_embeddings()
@@ -802,7 +806,9 @@ def query(
 
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
 
     try:
         encoder: Embeddings = create_embeddings()
@@ -939,7 +945,9 @@ async def aquery(
 
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
 
     try:
         encoder: Embeddings = create_embeddings()
@@ -1087,7 +1095,9 @@ def query_grouped(
     NullResult: GroupsResult = GroupsResult(groups=[])
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
 
     try:
         encoder: Embeddings = create_embeddings()
@@ -1258,7 +1268,9 @@ async def aquery_grouped(
     NullResult: GroupsResult = GroupsResult(groups=[])
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.kernel import create_embeddings
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
 
     try:
         encoder: Embeddings = create_embeddings()
