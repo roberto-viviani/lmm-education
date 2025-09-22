@@ -1,15 +1,104 @@
-"""Computes the embeddings and handles uploading and saving the data
-    to the vector database.
+"""
+Computes the embeddings and handles uploading and saving the data
+to the vector database.
 
-    This functionality is provided as a module (a set of functions) to
-    support subsequent assembling the implementation of an interface
-    defined by the language framework (see
-    vector_store_qdrant_langchain)
+Provides the interface to the qdrant database. A connection to the
+database is representend by a `QdrantClient` object of the Qdrant API,
+which may be initialized directly through the constructor, or through
+the `client_from_config` function which reads the database options
+from config.toml:
 
-Uses: Qdrant API
-      langchain (computation embeddings)
+```python
+    from lmm_education.stores.vector_store_qdrant import client_from_config
 
-Input format: Chunk list
+    client: QdrantCient | None = client_from_config()
+    # check client is not None
+```
+
+It is also possible to intialize a config object explicitly for the
+properties that override config.toml.
+
+```python
+    from lmm_education.stores.vector_store_qdrant import client_from_config
+    from lmm_education.config.config import ConfigSettings
+
+    # read settings from config.toml, but override 'storage':
+    settings = ConfigSettings(storage=":memory:")
+    client: QdrantCient | None = client_from_config(settings)
+```
+
+The functions in this module use a logger to communicate errors, so
+that the way exceptions are handled depends on the logger type. If no
+lgger is specified, an error message is printed on the console.
+
+```python
+    from lmm_education.stores.vector_store_qdrant import client_from_config
+    from lmm.utils.logging import LogfileLogger
+
+    logger = LogfileLogger()
+    client: QdrantCient | None = client_from_config(None, logger)
+    if client is None:
+        # read causes from logger
+```
+
+The remaining functions of the module take the client object to read and
+write to the database. All calls go through initialize_connection, which
+takes the name of the collection and an embedding model to specify how
+the data should be embedded (what type of dense and sparse vector, or any
+hybrid combination of those, should be used):
+
+```python
+    # ... client creation not shown
+    from lmm_education.stores.vector_store_qdrant import (
+        initialize_connection,
+        QdrantEmbeddingModel,
+    )
+
+    embedding_model = QdrantEmbeddingModel
+    flag: bool = initialize_connection(
+        client,
+        "documents",
+        embedding_model,
+        logger)
+```
+
+In every call to the functions of the model, the client, the
+collection name, and the embedding model are given as arguments.
+
+Data are ingested in the database in the form of lists of `Chunk`
+objects (see the `lmm_education.stores.chunks` module).
+
+```python
+points: list[Point] = upload(
+    client,
+    "documents",
+    embedding_model,
+    chunks,
+    logger,
+)
+```
+
+The `point` objects are the representations of records used by Qdrant.
+This function converts each `Chunk` object to a `Point` object prior
+to ingesting. This conversion includes the formation of dense and
+sparse vectors, as specified by the embedding model. The points are
+returned if the upload is successful.
+
+The database may then be queried:
+
+```python
+points: list[ScoredPoint] = query(
+    client,
+    "documents",
+    embedding_model,
+    "What are the main uses of ligistic regression?",
+    limit = 12,  # may number retrieved points
+    payload = True,  # all payload fields
+)
+```
+
+`ScoredPoint` is the Qdrant class to return the payload of the
+retrieved points (which includes the text).
 
 Responsibilities:
     definition of Qdrant embedding model
@@ -182,7 +271,8 @@ def initialize_collection(
         embedding_model: the embedding model
 
     Returns:
-        a boolean
+        a boolean flag indicating that the client may be used with
+            these parameters.
     """
 
     from requests.exceptions import ConnectionError
@@ -735,7 +825,7 @@ def upload(
         chunks: the chunk list
 
     Returns:
-        a list of the id's of the ingested chunks
+        a list of Point objects
     """
 
     if not initialize_collection(client, collection_name, model):
@@ -772,7 +862,7 @@ async def aupload(
         chunks: the chunk list
 
     Returns:
-        a list of the id's of the ingested chunks
+        a list of Point objects
     """
 
     if not await ainitialize_collection(
@@ -801,6 +891,7 @@ def query(
     collection_name: str,
     model: QdrantEmbeddingModel,
     querytext: str,
+    *,
     limit: int = 12,
     payload: list[str] | bool = ['page_content'],
     logger: LoggerBase = default_logger,
@@ -1142,9 +1233,9 @@ def query_grouped(
                 collection_name,
                 model,
                 querytext,
-                limit,
-                payload,
-                logger,
+                limit=limit,
+                payload=payload,
+                logger=logger,
             )
             return GroupsResult(
                 groups=[PointGroup(hits=hits, id=querytext)]

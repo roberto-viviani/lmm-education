@@ -124,13 +124,15 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         payload: list[str] = ['page_content'],
     ) -> list[Document]:
 
+        logger = ExceptionConsoleLogger()
         points: list[vsq.ScoredPoint] = vsq.query(
             self.client,
             self.collection_name,
             self.embedding_model,
             query,
-            limit,
-            payload,
+            limit=limit,
+            payload=payload,
+            logger=logger,
         )
 
         return self._points_to_documents(points)
