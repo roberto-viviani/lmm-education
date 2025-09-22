@@ -251,7 +251,7 @@ class ConfigSettings(BaseSettings):
     """
 
     storage: DatabaseSource = Field(
-        default=":memory:",
+        default=LocalStorage(folder="./storage"),
         description="The vector database local or remote source",
     )
     collection_name: str = Field(
@@ -384,7 +384,7 @@ def create_default_config_file(
         # otherwise, it will be read in
         file_path.unlink()
 
-    settings = ConfigSettings(storage=":memory:")
+    settings = ConfigSettings()
 
     export_settings(settings, file_path)
 
