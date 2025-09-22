@@ -213,7 +213,8 @@ def _get_sparse_model() -> SparseTextEmbedding:
 
 
 def client_from_config(
-    opts: ConfigSettings | None, logger: LoggerBase = default_logger
+    opts: ConfigSettings | None = None,
+    logger: LoggerBase = default_logger,
 ) -> QdrantClient | None:
     """ "
     Create a qdrant clients from config settings. Reads from config
@@ -258,6 +259,7 @@ def initialize_collection(
     client: QdrantClient,
     collection_name: str,
     embedding_model: QdrantEmbeddingModel,
+    *,
     logger: LoggerBase = default_logger,
 ) -> bool:
     """
@@ -446,6 +448,7 @@ async def ainitialize_collection(
     client: AsyncQdrantClient,
     collection_name: str,
     embedding_model: QdrantEmbeddingModel,
+    *,
     logger: LoggerBase = default_logger,
 ) -> bool:
     """
@@ -619,6 +622,7 @@ def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
 def chunks_to_points(
     chunks: list[Chunk],
     model: QdrantEmbeddingModel,
+    *,
     logger: LoggerBase = default_logger,
     chunk_to_payload: Callable[
         [Chunk], dict[str, Any]
@@ -813,6 +817,7 @@ def upload(
     collection_name: str,
     model: QdrantEmbeddingModel,
     chunks: list[Chunk],
+    *,
     logger: LoggerBase = default_logger,
 ) -> list[Point]:
     """
@@ -828,18 +833,22 @@ def upload(
         a list of Point objects
     """
 
-    if not initialize_collection(client, collection_name, model):
-        logger.error("Could not initialize collection")
+    if not initialize_collection(
+        client, collection_name, model, logger=logger
+    ):
+        logger.error("Could not initialize collection.")
         return []
 
-    points: list[Point] = chunks_to_points(chunks, model)
+    points: list[Point] = chunks_to_points(
+        chunks, model, logger=logger
+    )
     if not points:
         return []
 
     try:
         client.upsert(collection_name=collection_name, points=points)
-    except Exception:
-        logger.error("Could not upload chunks to database")
+    except Exception as e:
+        logger.error(f"Could not upload chunks to database:\n{e}")
         return []
 
     return points
@@ -850,6 +859,7 @@ async def aupload(
     collection_name: str,
     model: QdrantEmbeddingModel,
     chunks: list[Chunk],
+    *,
     logger: LoggerBase = default_logger,
 ) -> list[Point]:
     """
@@ -866,12 +876,14 @@ async def aupload(
     """
 
     if not await ainitialize_collection(
-        client, collection_name, model
+        client, collection_name, model, logger=logger
     ):
         logger.error("Could not initialize collection")
         return []
 
-    points: list[Point] = chunks_to_points(chunks, model)
+    points: list[Point] = chunks_to_points(
+        chunks, model, logger=logger
+    )
     if not points:
         return []
 
@@ -1031,6 +1043,7 @@ async def aquery(
     collection_name: str,
     model: QdrantEmbeddingModel,
     querytext: str,
+    *,
     limit: int = 12,
     payload: list[str] | bool = ['page_content'],
     logger: LoggerBase = default_logger,
@@ -1406,9 +1419,9 @@ async def aquery_grouped(
                 collection_name,
                 model,
                 querytext,
-                limit,
-                payload,
-                logger,
+                limit=limit,
+                payload=payload,
+                logger=logger,
             )
             return GroupsResult(
                 groups=[PointGroup(hits=hits, id=querytext)]

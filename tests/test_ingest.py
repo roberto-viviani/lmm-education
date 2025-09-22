@@ -357,12 +357,14 @@ class TestMarkdownQueries(unittest.TestCase):
 
         results = query(
             client,
-            opts.collection_name,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
-            "What are the main uses of linear models?",
-            4,
-            ['page_content'],
-            logger,
+            collection_name=opts.collection_name,
+            model=encoding_to_qdrantembedding_model(
+                opts.encoding_model
+            ),
+            querytext="What are the main uses of linear models?",
+            limit=4,
+            payload=['page_content'],
+            logger=logger,
         )
         print("\n".join(logger.get_logs(level=0)))
         self.assertTrue(logger.count_logs(level=1) == 0)

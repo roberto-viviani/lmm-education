@@ -270,11 +270,11 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
         # query in the main collection (splitted chunks)
         splitres: list[ScoredPoint] = await aquery(
             client,
-            COLLECTION_MAIN,
-            embedding_model_main,
-            "How can I estimate the predicted depressiveness from this model?",
-            2,
-            ['page_content', GROUP_UUID_KEY],
+            collection_name=COLLECTION_MAIN,
+            model=embedding_model_main,
+            querytext="How can I estimate the predicted depressiveness from this model?",
+            limit=2,
+            payload=['page_content', GROUP_UUID_KEY],
         )
         self.assertLess(0, len(splitres))
         self.assertTrue(splitres[0].payload)
@@ -303,10 +303,10 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
         # grouped query
         results: GroupsResult = await aquery_grouped(
             client,
-            COLLECTION_MAIN,
-            COLLECTION_DOCS,
-            embedding_model_main,
-            "How can I estimate the predicted depressiveness from this model?",
+            collection_name=COLLECTION_MAIN,
+            group_collection=COLLECTION_DOCS,
+            model=embedding_model_main,
+            querytext="How can I estimate the predicted depressiveness from this model?",
             group_field=GROUP_UUID_KEY,
             limit=1,
         )

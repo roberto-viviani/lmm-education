@@ -166,7 +166,9 @@ def initialize_client(
         return None
 
     # obtain a QdrantClient object using the config file settings
-    client: QdrantClient | None = client_from_config(opts, logger)
+    client: QdrantClient | None = client_from_config(
+        opts=opts, logger=logger
+    )
     if client is None:
         return None
 
@@ -174,7 +176,7 @@ def initialize_client(
         client,
         collection_name,
         encoding_to_embedding_model(opts.encoding_model),
-        logger,
+        logger=logger,
     )
     if not flag:
         return None
@@ -184,7 +186,7 @@ def initialize_client(
             client,
             opts.companion_collection,
             EmbeddingModel.UUID,
-            logger,
+            logger=logger,
         )
         if not flag:
             return None
@@ -423,9 +425,9 @@ def blocklist_encode(
         # create embeddings
         coll_chunks: list[Chunk] = blocks_to_chunks(
             blocks,
-            EncodingModel.NONE,
-            AnnotationModel(),  # no annotations here
-            logger,
+            encoding_model=EncodingModel.NONE,
+            annotation_model=AnnotationModel(),  # no annotations here
+            logger=logger,
         )
         if not coll_chunks:
             return [], []
@@ -486,9 +488,9 @@ def blocklist_encode(
     annotation_model = opts.get_annotation_model([TITLES_KEY])
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
-        opts.encoding_model,
-        annotation_model,
-        logger,
+        encoding_model=opts.encoding_model,
+        annotation_model=annotation_model,
+        logger=logger,
     )
     if not chunks:
         return [], []
@@ -536,7 +538,11 @@ def blocklist_upload(
     )
     if ingest:
         points = upload(
-            client, opts.collection_name, model, chunks, logger
+            client,
+            collection_name=opts.collection_name,
+            model=model,
+            chunks=chunks,
+            logger=logger,
         )
     else:
         points = chunks_to_points(chunks, model)
@@ -556,10 +562,10 @@ def blocklist_upload(
         if ingest:
             docpoints = upload(
                 client,
-                doc_coll,
-                EmbeddingModel.UUID,
-                companion_chunks,
-                logger,
+                collection_name=doc_coll,
+                model=EmbeddingModel.UUID,
+                chunks=companion_chunks,
+                logger=logger,
             )
         else:
             docpoints = chunks_to_points(chunks, EmbeddingModel.UUID)

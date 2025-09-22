@@ -15,21 +15,90 @@ member methods collects and organizes this information. It constitutes
 a framework-neutral replacement for the Document class, commonly used
 by frameworks in RAG applications.
 
-Embeddings are increasingly supported in a variety of configurations,
-based on two approaches: dense and sparse vector representations. Once
-the data are selected for embeddings and storage, the next logical
-step is the definition of how dense and sparse vector representations
-are used to compute the embeddings. This module defines an
-_encoding model_ to map the data selected for embedding to the
-embedding type supported by the database engine. In what follows, the
-metadata properties used to generate embeddings are called
-'annotations', to distinguish them from other properties (among others,
-metadata properties used for housekeeping purposes).
+Embeddings are increasingly supported in a variety of configurations.
+Besides the data selected for storage, portion of data may be selected
+to compute the embeddings. This module defines an _encoding model_ to
+map the data selected for embedding to the embedding type supported by
+the database engine. In what follows, the metadata properties used to
+generate embeddings are called 'annotations', to distinguish them from
+other properties (among others, metadata properties used for
+housekeeping purposes).
+
+The annotation model not only specifies what metadata properties are
+included in the emebdding, but also whether to look for them in the
+ancestors of the markdown text, represented as a hierachical tree
+where headings are the nodes in the hierarchy. An _encoding model_
+further specifies how the annotations are used in dense and sparse
+encodings.
+
+Example:
+
+```python
+from lmm.markdown.parse_markdown import (
+    blocklist_haserrors,
+)
+from lmm.scan.scan import markdown_scan
+from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.scan.scan_keys import TITLES_KEY
+from lmm.utils.logging import LoglistLogger
+from lmm_education.config.config import (
+    AnnotationModel,
+    EncodingModel,
+)
+from lmm_education.stores.chunks import blocks_to_chunks
+
+logger = LoglistLogger()
+
+# the starting point is a list of blocks, such as one originated
+# from parsing a markdown file
+blocks = scan_markdown("mymarkdown.md")
+if blocklist_haserrors(blocks)
+    raise ValueError("Errors in  markdown")
+
+# add metadata for annotations (here titles)
+blocks = scan_rag(blocks, ScanOpts(titles=True), logger)
+self.assertTrue(logger.count_logs(level=1) == 0)
+
+# transform to chunks specifying titles for annotations
+encoding_model = EncodingModel.SPARSE_CONTENT
+chunks = blocks_to_chunks(
+    blocks,
+    annotation_model=AnnotationModel(
+        inherited_properties=[TITLES_KEY]
+    ),
+    encoding_model=encoding_model,
+    logger=logger,
+)
+
+# now chunks can be ingested
+from lmm_education.stores.vector_store_qdrant import (
+    upload,
+    client_from_config,
+    encoding_to_qdrantembedding_model as to_embedding_model,
+)
+from lmm_education.config.config import (
+    ConfigSettings,
+    LocalStorage,
+)
+
+settings = ConfigSettings(
+    storage=LocalStorage(folder="./test_storage")
+)
+points = upload(
+    client=client_from_config(settings, logger),
+    collection_name="documents",
+    model=to_embedding_model(encoding_model),
+    chunks=chunks,
+    logger=logger,
+)
+
+if logger.count_log(level=1) > 0:
+    raise ValueError("Could not ingest blocks")
+```
 
 Note:
-    no embedding is computed here; this is done when the chunks are
-    transformed into the format that the vector database requires
-    for ingestion.
+    no embedding is computed here; this is done by the upload function
+    in the example above.
 
 Responsibilities:
     define encoding models
@@ -336,7 +405,9 @@ if __name__ == "__main__":
             return []
 
         opts: EncodingModel = EncodingModel.MULTIVECTOR
-        chunks = blocks_to_chunks(blocks, opts)
+        chunks: list[Chunk] = blocks_to_chunks(
+            blocks, encoding_model=opts
+        )
         blocks = chunks_to_blocks(chunks, sep="------")
         if blocks:
             save_blocks(target, blocks, logger)

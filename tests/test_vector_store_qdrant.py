@@ -192,7 +192,7 @@ class TestInitializationLocal(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            local_client, "chunks", embedding_model, logger
+            local_client, "chunks", embedding_model, logger=logger
         )
         if logger.count_logs(level=1):
             print("\n".join(logger.get_logs()))

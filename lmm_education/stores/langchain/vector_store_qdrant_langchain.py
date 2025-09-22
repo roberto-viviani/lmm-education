@@ -90,7 +90,9 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             )
 
         logger = ExceptionConsoleLogger()
-        client: QdrantClient | None = client_from_config(opts, logger)
+        client: QdrantClient | None = client_from_config(
+            opts=opts, logger=logger
+        )
         if client is None:
             raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetriever(
@@ -253,8 +255,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 self.collection_name,
                 self.embedding_model,
                 query,
-                limit,
-                payload,
+                limit=limit,
+                payload=payload,
             )
         )
 
@@ -279,8 +281,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             self.collection_name,
             self.embedding_model,
             query,
-            limit,
-            payload,
+            limit=limit,
+            payload=payload,
         )
 
         return self._points_to_documents(points)
@@ -358,7 +360,9 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             )
 
         logger = ExceptionConsoleLogger()
-        client: QdrantClient | None = client_from_config(opts, logger)
+        client: QdrantClient | None = client_from_config(
+            opts=opts, logger=logger
+        )
         if client is None:
             raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetrieverGrouped(
