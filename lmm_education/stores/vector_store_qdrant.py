@@ -91,10 +91,14 @@ points: list[ScoredPoint] = query(
     client,
     "documents",
     embedding_model,
-    "What are the main uses of ligistic regression?",
-    limit = 12,  # may number retrieved points
+    "What are the main uses of logistic regression?",
+    limit = 12,  # max number retrieved points
     payload = True,  # all payload fields
 )
+
+# retrieve text
+for pt in points:
+    print(f"{pt.score}\n{pt.payload['page_content']}\n\n")
 ```
 
 `ScoredPoint` is the Qdrant class to return the payload of the
