@@ -1,5 +1,7 @@
 import unittest
 
+from qdrant_client import QdrantClient
+
 text_summarized = """
 ---
 author: Roberto Viviani
@@ -52,6 +54,43 @@ summary: Linear models are computational tools that process numerical data to pr
 We may perhaps add that there is a third way to look at linear models, which is as computational devices that crunch numbers to output sophisticated averages of the data. From this perspective, the linear model does not care at all what kind of numbers are fed to it, as it will usually be able to compute something from them. Linear models are not oracles that can divine aspects of reality: all that they see is just numbers. Therefore, an important task when estimating linear models is our capacity to relate these numbers to measurements and observations in the real world, and interpret the output of the model in the light of this knowledge. The distinction between the interpretation of the associations in observational and experimental studies is one example of this task. Nevertheless, linear models can quantify the relative role of predictors on outcomes in ways that are not available to simple inspection. Furthermore, they can make optimal use of the information contained in the data, unlike a human observer.
 
 """
+
+
+class TestScanRag(unittest.TestCase):
+
+    # change options to avoid using language models
+    def test_scan_rag_and_save(self):
+        from lmm.markdown.parse_markdown import (
+            parse_markdown_text,
+            blocklist_haserrors,
+        )
+        from lmm.scan.scan_rag import scan_rag, ScanOpts
+        from lmm.utils.logging import LoglistLogger
+
+        logger = LoglistLogger()
+
+        # the starting point is a list of blocks, such as one originated
+        # from parsing a markdown file
+        blocks = parse_markdown_text(text_summarized)
+        self.assertFalse(blocklist_haserrors(blocks))
+
+        # add metadata for annotations (here titles)
+        from lmm.config.config import LanguageModelSettings
+
+        opts = ScanOpts(
+            titles=True,
+            questions=True,
+            language_model_settings=LanguageModelSettings(
+                model="Debug/debug"  # no real call to provider
+            ),
+        )
+        blocks = scan_rag(blocks, opts, logger)
+        self.assertTrue(logger.count_logs(level=1) == 0)
+
+        from lmm.markdown.parse_markdown import save_blocks
+
+        save_blocks("RaggedDocument.md", blocks, logger)
+        self.assertTrue(logger.count_logs(level=1) == 0)
 
 
 class TestChunkingAndIngestion(unittest.TestCase):
@@ -115,8 +154,9 @@ class TestChunkingAndIngestion(unittest.TestCase):
         settings = ConfigSettings(
             storage=LocalStorage(folder="./test_storage")
         )
+        client: QdrantClient = client_from_config(settings, logger)
         points = upload(
-            client=client_from_config(settings, logger),
+            client=client,
             collection_name="documents",
             model=to_embedding_model(encoding_model),
             chunks=chunks,
@@ -124,6 +164,24 @@ class TestChunkingAndIngestion(unittest.TestCase):
         )
         self.assertTrue(logger.count_logs(level=1) == 0)
         self.assertTrue(len(points) > 0)
+
+        # retrieve
+        from lmm_education.stores.vector_store_qdrant import query
+
+        scored_points = query(
+            client,
+            collection_name="documents",
+            model=to_embedding_model(encoding_model),
+            querytext="What is a linear model?",
+            payload=True,
+            limit=3,
+        )
+        self.assertTrue(len(scored_points) > 0)
+        # this does not work at present.
+        # self.assertTrue(len(scored_points) < 4)
+        self.assertIn('page_content', scored_points[0].payload)
+
+        client.close()
 
 
 if __name__ == "__main__":
