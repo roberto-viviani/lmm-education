@@ -354,6 +354,7 @@ def chunks_to_blocks(
         chunks: a list of `Chunk` objects
         sep: an optional separator to visualize the breaks
             between chunks
+        key_chunk: the metadata key where the chunk is copied into
 
     Returns:
         a list of markdown blocks that can be serialized as
@@ -382,6 +383,20 @@ def chunks_to_blocks(
         blocks.append(TextBlock(content=c.content))
 
     return blocks
+
+
+def serialize_chunks(
+    chunks: list[Chunk], sep: str = "", key_chunk: str = "~chunk"
+) -> str:
+    """
+    Serialize a list of `Chunk`objects for debug/inspection purposes.
+    See chunks_to_blocks.
+    """
+
+    # lazy load
+    from lmm.markdown.parse_markdown import serialize_blocks
+
+    return serialize_blocks(chunks_to_blocks(chunks, sep, key_chunk))
 
 
 if __name__ == "__main__":
