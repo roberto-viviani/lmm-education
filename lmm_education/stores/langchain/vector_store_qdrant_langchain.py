@@ -71,7 +71,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     ) -> BaseRetriever:
         """
         Initializes a QdrantVectorStoreRetriever from a ConfigSettings
-        object, or from the config_education.toml file.
+        object, or from the config.toml file.
 
         Args:
             opts: a ConfigSettings object, or none to read settings
@@ -184,7 +184,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     ) -> BaseRetriever:
         """
         Initializes a ansynchronous QdrantVectorStoreRetriever from a
-        ConfigSettings object, or from the config_education.toml file.
+        ConfigSettings object, or from the config.toml file.
 
         Args:
             opts: a ConfigSettings object, or none to read settings
@@ -340,7 +340,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     ) -> BaseRetriever:
         """
         Initializes a QdrantVectorStoreRetrieverGrouped from a
-        ConfigSettings object, or from the config_education.toml file.
+        ConfigSettings object, or from the config.toml file.
 
         Args:
             opts: a ConfigSettings object, or none to read settings
@@ -471,7 +471,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         """
         Initializes a ansynchronous QdrantVectorStoreRetrieverGrouped
         instance from a ConfigSettings object, or from the
-        config_education.toml file.
+        config.toml file.
 
         Args:
             opts: a ConfigSettings object, or none to read settings

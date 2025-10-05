@@ -53,6 +53,7 @@ from pydantic import (
     Field,
     HttpUrl,
     model_validator,
+    field_validator,
 )
 from pydantic_settings import (
     BaseSettings,
@@ -64,8 +65,59 @@ from pydantic_settings import (
 from typing import Literal, Self
 
 # LM markdown
-from lmm.config.config import export_settings
+from lmm.config.config import (
+    Settings as LMMSettings,
+    export_settings,
+    serialize_settings,
+)
 from lmm.scan.scan_keys import QUESTIONS_KEY
+
+# Module-level constants
+DEFAULT_CONFIG_FILE = "config.toml"
+DEFAULT_PORT_RANGE = (
+    1024,
+    65535,
+)  # Valid port range excluding system ports
+
+
+# web server
+class ServerSettings(BaseSettings):
+    """
+    Server configuration settings.
+
+    Attributes:
+        mode: one of 'local' or 'remote'
+        port: port number (only if mode is 'remote')
+        host: server host address (defaults to 'localhost')
+    """
+
+    mode: Literal["local", "remote"] = Field(
+        default="local", description="Server deployment mode"
+    )
+    port: int = Field(
+        default=61543,
+        ge=0,
+        le=65535,
+        description="Server port (0 for auto-assignment)",
+    )
+    host: str = Field(
+        default="localhost", description="Server host address"
+    )
+
+    model_config = SettingsConfigDict(frozen=True, extra='forbid')
+
+    @field_validator('port')
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        """Validate port number is in acceptable range."""
+        if v != 0 and not (
+            DEFAULT_PORT_RANGE[0] <= v <= DEFAULT_PORT_RANGE[1]
+        ):
+            raise ValueError(
+                f"Port must be 0 (auto-assign) or between "
+                f"{DEFAULT_PORT_RANGE[0]} and {DEFAULT_PORT_RANGE[1]}"
+            )
+        return v
 
 
 # embedding strategies allowed by the system
@@ -207,18 +259,14 @@ class AnnotationModel(BaseModel):
                 self.own_properties.append(p)
 
 
-# The configurations settings are specified here, read from a
-# config file.
-DEFAULT_CONFIG_FILE = "config_education.toml"
-
-
-# By inheriting from BaseSettings, we add the functionality to read
+# By inheriting from LMMSettings, we add the functionality to read
 # these specifications from a config file.
-class ConfigSettings(BaseSettings):
+class ConfigSettings(LMMSettings):
     """
     This object reads and writes to file the configuration options.
 
     Attributes:
+        server: the web server address and port
         storage: where the database is located. Use ':memory:' for in-
             memory database
         collection_name: the name of the collection that stores chunks
@@ -242,6 +290,11 @@ class ConfigSettings(BaseSettings):
         `get_annotation_model`. Additional properties given to this
         function will include the properties as inherited properties.
     """
+
+    server: ServerSettings = Field(
+        default_factory=ServerSettings,
+        description="Server configuration",
+    )
 
     storage: DatabaseSource = Field(
         default=LocalStorage(folder="./storage"),
@@ -342,6 +395,9 @@ class ConfigSettings(BaseSettings):
             env_settings,
         )
 
+    def __str__(self) -> str:
+        return serialize_settings(self)
+
 
 # The config settings are read from the config file, if it is present.
 # If not, a config file is created with default values.
@@ -351,8 +407,7 @@ def create_default_config_file(
     """Create a default settings file.
 
     Args:
-        settings: settings object (defaults to ConfigSettings())
-        file_path: config file (defaults to config_education.toml)
+        file_path: config file (defaults to config.toml)
 
     Raises:
         ImportError: If tomlkit is not available
@@ -382,7 +437,9 @@ def create_default_config_file(
     export_settings(settings, file_path)
 
 
-def load_settings(file_name: str | Path) -> ConfigSettings:
+def load_settings(
+    file_name: str | Path | None = None,
+) -> ConfigSettings:
     """Load and return a ConfigSettings object from the specified file.
 
     Args:
@@ -406,6 +463,9 @@ def load_settings(file_name: str | Path) -> ConfigSettings:
         settings = upload_settings(Path("configs/custom.toml"))
         ```
     """
+    if file_name is None:
+        file_name = DEFAULT_CONFIG_FILE
+
     file_path = Path(file_name)
 
     if not file_path.exists():

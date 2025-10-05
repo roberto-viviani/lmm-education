@@ -289,7 +289,9 @@ with gr.Blocks() as app:
 
 if __name__ == "__main__":
     # run the app
-    config_settings = Settings()
+    from lmm_education.config.config import ConfigSettings
+
+    config_settings = ConfigSettings()
     if config_settings.server.mode == "local":
         app.launch(
             show_api=False, auth=('accesstoken', 'hackerbrücke')

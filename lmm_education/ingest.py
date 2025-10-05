@@ -3,7 +3,7 @@ This module provides the facilities to ingest markdown files into a
 vector database for the LM markdown for education project.
 
 Prior to ingesting, the files are processed according to specifications
-read from the config_education.toml file. They include what annotations
+read from the config.toml file. They include what annotations
 to create (questions, summaries) and how to use them in the encoding of
 the data. Because these specifications determine the schema of the
 database, they should not be changed after the database is created!
@@ -116,7 +116,7 @@ from lmm.utils.logging import LoggerBase
 # The configurations settings are contained in a config file.
 from lmm_education.config.config import DEFAULT_CONFIG_FILE
 
-# Create a default config_education.toml file, if there is none. This
+# Create a default config.toml file, if there is none. This
 # file becomes the default location from where the configuration
 # settings are loaded.
 if not Path(DEFAULT_CONFIG_FILE).exists():
@@ -214,7 +214,7 @@ def markdown_upload(
     Args:
         sources: a list of file names containing the markdown files
         config_opts: a ConfigSettings object declaring the schema;
-            if None, will be read from config_education.toml
+            if None, will be read from config.toml
         ingest: Whether to ingest documents into the vector database
             (default: True)
         save_files: Whether to save processed blocks to files
@@ -231,7 +231,7 @@ def markdown_upload(
     """
 
     # Check the config file is ok. The ConfigSettings constructor
-    # will read the config_education.toml file if no arguments
+    # will read the config.toml file if no arguments
     # are provided.
     if config_opts is None:
         try:
