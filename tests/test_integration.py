@@ -8,6 +8,7 @@ author: Roberto Viviani
 date: '2025-05-04'
 docid: Ch1
 title: Chapter 1
+summary: These lectures review linear models from a practical perspective, focusing on understanding over programming and using R to specify and fit models. They highlight the importance of linear models in analyzing predictor-outcome relationships, addressing confounding in observational studies, and enabling predictions. The approach emphasizes aligning with professional statistical practices and accessing advanced data analysis techniques.
 ---
 
 ---
@@ -55,10 +56,31 @@ We may perhaps add that there is a third way to look at linear models, which is 
 
 """
 
+# Set this up as needed to avoid interacting with the language models really
+from lmm_education.config.config import (
+    ConfigSettings,
+    export_settings,
+)
+
+original_settings = ConfigSettings()
+
+
+def setUpModule():
+    # sets the cnfig.toml to a mock language model
+    settings = ConfigSettings(
+        major={'model': "Debug/debug"},
+        minor={'model': "Debug/debug"},
+        aux={'model': "Debug/debug"},
+    )
+    export_settings(settings)
+
+
+def tearDownModule():
+    export_settings(original_settings)
+
 
 class TestScanRag(unittest.TestCase):
 
-    # change options to avoid using language models
     def test_scan_rag_and_save(self):
         from lmm.markdown.parse_markdown import (
             parse_markdown_text,
@@ -74,15 +96,10 @@ class TestScanRag(unittest.TestCase):
         blocks = parse_markdown_text(text_summarized)
         self.assertFalse(blocklist_haserrors(blocks))
 
-        # add metadata for annotations (here titles)
-        from lmm.config.config import LanguageModelSettings
-
+        # add metadata for annotations (here titles & questions)
         opts = ScanOpts(
             titles=True,
             questions=True,
-            language_model_settings=LanguageModelSettings(
-                model="Debug/debug"  # no real call to provider
-            ),
         )
         blocks = scan_rag(blocks, opts, logger)
         self.assertTrue(logger.count_logs(level=1) == 0)
