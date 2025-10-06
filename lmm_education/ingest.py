@@ -415,6 +415,7 @@ def blocklist_encode(
         # we need the data to link records between collections
         textid=bool(opts.companion_collection),
         UUID=bool(opts.companion_collection),
+        language_model_settings=opts,
     )
     blocks: list[Block] = scan_rag(blocklist, scan_opts, logger)
     if not blocks:

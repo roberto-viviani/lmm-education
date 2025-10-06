@@ -213,9 +213,7 @@ class TestIngest(unittest.TestCase):
             summaries=True,
             companion_collection=None,
             text_splitter={'splitter': "default", 'threshold': 75},
-            # TODO: This does not work, because blocklist_encode
-            # does not transmit the info downstream, as it does
-            # not know which model to transmit
+            # decomment this to test OpenAI override (tested)
             # major={'model': "OpenAI/gpt-4.1-nano"},
             # minor={'model': "OpenAI/gpt-4.1-nano"},
             # aux={'model': "OpenAI/gpt-4.1-nano"},
@@ -235,8 +233,7 @@ class TestIngest(unittest.TestCase):
         # to create a summary at the top level, but the stub will
         # give too short a text for it beeing deemed worth summarizing
         # as it will remain below the summary_threshold value
-        setts = ConfigSettings()
-        if setts.minor.get_model_source() == "Debug":
+        if opts.minor.get_model_source() == "Debug":
             self.assertEqual(counter, 3)
         else:
             self.assertEqual(counter, 4)
