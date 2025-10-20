@@ -205,11 +205,15 @@ _sparse_model_cache: SparseTextEmbedding | None = None
 SPARSE_MODEL_NAME: str = "Qdrant/bm25"
 
 
-def _get_sparse_model() -> SparseTextEmbedding:
+def _get_sparse_model(
+    lmm_settings: LmmSettings | None = None,
+) -> SparseTextEmbedding:
     """Get memoized SparseTextEmbedding model instance."""
     global _sparse_model_cache
     if _sparse_model_cache is None:
-        esets: EmbeddingSettings = LmmSettings().embeddings
+        if lmm_settings is None:
+            lmm_settings = LmmSettings()
+        esets: EmbeddingSettings = lmm_settings.embeddings
         _sparse_model_cache = SparseTextEmbedding(
             model_name=str(esets.sparse_model)
         )
@@ -262,7 +266,7 @@ def client_from_config(
 def initialize_collection(
     client: QdrantClient,
     collection_name: str,
-    embedding_model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     *,
     logger: LoggerBase = default_logger,
 ) -> bool:
@@ -274,25 +278,48 @@ def initialize_collection(
     Args:
         client: QdrantClient object encapsulating the conn to the db
         collection_name: the collection
-        embedding_model: the embedding model
+        embedding_model: the embedding model, or a ConfigSettings
+            object from which the model may be deduced. The
+            collection_name data member of a ConfigSettings object is
+            ignored, if given
 
     Returns:
         a boolean flag indicating that the client may be used with
             these parameters.
+
+    Note:
+        the embedding_model is required to create an embedding to
+            obtain the dense embedding vector length.
     """
 
     from requests.exceptions import ConnectionError
+
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        embeddings_model: LmmSettings | None = model
+        qdrant_model = encoding_to_qdrantembedding_model(
+            model.encoding_model
+        )
+    else:
+        embeddings_model = None
+        qdrant_model = model
 
     try:
         from lmm.language_models.langchain.runnables import (
             create_embeddings,
         )
 
-        encoder: Embeddings = create_embeddings()
+        encoder: Embeddings = create_embeddings(embeddings_model)
     except ConnectionError:
         logger.error(
             "Could not connect to the language model.\n"
             + "Check the internet connection."
+        )
+        return False
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return False
     except Exception as e:
@@ -311,8 +338,8 @@ def initialize_collection(
 
         # determine embedding size
         if not (
-            embedding_model == QdrantEmbeddingModel.UUID
-            or embedding_model == QdrantEmbeddingModel.SPARSE
+            qdrant_model == QdrantEmbeddingModel.UUID
+            or qdrant_model == QdrantEmbeddingModel.SPARSE
         ):
             try:
                 data: list[float] = encoder.embed_query("Test query")
@@ -327,7 +354,7 @@ def initialize_collection(
         else:
             embedding_size: int = 0
 
-        match embedding_model:
+        match qdrant_model:
             case QdrantEmbeddingModel.UUID:
                 client.create_collection(
                     collection_name=collection_name, vectors_config={}
@@ -399,7 +426,7 @@ def initialize_collection(
                 raise RuntimeError(
                     "Unreachable code reached due to invalid "
                     + "embedding model: "
-                    + str(embedding_model)
+                    + str(qdrant_model)
                 )
     except Exception:
         logger.error("Could not initialize vector database")
@@ -451,7 +478,7 @@ def async_client_from_config(
 async def ainitialize_collection(
     client: AsyncQdrantClient,
     collection_name: str,
-    embedding_model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     *,
     logger: LoggerBase = default_logger,
 ) -> bool:
@@ -463,23 +490,47 @@ async def ainitialize_collection(
     Args:
         client: QdrantClient object encapsulating the conn to the db
         collection_name: the collection
-        embedding_model: the embedding model
+        embedding_model: the embedding model, or a ConfigSettings
+            object from which the model may be deduced. The
+            collection_name data member of a ConfigSettings object is
+            ignored, if given
 
     Returns:
         a boolean
+
+    Note:
+        the embedding_model is required to create an embedding to
+            obtain the dense embedding vector length.
     """
 
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.runnables import (
-        create_embeddings,
-    )
+
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        embeddings_model: LmmSettings | None = model
+        qdrant_model = encoding_to_qdrantembedding_model(
+            model.encoding_model
+        )
+    else:
+        embeddings_model = None
+        qdrant_model = model
 
     try:
-        encoder: Embeddings = create_embeddings()
+        from lmm.language_models.langchain.runnables import (
+            create_embeddings,
+        )
+
+        encoder: Embeddings = create_embeddings(embeddings_model)
     except ConnectionError:
         logger.error(
             "Could not connect to language models.\n"
             + "Check the internet connection."
+        )
+        return False
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return False
     except Exception as e:
@@ -498,15 +549,15 @@ async def ainitialize_collection(
 
         # determine embedding size
         if not (
-            embedding_model == QdrantEmbeddingModel.UUID
-            or embedding_model == QdrantEmbeddingModel.SPARSE
+            qdrant_model == QdrantEmbeddingModel.UUID
+            or qdrant_model == QdrantEmbeddingModel.SPARSE
         ):
             data: list[float] = encoder.embed_query("Test query")
             embedding_size: int = len(data)
         else:
             embedding_size: int = 0
 
-        match embedding_model:
+        match qdrant_model:
             case QdrantEmbeddingModel.UUID:
                 await client.create_collection(
                     collection_name=collection_name, vectors_config={}
@@ -578,7 +629,7 @@ async def ainitialize_collection(
                 raise RuntimeError(
                     "Unreachable code reached due to invalid "
                     + "embedding model: "
-                    + str(embedding_model)
+                    + str(qdrant_model)
                 )
     except Exception:
         logger.error("Could not initialize vector database")
@@ -625,7 +676,7 @@ def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
 
 def chunks_to_points(
     chunks: list[Chunk],
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     *,
     logger: LoggerBase = default_logger,
     chunk_to_payload: Callable[
@@ -639,7 +690,11 @@ def chunks_to_points(
 
     Args:
         chunks: the chunks list
-        model: the embedding model
+        model: the embedding model, or a ConfigSettings object from
+            which the model may be deduced
+        logger: a logger object
+        chunk_to_payload: a function to map chunks to the Langchain
+            representation (internal use)
 
     Returns:
         a list of Point objects (PointStruct)
@@ -648,18 +703,35 @@ def chunks_to_points(
     if not chunks:
         return []
 
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        embeddings_model: LmmSettings | None = model
+        model = encoding_to_qdrantembedding_model(
+            model.encoding_model
+        )
+    else:
+        embeddings_model = None
+
     # load embedding model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.runnables import (
-        create_embeddings,
-    )
 
     try:
-        encoder: Embeddings = create_embeddings()
+        from lmm.language_models.langchain.runnables import (
+            create_embeddings,
+        )
+
+        # if embeddings_model is None, read from config.toml
+        encoder: Embeddings = create_embeddings(embeddings_model)
     except ConnectionError:
         logger.error(
             "Could not connect to language models.\n"
             + "Check the internet connection.",
+        )
+        return []
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return []
     except Exception as e:
@@ -721,7 +793,7 @@ def chunks_to_points(
 
         case QdrantEmbeddingModel.SPARSE:
             try:
-                sparse_model = _get_sparse_model()
+                sparse_model = _get_sparse_model(embeddings_model)
                 sparse_embeddings = list(
                     sparse_model.embed(
                         [d.sparse_encoding for d in chunks]
@@ -749,7 +821,7 @@ def chunks_to_points(
                 vect = encoder.embed_documents(
                     [t.dense_encoding for t in chunks]
                 )
-                sparse_model = _get_sparse_model()
+                sparse_model = _get_sparse_model(embeddings_model)
                 sparse_embeddings = list(
                     sparse_model.embed(
                         [d.sparse_encoding for d in chunks]
@@ -783,7 +855,7 @@ def chunks_to_points(
                         [t.dense_encoding for t in chunks]
                     ),
                 ]
-                sparse_model = _get_sparse_model()
+                sparse_model = _get_sparse_model(embeddings_model)
                 sparse_embeddings = list(
                     sparse_model.embed(
                         [d.sparse_encoding for d in chunks]
@@ -819,7 +891,7 @@ def chunks_to_points(
 def upload(
     client: QdrantClient,
     collection_name: str,
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     chunks: list[Chunk],
     *,
     logger: LoggerBase = default_logger,
@@ -830,15 +902,24 @@ def upload(
     Args:
         client: the connection to the database
         collection_name: the collection
-        model: the embedding moel
+        model: the embedding model, or a ConfigSettings object
+            from which the embedding model may be deduced
         chunks: the chunk list
 
     Returns:
         a list of Point objects
     """
 
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(model.encoding_model)
+        )
+    else:
+        qdrant_model = model
+
     if not initialize_collection(
-        client, collection_name, model, logger=logger
+        client, collection_name, qdrant_model, logger=logger
     ):
         logger.error("Could not initialize collection.")
         return []
@@ -861,7 +942,7 @@ def upload(
 async def aupload(
     client: AsyncQdrantClient,
     collection_name: str,
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     chunks: list[Chunk],
     *,
     logger: LoggerBase = default_logger,
@@ -872,15 +953,24 @@ async def aupload(
     Args:
         client: the connection to the database
         collection_name: the collection
-        model: the embedding moel
+        model: the embedding model, or a ConfigSettings object
+            from which the embedding model may be deduced
         chunks: the chunk list
 
     Returns:
         a list of Point objects
     """
 
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(model.encoding_model)
+        )
+    else:
+        qdrant_model = model
+
     if not await ainitialize_collection(
-        client, collection_name, model, logger=logger
+        client, collection_name, qdrant_model, logger=logger
     ):
         logger.error("Could not initialize collection")
         return []
@@ -905,7 +995,7 @@ async def aupload(
 def query(
     client: QdrantClient,
     collection_name: str,
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     querytext: str,
     *,
     limit: int = 12,
@@ -918,7 +1008,8 @@ def query(
     Args:
         client: a QdrantClient object
         collection_name: the collection to query
-        model: the embedding model
+        model: the embedding model, or a ConfigSettings object from
+            which the model may be deduced
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to the text
@@ -931,16 +1022,33 @@ def query(
 
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.runnables import (
-        create_embeddings,
-    )
+
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(model.encoding_model)
+        )
+        embedding_model = model
+    else:
+        qdrant_model = model
+        embedding_model = None
 
     try:
-        encoder: Embeddings = create_embeddings()
+        from lmm.language_models.langchain.runnables import (
+            create_embeddings,
+        )
+
+        encoder: Embeddings = create_embeddings(embedding_model)
     except ConnectionError:
         logger.error(
             "Could not connect to language models.\n"
             + "Check the internet connection.",
+        )
+        return []
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return []
     except Exception as e:
@@ -952,7 +1060,7 @@ def query(
     # TODO: check querytext is UUID in UUID model
 
     response: QdrantResponse = QdrantResponse(points=[])
-    match model:
+    match qdrant_model:
         case QdrantEmbeddingModel.UUID:
             records: list[Record] = client.retrieve(
                 collection_name=collection_name,
@@ -982,7 +1090,7 @@ def query(
             response = client.query_points(**query_dict)
 
         case QdrantEmbeddingModel.SPARSE:
-            sparse_model = _get_sparse_model()
+            sparse_model = _get_sparse_model(embedding_model)
             sparse_embeddings = list(sparse_model.embed(querytext))
             query_dict: dict[str, Any] = {
                 'collection_name': collection_name,
@@ -1002,7 +1110,7 @@ def query(
         ):
             try:
                 vect: list[float] = encoder.embed_query(querytext)
-                sparse_model = _get_sparse_model()
+                sparse_model = _get_sparse_model(embedding_model)
                 sparse_embeddings = list(
                     sparse_model.embed(querytext)
                 )
@@ -1045,7 +1153,7 @@ def query(
 async def aquery(
     client: AsyncQdrantClient,
     collection_name: str,
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     querytext: str,
     *,
     limit: int = 12,
@@ -1058,7 +1166,8 @@ async def aquery(
     Args:
         client: a QdrantClient object
         collection_name: the collection to query
-        model: the embedding model
+        model: the embedding model, or a ConfigSettings object from
+            which the model may be deduced
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to the text
@@ -1071,16 +1180,33 @@ async def aquery(
 
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.runnables import (
-        create_embeddings,
-    )
+
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(model.encoding_model)
+        )
+        embedding_model = model
+    else:
+        qdrant_model = model
+        embedding_model = None
 
     try:
-        encoder: Embeddings = create_embeddings()
+        from lmm.language_models.langchain.runnables import (
+            create_embeddings,
+        )
+
+        encoder: Embeddings = create_embeddings(embedding_model)
     except ConnectionError:
         logger.error(
             "Could not connect to language models.\n"
             + "Check the internet connection.",
+        )
+        return []
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return []
     except Exception as e:
@@ -1092,7 +1218,7 @@ async def aquery(
     # TODO: check querytext is UUID in UUID model
 
     response: QdrantResponse = QdrantResponse(points=[])
-    match model:
+    match qdrant_model:
         case QdrantEmbeddingModel.UUID:
             records: list[Record] = await client.retrieve(
                 collection_name=collection_name,
@@ -1122,7 +1248,7 @@ async def aquery(
             response = await client.query_points(**query_dict)
 
         case QdrantEmbeddingModel.SPARSE:
-            sparse_model = _get_sparse_model()
+            sparse_model = _get_sparse_model(embedding_model)
             sparse_embeddings = list(sparse_model.embed(querytext))
             query_dict: dict[str, Any] = {
                 'collection_name': collection_name,
@@ -1142,7 +1268,7 @@ async def aquery(
         ):
             try:
                 vect: list[float] = encoder.embed_query(querytext)
-                sparse_model = _get_sparse_model()
+                sparse_model = _get_sparse_model(embedding_model)
                 sparse_embeddings = list(
                     sparse_model.embed(querytext)
                 )
@@ -1186,7 +1312,7 @@ def query_grouped(
     client: QdrantClient,
     collection_name: str,
     group_collection: str,
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     querytext: str,
     *,
     limit: int = 4,
@@ -1205,7 +1331,8 @@ def query_grouped(
             the output of the query
         group_field: the filed to group on
         limitgroups: max retrieved output from the group collection
-        model: the embedding model
+        model: the embedding model, or a ConfigSettings object from
+            which the model may be deduced
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to the text
@@ -1216,21 +1343,38 @@ def query_grouped(
         a list of ScoredPoint objects.
     """
 
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(model.encoding_model)
+        )
+        embedding_model = model
+    else:
+        qdrant_model = model
+        embedding_model = None
+
     # Essentially, the qdrant API declares different
     # types for any search API.
     NullResult: GroupsResult = GroupsResult(groups=[])
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.runnables import (
-        create_embeddings,
-    )
 
     try:
-        encoder: Embeddings = create_embeddings()
+        from lmm.language_models.langchain.runnables import (
+            create_embeddings,
+        )
+
+        encoder: Embeddings = create_embeddings(embedding_model)
     except ConnectionError:
         logger.error(
             "Could not connect to language models.\n"
             + "Check the internet connection.",
+        )
+        return NullResult
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return NullResult
     except Exception as e:
@@ -1242,7 +1386,7 @@ def query_grouped(
     # TODO: check querytext is UUID in UUID model
 
     response: GroupsResult = NullResult
-    match model:
+    match qdrant_model:
         case QdrantEmbeddingModel.UUID:
             # ignore grouping
             hits: list[ScoredPoint] = query(
@@ -1279,7 +1423,9 @@ def query_grouped(
             response = client.query_points_groups(**query_dict)
 
         case QdrantEmbeddingModel.SPARSE:
-            sparse_model: SparseTextEmbedding = _get_sparse_model()
+            sparse_model: SparseTextEmbedding = _get_sparse_model(
+                embedding_model
+            )
             sparse_embeddings: list[SparseEmbedding] = list(
                 sparse_model.embed(querytext)
             )
@@ -1307,8 +1453,8 @@ def query_grouped(
         ):
             try:
                 vect: list[float] = encoder.embed_query(querytext)
-                sparse_model: SparseTextEmbedding = (
-                    _get_sparse_model()
+                sparse_model: SparseTextEmbedding = _get_sparse_model(
+                    embedding_model
                 )
                 sparse_embeddings: list[SparseEmbedding] = list(
                     sparse_model.embed(querytext)
@@ -1359,7 +1505,7 @@ async def aquery_grouped(
     client: AsyncQdrantClient,
     collection_name: str,
     group_collection: str,
-    model: QdrantEmbeddingModel,
+    model: QdrantEmbeddingModel | ConfigSettings,
     querytext: str,
     *,
     limit: int = 4,
@@ -1378,7 +1524,8 @@ async def aquery_grouped(
             the output of the query
         group_field: the filed to group on
         limitgroups: max retrieved output from the group collection
-        model: the embedding model
+        model: the embedding model, or a ConfigSettings object from
+            which the model may be deduced
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to the text
@@ -1389,21 +1536,38 @@ async def aquery_grouped(
         a list of ScoredPoint objects.
     """
 
+    # if a ConfigSettings object is given, get the embedding model
+    if isinstance(model, ConfigSettings):
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(model.encoding_model)
+        )
+        embedding_model = model
+    else:
+        qdrant_model = model
+        embedding_model = None
+
     # Essentially, the qdrant API declares different
     # types for any search API.
     NullResult: GroupsResult = GroupsResult(groups=[])
     # load language model
     from requests.exceptions import ConnectionError
-    from lmm.language_models.langchain.runnables import (
-        create_embeddings,
-    )
 
     try:
-        encoder: Embeddings = create_embeddings()
+        from lmm.language_models.langchain.runnables import (
+            create_embeddings,
+        )
+
+        encoder: Embeddings = create_embeddings(embedding_model)
     except ConnectionError:
         logger.error(
             "Could not connect to language models.\n"
             + "Check the internet connection.",
+        )
+        return NullResult
+    except ImportError:
+        logger.error(
+            "Could not create langchain kernel. Check that langchain "
+            "is installed, and an internet connection is available."
         )
         return NullResult
     except Exception as e:
@@ -1415,7 +1579,7 @@ async def aquery_grouped(
     # TODO: check querytext is UUID in UUID model
 
     response: GroupsResult = NullResult
-    match model:
+    match qdrant_model:
         case QdrantEmbeddingModel.UUID:
             # ignore grouping
             hits: list[ScoredPoint] = await aquery(
@@ -1452,7 +1616,9 @@ async def aquery_grouped(
             response = await client.query_points_groups(**query_dict)
 
         case QdrantEmbeddingModel.SPARSE:
-            sparse_model: SparseTextEmbedding = _get_sparse_model()
+            sparse_model: SparseTextEmbedding = _get_sparse_model(
+                embedding_model
+            )
             sparse_embeddings: list[SparseEmbedding] = list(
                 sparse_model.embed(querytext)
             )
@@ -1480,8 +1646,8 @@ async def aquery_grouped(
         ):
             try:
                 vect: list[float] = encoder.embed_query(querytext)
-                sparse_model: SparseTextEmbedding = (
-                    _get_sparse_model()
+                sparse_model: SparseTextEmbedding = _get_sparse_model(
+                    embedding_model
                 )
                 sparse_embeddings: list[SparseEmbedding] = list(
                     sparse_model.embed(querytext)
