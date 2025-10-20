@@ -1,5 +1,28 @@
-"""A langchain interface to a Qdrant retriever.
-Note: only the query functions are supported."""
+"""
+A langchain interface to a Qdrant retriever.
+Note: only the query functions are supported.
+
+Examples:
+
+    ```python
+    retriever = QdrantVectorStoreRetriever.from_config_settings()
+    results: list[Document] = retriever.invoke(
+        "What are the main uses of logistic regression?"
+    )
+    ```
+
+    ```python
+    client = QdrantClient("./storage")
+    retriever = QdrantVectorStoreRetriever(
+        client,
+        collection_name = "documents',
+        embedding_model = QdrantEmbeddingModel.DENSE,
+    )
+    results: list[Document] = retriever.invoke(
+        "What are the main uses of logistic regression?"
+    )
+    ```
+"""
 
 from typing import Coroutine, Any
 from typing_extensions import override
