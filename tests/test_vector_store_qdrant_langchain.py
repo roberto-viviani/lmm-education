@@ -15,6 +15,7 @@ from lmm.markdown.parse_markdown import (
 )
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.config.config import Settings, export_settings
 from lmm_education.config.config import AnnotationModel
 from lmm_education.stores.chunks import Chunk, blocks_to_chunks
 from lmm_education.stores.vector_store_qdrant import (
@@ -72,6 +73,27 @@ blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 
 class TestQuery(unittest.TestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
 
     # ------ query ----------------------------------------------------
 
@@ -430,6 +452,27 @@ class TestQuery(unittest.TestCase):
 
 
 class TestQueryGrouped(unittest.TestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
 
     def test_query(self):
         import lmm_education.stores.chunks as chk

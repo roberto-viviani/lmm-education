@@ -10,6 +10,7 @@ from lmm.markdown.parse_markdown import (
     parse_markdown_text,
     blocklist_haserrors,
 )
+from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import GROUP_UUID_KEY, UUID_KEY
 from lmm.scan.scan_rag import ScanOpts, scan_rag
 from lmm.scan.scan_split import scan_split
@@ -194,6 +195,27 @@ if blocklist_haserrors(blocklist):
 
 
 class TestEncoding(unittest.TestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
 
     def test_encode(self):
         # init collections

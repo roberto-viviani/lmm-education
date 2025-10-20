@@ -7,6 +7,7 @@ from lmm_education.stores.chunks import (
     blocks_to_chunks,
 )
 from lmm.markdown.parse_markdown import blocklist_copy, TextBlock
+from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
 from lmm_education.config.config import AnnotationModel
@@ -28,6 +29,27 @@ from .test_vector_store_qdrant import blocks, text, text2
 
 
 class TestQuery(unittest.IsolatedAsyncioTestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
 
     def setUp(self):
         # Create a temporary directory

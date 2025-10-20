@@ -10,7 +10,7 @@ import unittest
 from lmm.markdown.parse_markdown import *
 from lmm_education.stores.chunks import *
 from lmm_education.stores.vector_store_qdrant import *
-from lmm.config.config import Settings
+from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 
 # A global client object (for now)
@@ -51,14 +51,37 @@ blocks: list[Block] = [
 ]
 blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
-sets: Settings = Settings()
+sets: Settings = Settings(
+    embeddings={
+        'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+    }
+)
 
 am = AnnotationModel(inherited_properties=[TITLES_KEY])
 
 
 class TestInitialization(unittest.TestCase):
 
-    sets: Settings
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
 
     def test_encoding_none(self):
         encoding_model = EncodingModel.NONE
@@ -175,6 +198,27 @@ class TestInitialization(unittest.TestCase):
 
 class TestInitializationLocal(unittest.TestCase):
 
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
+
     def test_encoding_content(self):
         from lmm.utils.logging import LoglistLogger
 
@@ -209,6 +253,27 @@ class TestInitializationLocal(unittest.TestCase):
 
 
 class TestIngestionAndQuery(unittest.TestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
 
     # ------ ingestion ------------------------------------------------
     def test_ingestion_empty(self):
