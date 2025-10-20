@@ -41,11 +41,11 @@ lgger is specified, an error message is printed on the console.
         # read causes from logger
 ```
 
-The remaining functions of the module take the client object to read and
-write to the database. All calls go through initialize_connection, which
-takes the name of the collection and an embedding model to specify how
-the data should be embedded (what type of dense and sparse vector, or any
-hybrid combination of those, should be used):
+The remaining functions of the module take the client object to read
+and write to the database. All calls go through initialize_connection,
+which takes the name of the collection and an embedding model to
+specify how the data should be embedded (what type of dense and sparse
+vector, or any hybrid combination of those, should be used):
 
 ```python
     # ... client creation not shown
