@@ -15,8 +15,15 @@ from lmm.markdown.parse_markdown import (
 )
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
-from lmm.config.config import Settings, export_settings
-from lmm_education.config.config import AnnotationModel
+from lmm.config.config import (
+    Settings,
+    export_settings,
+)
+from lmm_education.config.config import (
+    DatabaseSettings,
+    RAGSettings,
+    AnnotationModel,
+)
 from lmm_education.stores.chunks import Chunk, blocks_to_chunks
 from lmm_education.stores.vector_store_qdrant import (
     QdrantClient,
@@ -421,14 +428,18 @@ class TestQuery(unittest.TestCase):
         )
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.SPARSE_MERGED,
-            annotation_model=annotation_model,
-            questions=True,
-            collection_name=collection_name,
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_MERGED,
+                annotation_model=annotation_model,
+                collection_name=collection_name,
+            ),
+            RAG=RAGSettings(
+                questions=True,
+            ),
         )
         client = client_from_config(opts)
         embedding_model = encoding_to_qdrantembedding_model(
-            opts.encoding_model
+            opts.database.encoding_model
         )
         flag = initialize_collection(
             client, collection_name, embedding_model
@@ -436,7 +447,7 @@ class TestQuery(unittest.TestCase):
         if not flag:
             raise Exception("Could not initialize collection")
         chunks = blocks_to_chunks(
-            blocks, opts.encoding_model, annotation_model
+            blocks, opts.database.encoding_model, annotation_model
         )
         ps = upload(client, collection_name, embedding_model, chunks)
 

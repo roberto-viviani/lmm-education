@@ -123,9 +123,15 @@ if not Path(DEFAULT_CONFIG_FILE).exists():
     create_default_config_file(DEFAULT_CONFIG_FILE)
 
 
+# The interaction with the vector database takes place through
+# functions in the vector_store_qdrant module. This module contains
+# an `initialize_collection` function that may be used to create
+# a collection with the required properties in the database. The
+# initialize_client function reads the required configuration from
+# config.toml and calls this function to set up collections.
 # Instead of providing calls such as create_database, open_connection
-# etc. we rely on an initialize_client function to create the database
-# if it does not exist, initializing the collections according to the
+# etc. we rely on initialize_client to create the database if it does
+# not exist, initializing the collections according to the
 # configuration settings. When writing or reading to the database, the
 # settings object will make sure that the data are consistent with the
 # schema of the database. This function returns a QdrantClient object
@@ -138,11 +144,12 @@ def initialize_client(
     """
     Initialize QDRANT database. Will open or create the specified
     database and open or create the collection specified in opts,
-    a settings object that reads the specifications in the configuration
-    file.
+    a settings object that reads the specifications in the
+    configuration file.
 
     Args:
-        opts: a ConfigurationSettings object.
+        opts: a ConfigurationSettings object. If None, an object will
+            be created from config.toml.
 
     Returns:
         a Qdrant client object
@@ -161,7 +168,8 @@ def initialize_client(
             logger.error(f"Could not read configuration file:\n{e}")
             return None
 
-    collection_name: str = opts.collection_name
+    dbOpts = opts.database
+    collection_name: str = dbOpts.collection_name
     if not collection_name:
         return None
 
@@ -175,16 +183,16 @@ def initialize_client(
     flag: bool = initialize_collection(
         client,
         collection_name,
-        encoding_to_embedding_model(opts.encoding_model),
+        encoding_to_embedding_model(dbOpts.encoding_model),
         logger=logger,
     )
     if not flag:
         return None
 
-    if bool(opts.companion_collection):
+    if bool(dbOpts.companion_collection):
         flag = initialize_collection(
             client,
-            opts.companion_collection,
+            dbOpts.companion_collection,
             EmbeddingModel.UUID,
             logger=logger,
         )
@@ -398,7 +406,8 @@ def blocklist_encode(
     # if we provide a companion collection, we merge textblocks
     # under headings together prior to saving them in the documents
     # collection
-    if bool(opts.companion_collection):
+    dbOpts = opts.database
+    if bool(dbOpts.companion_collection):
         blocklist = merge_textblocks(blocklist)
 
     # preprocessing for RAG. You tell scan_rag what annotations
@@ -409,12 +418,12 @@ def blocklist_encode(
     #       raptor paper)
     scan_opts = ScanOpts(
         titles=True,
-        questions=bool(opts.questions),
-        summaries=bool(opts.summaries),
+        questions=bool(opts.RAG.questions),
+        summaries=bool(opts.RAG.summaries),
         # if computing a companion collection (group queries)
         # we need the data to link records between collections
-        textid=bool(opts.companion_collection),
-        UUID=bool(opts.companion_collection),
+        textid=bool(dbOpts.companion_collection),
+        UUID=bool(dbOpts.companion_collection),
         language_model_settings=opts,
     )
     blocks: list[Block] = scan_rag(blocklist, scan_opts, logger)
@@ -422,7 +431,7 @@ def blocklist_encode(
         return [], []
 
     # ingest here the whole portions of text under headings
-    if opts.companion_collection:
+    if dbOpts.companion_collection:
         # create embeddings
         coll_chunks: list[Chunk] = blocks_to_chunks(
             blocks,
@@ -446,14 +455,14 @@ def blocklist_encode(
 
     # chunking
     splitter: TextSplitter = defaultSplitter
-    match opts.text_splitter.splitter:
+    match opts.textSplitter.splitter:
         case 'none':
             splitter = NullTextSplitter()
         case 'default':
             pass
         case _:
             raise ValueError(
-                f"Invalid splitter: {opts.text_splitter.splitter}"
+                f"Invalid splitter: {opts.textSplitter.splitter}"
             )
 
     splits: list[Block] = scan_split(blocks, splitter)
@@ -480,7 +489,7 @@ def blocklist_encode(
         )
         return tree_to_blocks(root)
 
-    if bool(opts.summaries):
+    if bool(opts.RAG.summaries):
         splits = _propagate_summaries(splits)
 
     # the blocks_to_chunks function transforms the chunks into the
@@ -489,7 +498,7 @@ def blocklist_encode(
     annotation_model = opts.get_annotation_model([TITLES_KEY])
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
-        encoding_model=opts.encoding_model,
+        encoding_model=dbOpts.encoding_model,
         annotation_model=annotation_model,
         logger=logger,
     )
@@ -534,13 +543,14 @@ def blocklist_upload(
     """
 
     # ingestion of the chunks
+    dbOpts = opts.database
     model: EmbeddingModel = encoding_to_embedding_model(
-        opts.encoding_model
+        dbOpts.encoding_model
     )
     if ingest:
         points = upload(
             client,
-            collection_name=opts.collection_name,
+            collection_name=dbOpts.collection_name,
             model=model,
             chunks=chunks,
             logger=logger,
@@ -552,14 +562,14 @@ def blocklist_upload(
         return []
 
     # ingestion of the document collection (if specified)
-    if bool(opts.companion_collection):
+    if bool(dbOpts.companion_collection):
         if not (bool(companion_chunks)):
             logger.error(
                 "Companion collection specified, but no "
                 + "document chunks generated."
             )
             return []
-        doc_coll: str = opts.companion_collection
+        doc_coll: str = dbOpts.companion_collection
         if ingest:
             docpoints = upload(
                 client,
@@ -643,7 +653,14 @@ if __name__ == "__main__":
 
     if filenames:
         try:
-            opts = load_settings(DEFAULT_CONFIG_FILE)
+            # opts = load_settings(DEFAULT_CONFIG_FILE)
+            opts = ConfigSettings(
+                embeddings={
+                    'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                },  # type: ignore
+                encoding_model="content",  # type: ignore
+                text_splitter="default",  # type: ignore
+            )
         except ValueError | ValidationError as e:
             logger.error(f"Invalid settings:\n{e}")
             exit()
@@ -652,6 +669,8 @@ if __name__ == "__main__":
             exit()
 
         try:
+            # this will go through the encoding and chunking, and
+            # save the chunked documents for inspection in the input folder
             markdown_upload(
                 filenames,
                 config_opts=opts,

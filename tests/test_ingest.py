@@ -15,6 +15,8 @@ from lmm_education.ingest import (
 )
 from lmm_education.config.config import (
     ConfigSettings,
+    RAGSettings,
+    DatabaseSettings,
     export_settings,
 )
 from lmm_education.stores import EncodingModel
@@ -74,6 +76,10 @@ def setUpModule():
         major={'model': "Debug/debug"},
         minor={'model': "Debug/debug"},
         aux={'model': "Debug/debug"},
+        embeddings={
+            'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+            'sparse_model': "Qdrant/bm25",
+        },
     )
     export_settings(settings)
 
@@ -100,11 +106,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=False,
-            summaries=False,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
         self.assertTrue(len(chunks[0]) > 0)
@@ -119,11 +129,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.SPARSE_CONTENT,
-            questions=False,
-            summaries=False,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_CONTENT,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
         self.assertTrue(len(chunks[0]) > 0)
@@ -139,11 +153,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.MERGED,
-            questions=False,
-            summaries=False,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.MERGED,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
         self.assertTrue(len(chunks[0]) > 0)
@@ -159,11 +177,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.SPARSE_CONTENT,
-            questions=True,
-            summaries=False,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_CONTENT,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=True,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
         self.assertTrue(len(chunks[0]) > 0)
@@ -182,11 +204,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.SPARSE_MERGED,
-            questions=True,
-            summaries=False,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_MERGED,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=True,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
         self.assertTrue(len(chunks[0]) > 0)
@@ -208,11 +234,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=False,
-            summaries=True,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=True,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
             # decomment this to test OpenAI override (tested)
             # major={'model': "OpenAI/gpt-4.1-nano"},
             # minor={'model': "OpenAI/gpt-4.1-nano"},
@@ -242,11 +272,15 @@ class TestIngest(unittest.TestCase):
         listlogger = LoglistLogger()
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=False,
-            summaries=False,
-            companion_collection="documents",
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT,
+                companion_collection="documents",
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
         self.assertTrue(len(chunks[0]) > 0)
@@ -263,11 +297,15 @@ class TestLoadMarkdown(unittest.TestCase):
     def _create_config_settings() -> ConfigSettings:
         return ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=False,
-            summaries=False,
-            companion_collection=None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
 
     def test_load_nonexistent_markdown(self):
@@ -309,7 +347,7 @@ class TestLoadMarkdown(unittest.TestCase):
 
         id = ids[0][0]
         records: list[Record] = client.retrieve(
-            collection_name=opts.collection_name,
+            collection_name=opts.database.collection_name,
             ids=[id],
             with_payload=True,
         )
@@ -318,11 +356,15 @@ class TestLoadMarkdown(unittest.TestCase):
     def test_load_markdown_companion(self):
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=False,
-            summaries=False,
-            companion_collection="documents",
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT,
+                companion_collection="documents",
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
 
         logger = LoglistLogger()
@@ -348,7 +390,7 @@ class TestLoadMarkdown(unittest.TestCase):
 
         id = ids[0][1]
         records: list[Record] = client.retrieve(
-            collection_name=opts.companion_collection,
+            collection_name=opts.database.companion_collection,
             ids=[id],
             with_payload=True,
         )
@@ -363,11 +405,17 @@ class TestMarkdownQueries(unittest.TestCase):
     ) -> ConfigSettings:
         return ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=False,
-            summaries=False,
-            companion_collection="documents" if companion else None,
-            text_splitter={'splitter': "default", 'threshold': 75},
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT,
+                companion_collection=(
+                    "documents" if companion else None
+                ),
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
         )
 
     def test_ingest_markdown(self):
@@ -399,9 +447,9 @@ class TestMarkdownQueries(unittest.TestCase):
 
         results = query(
             client,
-            collection_name=opts.collection_name,
+            collection_name=opts.database.collection_name,
             model=encoding_to_qdrantembedding_model(
-                opts.encoding_model
+                opts.database.encoding_model
             ),
             querytext="What are the main uses of linear models?",
             limit=4,
@@ -443,8 +491,10 @@ class TestMarkdownQueries(unittest.TestCase):
 
         retriever = QdrantVectorStoreRetriever(
             client,
-            opts.collection_name,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
+            opts.database.collection_name,
+            encoding_to_qdrantembedding_model(
+                opts.database.encoding_model
+            ),
         )
 
         # this how to call our function directly
@@ -542,9 +592,11 @@ class TestMarkdownQueries(unittest.TestCase):
 
         results = query_grouped(
             client,
-            opts.collection_name,
-            opts.companion_collection,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
+            opts.database.collection_name,
+            opts.database.companion_collection,
+            encoding_to_qdrantembedding_model(
+                opts.database.encoding_model
+            ),
             "What are the main uses of linear models?",
             limit=1,
             group_field=GROUP_UUID_KEY,

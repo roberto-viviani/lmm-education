@@ -106,8 +106,9 @@ class QdrantVectorStoreRetriever(BaseRetriever):
 
         if opts is None:
             opts = ConfigSettings()
+        dbOpts = opts.database
 
-        if bool(opts.companion_collection):
+        if bool(dbOpts.companion_collection):
             return QdrantVectorStoreRetrieverGrouped.from_config_settings(
                 opts
             )
@@ -120,8 +121,8 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetriever(
             client,
-            opts.collection_name,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
+            dbOpts.collection_name,
+            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
         )
 
     def _points_to_documents(
@@ -218,8 +219,9 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         """
         if opts is None:
             opts = ConfigSettings()
+        dbOpts = opts.database
 
-        if bool(opts.companion_collection):
+        if bool(dbOpts.companion_collection):
             return AsyncQdrantVectorStoreRetrieverGrouped.from_config_settings(
                 opts
             )
@@ -232,8 +234,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             raise ValueError("Could not initialize client")
         return AsyncQdrantVectorStoreRetriever(
             client,
-            opts.collection_name,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
+            dbOpts.collection_name,
+            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
         )
 
     def _points_to_documents(
@@ -376,8 +378,9 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
         if opts is None:
             opts = ConfigSettings()
+        dbOpts = opts.database
 
-        if not bool(opts.companion_collection):
+        if not bool(dbOpts.companion_collection):
             return QdrantVectorStoreRetriever.from_config_settings(
                 opts
             )
@@ -390,11 +393,11 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetrieverGrouped(
             client,
-            opts.collection_name,
-            opts.companion_collection,
+            dbOpts.collection_name,
+            dbOpts.companion_collection,
             GROUP_UUID_KEY,
             4,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
+            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
         )
 
     def _results_to_documents(
@@ -507,8 +510,9 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
         if opts is None:
             opts = ConfigSettings()
+        dbOpts = opts.database
 
-        if not bool(opts.companion_collection):
+        if not bool(dbOpts.companion_collection):
             return (
                 AsyncQdrantVectorStoreRetriever.from_config_settings(
                     opts
@@ -523,11 +527,11 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             raise ValueError("Could not initialize client")
         return AsyncQdrantVectorStoreRetrieverGrouped(
             client,
-            opts.collection_name,
-            opts.companion_collection,
+            dbOpts.collection_name,
+            dbOpts.companion_collection,
             GROUP_UUID_KEY,
             4,
-            encoding_to_qdrantembedding_model(opts.encoding_model),
+            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
         )
 
     def _results_to_documents(

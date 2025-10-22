@@ -80,7 +80,7 @@ DEFAULT_PORT_RANGE = (
 )  # Valid port range excluding system ports
 
 
-# web server
+# web server for chat application
 class ServerSettings(BaseSettings):
     """
     Server configuration settings.
@@ -199,7 +199,8 @@ DatabaseSource = Literal[':memory:'] | LocalStorage | RemoteSource
 Splitter = Literal['none', 'default']  # fmt: skip
 class TextSplitters(BaseModel):
     splitter: Splitter = Field(
-        default='none', description="Text splitter name"
+        default='default',
+        description="Text splitter name",
     )
     threshold: int = Field(
         default=125,
@@ -259,6 +260,54 @@ class AnnotationModel(BaseModel):
                 self.own_properties.append(p)
 
 
+# vector database settings. Location in sturage field
+class DatabaseSettings(BaseModel):
+
+    collection_name: str = Field(
+        default="chunks",
+        min_length=1,
+        description="The name of the collection used in the database "
+        + "to store the chunks of text that will be retrieved by "
+        + "similarity with the question of the user.",
+    )
+    companion_collection: str | None = Field(
+        default='documents',
+        description="Use a companion collection to store the text "
+        + "from which the chunks were taken, providing the language "
+        + "model with larger, context-rich input, instead of the "
+        + "chunks retrieved through the questions of the user. This"
+        + "strategy is a simple form of graph RAG, i.e. the use"
+        + "of properties of documents to enrich context. If set to"
+        + "None, no companion collection will be used; provide the "
+        + "name of the collection to create one, for example "
+        + "'documents'.",
+    )
+    encoding_model: EncodingModel = Field(
+        default=EncodingModel.CONTENT,
+        description="How the chunk propoerties are being encoded. "
+        + "Encoding options that are availble include hybrid dense+"
+        + "sparse embeddings and multivector embeddings.",
+    )
+
+
+# RAG settings
+class RAGSettings(BaseModel):
+
+    questions: bool = Field(
+        default=False,
+        description="Annotate text with questions to aid retrieval",
+    )
+    summaries: bool = Field(
+        default=False,
+        description="Add summaries as chunks to aid retrieval",
+    )
+    annotation_model: AnnotationModel = Field(
+        default=AnnotationModel(),
+        description="Model to select metadata for annotations and "
+        + "filtering",
+    )
+
+
 # By inheriting from LMMSettings, we add the functionality to read
 # these specifications from a config file.
 class ConfigSettings(LMMSettings):
@@ -266,20 +315,10 @@ class ConfigSettings(LMMSettings):
     This object reads and writes to file the configuration options.
 
     Attributes:
-        server: the web server address and port
-        storage: where the database is located. Use ':memory:' for in-
-            memory database
-        collection_name: the name of the collection that stores chunks
-        encoding_model: the encoding model used
-        annotation_model: definition of additional properties to
-            include in annotations (ignored if annotations not used in
-            encoding)
-        questions: create questions answered by text
-        summaries: summarize text under headings
-        companion_collection: if not None, creates a companion
-            collection holding text under the headings that is
-            returned as text from a query
-        text_splitter: the text splitter used to create chunks
+        server: the server specification for the web chat
+        vectorDatabase: vector database settings
+        RAG: generation of properties such as questions, summaries
+        textSplitter: the text plitter to use to form chunks
 
     Note:
         The annotation model will usually want to include in the
@@ -298,47 +337,20 @@ class ConfigSettings(LMMSettings):
 
     storage: DatabaseSource = Field(
         default=LocalStorage(folder="./storage"),
-        description="The vector database local or remote source",
+        description="Vector database local or remote source",
     )
-    collection_name: str = Field(
-        default="chunks",
-        min_length=1,
-        description="The name of the collection used in the database "
-        + "to store the chunks of text that will be retrieved by "
-        + "similarity with the question of the user.",
+
+    database: DatabaseSettings = Field(
+        default_factory=DatabaseSettings,
+        description="Vector database settings",
     )
-    encoding_model: EncodingModel = Field(
-        default=EncodingModel.CONTENT,
-        description="How the chunk propoerties are being encoded. "
-        + "Encoding options that are availble include hybrid dense+"
-        + "sparse embeddings and multivector embeddings.",
+
+    RAG: RAGSettings = Field(
+        default_factory=RAGSettings,
+        description="RAG settings",
     )
-    annotation_model: AnnotationModel = Field(
-        default=AnnotationModel(),
-        description="Model to select metadata for annotations and "
-        + "filtering",
-    )
-    questions: bool = Field(
-        default=False,
-        description="Annotate text with questions to aid retrieval",
-    )
-    summaries: bool = Field(
-        default=False,
-        description="Add summaries as chunks to aid retrieval",
-    )
-    companion_collection: str | None = Field(
-        default='documents',
-        description="Use a companion collection to store the text "
-        + "from which the chunks were taken, providing the language "
-        + "model with larger, context-rich input, instead of the "
-        + "chunks retrieved through the questions of the user. This"
-        + "strategy is a simple form of graph RAG, i.e. the use"
-        + "of properties of documents to enrich context. If set to"
-        + "None, no companion collection will be used; provide the "
-        + "name of the collection to create one, for example "
-        + "'documents'.",
-    )
-    text_splitter: TextSplitters = Field(
+
+    textSplitter: TextSplitters = Field(
         default=TextSplitters(),
         description="Provide the text splitter name to split "
         + "text into chunks. The default uses the text blocks of"
@@ -356,17 +368,17 @@ class ConfigSettings(LMMSettings):
         Returns:
             an annotation model object
         """
-        annotation_model = self.annotation_model.model_copy()
-        if self.questions:
+        annotation_model = self.RAG.annotation_model.model_copy()
+        if self.RAG.questions:
             annotation_model.add_inherited_properties(QUESTIONS_KEY)
         annotation_model.add_inherited_properties(keys)
         return annotation_model
 
     @model_validator(mode='after')
     def validate_comp_coll_name(self) -> Self:
-        if self.text_splitter.splitter not in Splitter.__args__:
+        if self.textSplitter.splitter not in Splitter.__args__:
             raise ValueError(
-                f"Invalid splitter: {self.text_splitter.splitter}\n"
+                f"Invalid splitter: {self.textSplitter.splitter}\n"
                 + " must be one of {Splitter.__args__}"
             )
         return self

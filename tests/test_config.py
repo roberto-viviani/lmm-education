@@ -9,6 +9,8 @@ from lmm_education.config.config import (
     LocalStorage,
     RemoteSource,
     TextSplitters,
+    RAGSettings,
+    DatabaseSettings,
 )
 from lmm_education.stores import EncodingModel
 
@@ -17,7 +19,11 @@ from lmm_education.stores import EncodingModel
 # Create a test TOML file
 test_content = '''
 storage = ':memory:'
+
+[database]
 collection_name = 'test_chunks'
+
+[RAG]
 questions = true
 summaries = false
 '''
@@ -45,14 +51,18 @@ class TestReadConfig(unittest.TestCase):
         settings = load_settings(temp_file['temp_file'])
         self.assertTrue(bool(settings))
         self.assertEqual(settings.storage, ":memory:")
-        self.assertEqual(settings.collection_name, "test_chunks")
-        self.assertTrue(settings.questions)
-        self.assertFalse(settings.summaries)
+        self.assertEqual(
+            settings.database.collection_name, "test_chunks"
+        )
+        self.assertTrue(settings.RAG.questions)
+        self.assertFalse(settings.RAG.summaries)
         print('Successfully loaded settings:')
         print(f'  storage: {settings.storage}')
-        print(f'  collection_name: {settings.collection_name}')
-        print(f'  questions: {settings.questions}')
-        print(f'  summaries: {settings.summaries}')
+        print(
+            f'  collection_name: {settings.database.collection_name}'
+        )
+        print(f'  questions: {settings.RAG.questions}')
+        print(f'  summaries: {settings.RAG.summaries}')
         print('✓ load_settings function works correctly!')
 
 
@@ -183,7 +193,7 @@ class TestTextSplittersValidation(unittest.TestCase):
     def test_default_values(self):
         """Test that default values are set correctly."""
         splitter = TextSplitters()
-        self.assertEqual(splitter.splitter, "none")
+        self.assertEqual(splitter.splitter, "default")
         self.assertEqual(splitter.threshold, 125)
 
 
@@ -193,7 +203,9 @@ class TestConfigSettingsValidation(unittest.TestCase):
     def test_empty_collection_name_raises_error(self):
         """Test that empty collection_name raises ValidationError."""
         with self.assertRaises(ValidationError) as context:
-            ConfigSettings(storage=":memory:", collection_name="")
+            ConfigSettings(
+                storage=":memory:", database={'collection_name': ""}
+            )
 
         error = context.exception
         self.assertIn(
@@ -204,7 +216,8 @@ class TestConfigSettingsValidation(unittest.TestCase):
         """Test that invalid encoding_model raises ValidationError."""
         with self.assertRaises(ValidationError) as context:
             ConfigSettings(
-                storage=":memory:", encoding_model="INVALID_MODEL"
+                storage=":memory:",
+                database={'encoding_model': "INVALID_MODEL"},
             )
 
         error = context.exception
@@ -251,37 +264,49 @@ class TestConfigSettingsValidation(unittest.TestCase):
         # Test with memory storage
         config1 = ConfigSettings(storage=":memory:")
         self.assertEqual(config1.storage, ":memory:")
-        self.assertEqual(config1.collection_name, "chunks")
+        self.assertEqual(config1.database.collection_name, "chunks")
         self.assertEqual(
-            config1.encoding_model, EncodingModel.CONTENT
+            config1.database.encoding_model, EncodingModel.CONTENT
         )
 
         # Test with LocalStorage
         config2 = ConfigSettings(
             storage=LocalStorage(folder="./test"),
-            collection_name="test_chunks",
-            encoding_model=EncodingModel.MERGED,
-            questions=False,
-            summaries=False,
-            companion_collection=None,
-            text_splitter=TextSplitters(
+            database=DatabaseSettings(
+                collection_name="test_chunks",
+                encoding_model=EncodingModel.MERGED,
+                companion_collection=None,
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=False,
+            ),
+            textSplitter=TextSplitters(
                 splitter="default", threshold=200
             ),
         )
         self.assertIsInstance(config2.storage, LocalStorage)
-        self.assertEqual(config2.collection_name, "test_chunks")
-        self.assertEqual(config2.encoding_model, EncodingModel.MERGED)
-        self.assertFalse(config2.questions)
-        self.assertFalse(config2.summaries)
-        self.assertIsNone(config2.companion_collection)
+        self.assertEqual(
+            config2.database.collection_name, "test_chunks"
+        )
+        self.assertEqual(
+            config2.database.encoding_model, EncodingModel.MERGED
+        )
+        self.assertFalse(config2.RAG.questions)
+        self.assertFalse(config2.RAG.summaries)
+        self.assertIsNone(config2.database.companion_collection)
 
         # Test with RemoteSource
         config3 = ConfigSettings(
             storage=RemoteSource(url="http://localhost", port=6333),
-            collection_name="remote_chunks",
+            database=DatabaseSettings(
+                collection_name="remote_chunks"
+            ),
         )
         self.assertIsInstance(config3.storage, RemoteSource)
-        self.assertEqual(config3.collection_name, "remote_chunks")
+        self.assertEqual(
+            config3.database.collection_name, "remote_chunks"
+        )
 
     # currently, ConfigSettings has a default storage argument.
     # def test_missing_required_storage_raises_error(self):

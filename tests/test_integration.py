@@ -71,6 +71,10 @@ def setUpModule():
         major={'model': "Debug/debug"},
         minor={'model': "Debug/debug"},
         aux={'model': "Debug/debug"},
+        embeddings={
+            'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+            'sparse_model': "Qdrant/bm25",
+        },
     )
     export_settings(settings)
 

@@ -297,8 +297,10 @@ def initialize_collection(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         embeddings_model: LmmSettings | None = model
-        qdrant_model = encoding_to_qdrantembedding_model(
-            model.encoding_model
+        qdrant_model: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
     else:
         embeddings_model = None
@@ -428,8 +430,8 @@ def initialize_collection(
                     + "embedding model: "
                     + str(qdrant_model)
                 )
-    except Exception:
-        logger.error("Could not initialize vector database")
+    except Exception as e:
+        logger.error(f"Could not initialize vector database: {e}")
         return False
 
     return True
@@ -509,7 +511,7 @@ async def ainitialize_collection(
     if isinstance(model, ConfigSettings):
         embeddings_model: LmmSettings | None = model
         qdrant_model = encoding_to_qdrantembedding_model(
-            model.encoding_model
+            model.database.encoding_model
         )
     else:
         embeddings_model = None
@@ -707,7 +709,7 @@ def chunks_to_points(
     if isinstance(model, ConfigSettings):
         embeddings_model: LmmSettings | None = model
         model = encoding_to_qdrantembedding_model(
-            model.encoding_model
+            model.database.encoding_model
         )
     else:
         embeddings_model = None
@@ -913,7 +915,9 @@ def upload(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(model.encoding_model)
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
     else:
         qdrant_model = model
@@ -964,7 +968,9 @@ async def aupload(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(model.encoding_model)
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
     else:
         qdrant_model = model
@@ -1026,7 +1032,9 @@ def query(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(model.encoding_model)
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
         embedding_model = model
     else:
@@ -1184,7 +1192,9 @@ async def aquery(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(model.encoding_model)
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
         embedding_model = model
     else:
@@ -1346,7 +1356,9 @@ def query_grouped(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(model.encoding_model)
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
         embedding_model = model
     else:
@@ -1539,7 +1551,9 @@ async def aquery_grouped(
     # if a ConfigSettings object is given, get the embedding model
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(model.encoding_model)
+            encoding_to_qdrantembedding_model(
+                model.database.encoding_model
+            )
         )
         embedding_model = model
     else:
