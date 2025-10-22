@@ -273,6 +273,8 @@ def markdown_upload(
     # documents to check for errors.
     if not bool(sources):
         logger.warning("No documents for ingestion in the database.")
+        if local_client_flag:
+            client.close()
         return []
     if isinstance(sources, str):
         sources = [sources]
@@ -294,6 +296,8 @@ def markdown_upload(
             "Problems in markdowns, fix before continuing:\n\t"
             + "\n\t".join(error_sources.keys())
         )
+        if local_client_flag:
+            client.close()
         return []
     logger.set_level(logger_level)
 
