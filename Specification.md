@@ -21,7 +21,7 @@ It also uses a retrieval technique whereby text of headings up to a level are re
 
 It will be possible to specify special types of text blocks to be ingested in the RAG database with a specific denomination. For example, it will be possible to add text marked as "exercise", or "study topics" that may be prepared for the exam. Also definitions, explanations not included in the main text but available in the non-linear interaction format allowed by RAG. These special text blocks will not be included in the "knitted" lecture notes, but will be available for the RAG interaction.
 
-## Tranformation of the document for ingestion
+## Transformation of the document for ingestion
 
 LM markdown uses the tree structure of the document to annotate the document with additional information and, if required, prepare separate lists of "document" objects for search and for retrieval. This intermediate steps can be exported as a markdown to visualize the material that is being ingested in the index. Remember that text, not headings or metadata, are ingested.
 
