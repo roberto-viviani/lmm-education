@@ -209,8 +209,8 @@ class TextSplitters(BaseModel):
     )
 
 
-# AnnotationModel object are low-level specification of how
-# to look from metadata properties to include in encodings
+# AnnotationModel. Low-level specification of how
+# to look for metadata properties to include in encodings
 class AnnotationModel(BaseModel):
     """
     Specifies what metadata properties are selected to form

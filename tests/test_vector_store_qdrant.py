@@ -196,6 +196,180 @@ class TestInitialization(unittest.TestCase):
         )
 
 
+from lmm_education.config.config import DatabaseSettings, RAGSettings
+
+
+class TestInitializationConfigObject(unittest.TestCase):
+
+    def test_encoding_none(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.NONE
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_content(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.CONTENT
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_merged(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.MERGED
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_multivector(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.MULTIVECTOR
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_sparse(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_MERGED
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_sparse_merged(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_MERGED
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_sparse_content(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_CONTENT
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_encoding_sparse_multivector(self):
+        settings = ConfigSettings(
+            major={'model': "Debug/debug"},
+            minor={'model': "Debug/debug"},
+            aux={'model': "Debug/debug"},
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            database=DatabaseSettings(
+                encoding_model=EncodingModel.SPARSE_MULTIVECTOR
+            ),
+        )
+        collection_name: str = settings.database.encoding_model.value
+        result = initialize_collection(
+            client, collection_name, settings
+        )
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+
 class TestInitializationLocal(unittest.TestCase):
 
     # detup and teardown replace config.toml to avoid
