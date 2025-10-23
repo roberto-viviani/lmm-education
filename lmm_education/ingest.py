@@ -183,7 +183,7 @@ def initialize_client(
     flag: bool = initialize_collection(
         client,
         collection_name,
-        encoding_to_embedding_model(dbOpts.encoding_model),
+        encoding_to_embedding_model(opts.RAG.encoding_model),
         logger=logger,
     )
     if not flag:
@@ -502,7 +502,7 @@ def blocklist_encode(
     annotation_model = opts.get_annotation_model([TITLES_KEY])
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
-        encoding_model=dbOpts.encoding_model,
+        encoding_model=opts.RAG.encoding_model,
         annotation_model=annotation_model,
         logger=logger,
     )
@@ -549,7 +549,7 @@ def blocklist_upload(
     # ingestion of the chunks
     dbOpts = opts.database
     model: EmbeddingModel = encoding_to_embedding_model(
-        dbOpts.encoding_model
+        opts.RAG.encoding_model
     )
     if ingest:
         points = upload(

@@ -107,12 +107,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -130,12 +130,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.SPARSE_CONTENT,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.SPARSE_CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -154,12 +154,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.MERGED,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.MERGED,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -178,12 +178,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.SPARSE_CONTENT,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=True,
                 summaries=False,
+                encoding_model=EncodingModel.SPARSE_CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -205,12 +205,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.SPARSE_MERGED,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=True,
                 summaries=False,
+                encoding_model=EncodingModel.SPARSE_MERGED,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -235,12 +235,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=True,
+                encoding_model=EncodingModel.CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
             # decomment this to test OpenAI override (tested)
@@ -273,12 +273,12 @@ class TestIngest(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT,
                 companion_collection="documents",
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -298,12 +298,12 @@ class TestLoadMarkdown(unittest.TestCase):
         return ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -357,12 +357,12 @@ class TestLoadMarkdown(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT,
                 companion_collection="documents",
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -406,7 +406,6 @@ class TestMarkdownQueries(unittest.TestCase):
         return ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT,
                 companion_collection=(
                     "documents" if companion else None
                 ),
@@ -414,6 +413,7 @@ class TestMarkdownQueries(unittest.TestCase):
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.CONTENT,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -449,7 +449,7 @@ class TestMarkdownQueries(unittest.TestCase):
             client,
             collection_name=opts.database.collection_name,
             model=encoding_to_qdrantembedding_model(
-                opts.database.encoding_model
+                opts.RAG.encoding_model
             ),
             querytext="What are the main uses of linear models?",
             limit=4,
@@ -493,7 +493,7 @@ class TestMarkdownQueries(unittest.TestCase):
             client,
             opts.database.collection_name,
             encoding_to_qdrantembedding_model(
-                opts.database.encoding_model
+                opts.RAG.encoding_model
             ),
         )
 
@@ -517,10 +517,12 @@ class TestMarkdownQueries(unittest.TestCase):
         # does not work if opts are :memory:
         opts = ConfigSettings(
             storage=":memory:",
-            encoding_model=EncodingModel.CONTENT,
-            questions=True,
-            summaries=False,
-            companion_collection=None,
+            RAG={
+                'encoding_model': EncodingModel.CONTENT,
+                'questions': False,
+                'summaries': False,
+            },
+            database={'companion_collection': None},
             text_splitter={'splitter': "default", 'threshold': 75},
         )
 
@@ -595,7 +597,7 @@ class TestMarkdownQueries(unittest.TestCase):
             opts.database.collection_name,
             opts.database.companion_collection,
             encoding_to_qdrantembedding_model(
-                opts.database.encoding_model
+                opts.RAG.encoding_model
             ),
             "What are the main uses of linear models?",
             limit=1,

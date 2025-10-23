@@ -429,17 +429,17 @@ class TestQuery(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                encoding_model=EncodingModel.SPARSE_MERGED,
                 annotation_model=annotation_model,
                 collection_name=collection_name,
             ),
             RAG=RAGSettings(
                 questions=True,
+                encoding_model=EncodingModel.SPARSE_MERGED,
             ),
         )
         client = client_from_config(opts)
         embedding_model = encoding_to_qdrantembedding_model(
-            opts.database.encoding_model
+            opts.RAG.encoding_model
         )
         flag = initialize_collection(
             client, collection_name, embedding_model
@@ -447,7 +447,7 @@ class TestQuery(unittest.TestCase):
         if not flag:
             raise Exception("Could not initialize collection")
         chunks = blocks_to_chunks(
-            blocks, opts.database.encoding_model, annotation_model
+            blocks, opts.RAG.encoding_model, annotation_model
         )
         ps = upload(client, collection_name, embedding_model, chunks)
 

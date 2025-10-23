@@ -299,7 +299,7 @@ def initialize_collection(
         embeddings_model: LmmSettings | None = model
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
     else:
@@ -511,7 +511,7 @@ async def ainitialize_collection(
     if isinstance(model, ConfigSettings):
         embeddings_model: LmmSettings | None = model
         qdrant_model = encoding_to_qdrantembedding_model(
-            model.database.encoding_model
+            model.RAG.encoding_model
         )
     else:
         embeddings_model = None
@@ -709,7 +709,7 @@ def chunks_to_points(
     if isinstance(model, ConfigSettings):
         embeddings_model: LmmSettings | None = model
         model = encoding_to_qdrantembedding_model(
-            model.database.encoding_model
+            model.RAG.encoding_model
         )
     else:
         embeddings_model = None
@@ -916,7 +916,7 @@ def upload(
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
     else:
@@ -969,7 +969,7 @@ async def aupload(
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
     else:
@@ -1033,7 +1033,7 @@ def query(
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
         embedding_model = model
@@ -1193,7 +1193,7 @@ async def aquery(
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
         embedding_model = model
@@ -1357,7 +1357,7 @@ def query_grouped(
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
         embedding_model = model
@@ -1552,7 +1552,7 @@ async def aquery_grouped(
     if isinstance(model, ConfigSettings):
         qdrant_model: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(
-                model.database.encoding_model
+                model.RAG.encoding_model
             )
         )
         embedding_model = model

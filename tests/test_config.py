@@ -217,7 +217,7 @@ class TestConfigSettingsValidation(unittest.TestCase):
         with self.assertRaises(ValidationError) as context:
             ConfigSettings(
                 storage=":memory:",
-                database={'encoding_model': "INVALID_MODEL"},
+                RAG={'encoding_model': "INVALID_MODEL"},
             )
 
         error = context.exception
@@ -266,7 +266,7 @@ class TestConfigSettingsValidation(unittest.TestCase):
         self.assertEqual(config1.storage, ":memory:")
         self.assertEqual(config1.database.collection_name, "chunks")
         self.assertEqual(
-            config1.database.encoding_model, EncodingModel.CONTENT
+            config1.RAG.encoding_model, EncodingModel.CONTENT
         )
 
         # Test with LocalStorage
@@ -274,12 +274,12 @@ class TestConfigSettingsValidation(unittest.TestCase):
             storage=LocalStorage(folder="./test"),
             database=DatabaseSettings(
                 collection_name="test_chunks",
-                encoding_model=EncodingModel.MERGED,
                 companion_collection=None,
             ),
             RAG=RAGSettings(
                 questions=False,
                 summaries=False,
+                encoding_model=EncodingModel.MERGED,
             ),
             textSplitter=TextSplitters(
                 splitter="default", threshold=200
@@ -290,7 +290,7 @@ class TestConfigSettingsValidation(unittest.TestCase):
             config2.database.collection_name, "test_chunks"
         )
         self.assertEqual(
-            config2.database.encoding_model, EncodingModel.MERGED
+            config2.RAG.encoding_model, EncodingModel.MERGED
         )
         self.assertFalse(config2.RAG.questions)
         self.assertFalse(config2.RAG.summaries)

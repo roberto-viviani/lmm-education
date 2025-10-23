@@ -209,11 +209,9 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
-                encoding_model=EncodingModel.NONE
-            ),
+            RAG=RAGSettings(encoding_model=EncodingModel.NONE),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -230,11 +228,9 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
-                encoding_model=EncodingModel.CONTENT
-            ),
+            RAG=RAGSettings(encoding_model=EncodingModel.CONTENT),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -251,11 +247,9 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
-                encoding_model=EncodingModel.MERGED
-            ),
+            RAG=RAGSettings(encoding_model=EncodingModel.MERGED),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -272,11 +266,9 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
-                encoding_model=EncodingModel.MULTIVECTOR
-            ),
+            RAG=RAGSettings(encoding_model=EncodingModel.MULTIVECTOR),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -293,11 +285,11 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
+            RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MERGED
             ),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -314,11 +306,11 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
+            RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MERGED
             ),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -335,11 +327,11 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
+            RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_CONTENT
             ),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )
@@ -356,11 +348,11 @@ class TestInitializationConfigObject(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            database=DatabaseSettings(
+            RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MULTIVECTOR
             ),
         )
-        collection_name: str = settings.database.encoding_model.value
+        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection(
             client, collection_name, settings
         )

@@ -120,7 +120,7 @@ class ServerSettings(BaseSettings):
         return v
 
 
-# embedding strategies allowed by the system
+# Encoding model allowed by the system
 from enum import StrEnum  # fmt: skip
 class EncodingModel(StrEnum):
     """
@@ -282,12 +282,6 @@ class DatabaseSettings(BaseModel):
         + "name of the collection to create one, for example "
         + "'documents'.",
     )
-    encoding_model: EncodingModel = Field(
-        default=EncodingModel.CONTENT,
-        description="How the chunk propoerties are being encoded. "
-        + "Encoding options that are availble include hybrid dense+"
-        + "sparse embeddings and multivector embeddings.",
-    )
 
 
 # RAG settings
@@ -300,6 +294,12 @@ class RAGSettings(BaseModel):
     summaries: bool = Field(
         default=False,
         description="Add summaries as chunks to aid retrieval",
+    )
+    encoding_model: EncodingModel = Field(
+        default=EncodingModel.CONTENT,
+        description="How the chunk propoerties are being encoded. "
+        + "Encoding options that are availble include hybrid dense+"
+        + "sparse embeddings and multivector embeddings.",
     )
     annotation_model: AnnotationModel = Field(
         default=AnnotationModel(),

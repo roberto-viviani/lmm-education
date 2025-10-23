@@ -122,7 +122,9 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         return QdrantVectorStoreRetriever(
             client,
             dbOpts.collection_name,
-            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
+            encoding_to_qdrantembedding_model(
+                opts.RAG.encoding_model
+            ),
         )
 
     def _points_to_documents(
@@ -235,7 +237,9 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         return AsyncQdrantVectorStoreRetriever(
             client,
             dbOpts.collection_name,
-            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
+            encoding_to_qdrantembedding_model(
+                opts.RAG.encoding_model
+            ),
         )
 
     def _points_to_documents(
@@ -397,7 +401,9 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             dbOpts.companion_collection,
             GROUP_UUID_KEY,
             4,
-            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
+            encoding_to_qdrantembedding_model(
+                opts.RAG.encoding_model
+            ),
         )
 
     def _results_to_documents(
@@ -531,7 +537,9 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             dbOpts.companion_collection,
             GROUP_UUID_KEY,
             4,
-            encoding_to_qdrantembedding_model(dbOpts.encoding_model),
+            encoding_to_qdrantembedding_model(
+                opts.RAG.encoding_model
+            ),
         )
 
     def _results_to_documents(
