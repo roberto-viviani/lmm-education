@@ -101,41 +101,37 @@ class TestIngestionRetrieval(unittest.TestCase):
 
     def test_integration_retrieval(self):
         pass
-        # from lmm_education.ingest import markdown_upload
-        # from lmm_education.config.config import ConfigSettings
+        from lmm_education.ingest import markdown_upload
+        from lmm_education.config.config import ConfigSettings
 
-        # config = ConfigSettings(
-        #     # embeddings={
-        #     #     'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
-        #     #     'sparse_model': "Qdrant/bm25",
-        #     # },
-        #     storage={'folder': "./test_storage"},
-        #     database={
-        #         'encoding': "sparse",
-        #         'companion_collection': "Documents",
-        #     },
-        #     RAG={
-        #         'questions': True,
-        #         'annotation_model': {'own_properties': ['questions']},
-        #     },
-        # )
-        # markdown_upload(
-        #     "TestRaggedDocument.md",
-        #     config_opts=config,
-        # )
+        config = ConfigSettings(
+            embeddings={
+                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                'sparse_model': "Qdrant/bm25",
+            },
+            storage={'folder': "./test_storage"},
+            database={
+                'encoding': "sparse",
+                'companion_collection': "Documents",
+            },
+            RAG={
+                'questions': True,
+                'annotation_model': {'own_properties': ['questions']},
+            },
+        )
+        markdown_upload(
+            "TestRaggedDocument.md",
+            config_opts=config,
+        )
 
-        # from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-        #     QdrantVectorStoreRetriever as Qdr,
-        # )
+        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+            QdrantVectorStoreRetriever as Qdr,
+        )
 
-        # retriever = Qdr.from_config_settings(config)
+        retriever = Qdr.from_config_settings(config)
 
-        # chunks = retriever.invoke("What are observational studies?")
-        # self.assertTrue(len(chunks) > 0)
-
-        # for c in chunks:
-        #     print(c)
-        #     # print(f"{c.score} - {c.page_content}")
+        chunks = retriever.invoke("What are observational studies?")
+        self.assertTrue(len(chunks) > 0)
 
 
 if __name__ == "__main__":
