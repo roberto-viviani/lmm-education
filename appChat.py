@@ -28,13 +28,17 @@ MSG_ERROR_QUERY = (
 )
 
 # settings. If config.toml does not exist, create it
-from lmm.config.config import Settings, create_default_config_file # fmt: skip
+from lmm_education.config.config import (
+    ConfigSettings,
+    create_default_config_file,
+)
 import os # fmt: skip
 if not os.path.exists("config.toml"):
     create_default_config_file("config.toml")
     print("config.toml created in app folder, change as appropriate")
 
-settings = Settings()
+# this reads the settings from config.toml
+settings = ConfigSettings()
 
 # logs
 from lmm.utils.logging import FileConsoleLogger # fmt: skip
@@ -42,28 +46,16 @@ logger = FileConsoleLogger(title, "appChat.log")
 DATABASE_FILE = "messages.csv"
 
 #  create retriever
-from lmm_education.stores.vector_store_qdrant import (
-    QdrantEmbeddingModel,
-)
+from langchain_core.retrievers import BaseRetriever
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-    AsyncQdrantVectorStoreRetrieverGrouped as QdrantRetriever,
+    AsyncQdrantVectorStoreRetriever as QdrantRetriever,
 )
-from qdrant_client import AsyncQdrantClient
 
-PERSIST_DIR = "./storage"
-COLLECTION_CHUNKS = "chunks"
-COLLECTION_DOCUMENTS = "documents"
-GROUP_FOREIGN_KEY = "doc_id"
-LIMIT_GROUPS = 4
-LIMIT_CHUNKS = 1
-retriever = QdrantRetriever(
-    AsyncQdrantClient(path=PERSIST_DIR),
-    COLLECTION_CHUNKS,
-    COLLECTION_DOCUMENTS,
-    GROUP_FOREIGN_KEY,
-    LIMIT_GROUPS,
-    QdrantEmbeddingModel.MULTIVECTOR,
+# will return grouped retriever if appropriate
+retriever: BaseRetriever = QdrantRetriever.from_config_settings(
+    settings
 )
+
 
 # Create chat engine. Modify system and user prompts as appropriate.
 SYSTEM_MESSAGE = """
@@ -179,7 +171,8 @@ async def fn(
     if not history:
         try:
             documents: list[Document] = await retriever.ainvoke(
-                querytext
+                querytext,
+                limit=6,
             )
         except Exception as e:
             logger.error(
