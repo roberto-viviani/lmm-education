@@ -34,6 +34,7 @@ from lmm_education.stores.vector_store_qdrant import (
     aquery,
     aquery_grouped,
 )
+from lmm_education.config.config import ConfigSettings
 
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
@@ -195,7 +196,6 @@ if blocklist_haserrors(blocklist):
 
 
 class TestEncoding(unittest.IsolatedAsyncioTestCase):
-
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = Settings()
@@ -203,11 +203,11 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         settings = Settings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
         )
         export_settings(settings)
@@ -229,13 +229,20 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
         embedding_model_companion: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(encoding_model_main)
         )
+        embedding_settings = ConfigSettings().embeddings
 
         if not await ainitialize_collection(
-            client, COLLECTION_MAIN, embedding_model_main
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
         ):
             raise Exception("Could not initialize main collection")
         if not await ainitialize_collection(
-            client, COLLECTION_DOCS, embedding_model_companion
+            client,
+            COLLECTION_DOCS,
+            embedding_model_companion,
+            embedding_settings,
         ):
             raise Exception(
                 "Could not initialize companion collection"
@@ -254,6 +261,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
             client,
             COLLECTION_DOCS,
             embedding_model_companion,
+            embedding_settings,
             companion_chunks,
         )
         self.assertTrue(len(companion_points) > 0)
@@ -284,7 +292,11 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
             blocks, encoding_model_main, []
         )
         points: list[Point] = await aupload(
-            client, COLLECTION_MAIN, embedding_model_main, chunks
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
+            chunks,
         )
         self.assertLess(0, len(points))
         texts: list[str] = points_to_text(points)
@@ -293,15 +305,16 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
         splitres: list[ScoredPoint] = await aquery(
             client,
             collection_name=COLLECTION_MAIN,
-            model=embedding_model_main,
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
             querytext="How can I estimate the predicted depressiveness from this model?",
             limit=2,
-            payload=['page_content', GROUP_UUID_KEY],
+            payload=["page_content", GROUP_UUID_KEY],
         )
         self.assertLess(0, len(splitres))
         self.assertTrue(splitres[0].payload)
         if splitres[0].payload:
-            self.assertIn(splitres[0].payload['page_content'], texts)
+            self.assertIn(splitres[0].payload["page_content"], texts)
             self.assertIn(GROUP_UUID_KEY, splitres[0].payload)
 
         # query in the companion collection
@@ -312,13 +325,14 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
                 client,
                 COLLECTION_DOCS,
                 embedding_model_companion,
+                embedding_settings,
                 "How can I estimate the predicted depressiveness from this model?",
             )
             self.assertLess(0, len(splitres))
             self.assertTrue(splitres[0].payload)
             if splitres[0].payload:
                 self.assertIn(
-                    splitres[0].payload['page_content'],
+                    splitres[0].payload["page_content"],
                     companion_texts,
                 )
 
@@ -327,7 +341,8 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
             client,
             collection_name=COLLECTION_MAIN,
             group_collection=COLLECTION_DOCS,
-            model=embedding_model_main,
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
             querytext="How can I estimate the predicted depressiveness from this model?",
             group_field=GROUP_UUID_KEY,
             limit=1,
@@ -340,5 +355,5 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(results.groups[0].id in companion_uuids)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

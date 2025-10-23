@@ -1,8 +1,19 @@
 """
-A langchain interface to a Qdrant retriever.
-Note: only the query functions are supported.
+A langchain interface to Qdrant vector store retrievers.
+
+This module provides multiple retriever implementations for querying Qdrant
+vector stores through the Langchain framework:
+
+- QdrantVectorStoreRetriever: Synchronous retriever for basic queries
+- AsyncQdrantVectorStoreRetriever: Asynchronous retriever for basic queries
+- QdrantVectorStoreRetrieverGrouped: Synchronous retriever for grouped queries
+- AsyncQdrantVectorStoreRetrieverGrouped: Asynchronous retriever for grouped queries
+
+Note: only the query functions are supported (no document insertion).
 
 Examples:
+
+    Basic usage with configuration file:
 
     ```python
     retriever = QdrantVectorStoreRetriever.from_config_settings()
@@ -11,14 +22,43 @@ Examples:
     )
     ```
 
+    Manual initialization with all required parameters:
+
     ```python
+    from qdrant_client import QdrantClient
+    from lmm_education.stores.vector_store_qdrant import QdrantEmbeddingModel
+    from lmm_education.config.config import ConfigSettings
+
     client = QdrantClient("./storage")
+    config = ConfigSettings()
+
     retriever = QdrantVectorStoreRetriever(
         client,
-        collection_name = "documents',
-        embedding_model = QdrantEmbeddingModel.DENSE,
+        collection_name="documents",
+        qdrant_embedding=QdrantEmbeddingModel.DENSE,
+        embedding_settings=config.embeddings,
     )
     results: list[Document] = retriever.invoke(
+        "What are the main uses of logistic regression?"
+    )
+    ```
+
+    Using the asynchronous retriever:
+
+    ```python
+    from qdrant_client import AsyncQdrantClient
+
+    async_retriever = AsyncQdrantVectorStoreRetriever.from_config_settings()
+    results: list[Document] = await async_retriever.ainvoke(
+        "What are the main uses of logistic regression?"
+    )
+    ```
+
+    Using grouped queries for document organization:
+
+    ```python
+    grouped_retriever = QdrantVectorStoreRetrieverGrouped.from_config_settings()
+    results: list[Document] = grouped_retriever.invoke(
         "What are the main uses of logistic regression?"
     )
     ```
@@ -42,11 +82,13 @@ from pydantic import Field, ConfigDict
 
 from lmm.scan.scan_keys import GROUP_UUID_KEY
 from lmm.utils.logging import ExceptionConsoleLogger
+from lmm.config.config import EmbeddingSettings
 from lmm_education.config.config import ConfigSettings
 from lmm_education.stores.vector_store_qdrant import (
     client_from_config,
     async_client_from_config,
     encoding_to_qdrantembedding_model,
+    QdrantEmbeddingModel,
 )
 
 
@@ -58,33 +100,44 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     """
 
     client: QdrantClient = Field(
-        default=QdrantClient(':memory:'), init=False
+        default=QdrantClient(":memory:"), init=False
     )
     collection_name: str = Field(default="", init=False)
-    embedding_model: vsq.QdrantEmbeddingModel = Field(
-        default=vsq.QdrantEmbeddingModel.DENSE, init=False
+    qdrant_embedding: QdrantEmbeddingModel = Field(
+        default=encoding_to_qdrantembedding_model(
+            ConfigSettings().RAG.encoding_model
+        ),
+        init=False,
+    )
+    embedding_settings: EmbeddingSettings = Field(
+        default=ConfigSettings().embeddings, init=False
     )
 
     def __init__(
         self,
         client: QdrantClient,
         collection_name: str,
-        embedding_model: vsq.QdrantEmbeddingModel,
+        qdrant_embedding: QdrantEmbeddingModel,
+        embedding_settings: EmbeddingSettings,
     ):
         flag: bool = vsq.initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            qdrant_embedding,
+            embedding_settings,
         )
         if not flag:
             raise RuntimeError("Could not initialize the collection")
 
         super().__init__(
-            metadata={'embedding_model': embedding_model.value}
+            metadata={'embedding_model': qdrant_embedding.value}
         )
 
         # Now these can be set normally
         self.client = client
         self.collection_name = collection_name
-        self.embedding_model = embedding_model
+        self.qdrant_embedding = qdrant_embedding
+        self.embedding_settings = embedding_settings
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -125,6 +178,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            opts.embeddings,
         )
 
     def _points_to_documents(
@@ -156,7 +210,8 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         points: list[vsq.ScoredPoint] = vsq.query(
             self.client,
             self.collection_name,
-            self.embedding_model,
+            self.qdrant_embedding,
+            self.embedding_settings,
             query,
             limit=limit,
             payload=payload,
@@ -173,18 +228,25 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     """
 
     client: AsyncQdrantClient = Field(
-        default=AsyncQdrantClient(':memory:'), init=False
+        default=AsyncQdrantClient(":memory:"), init=False
     )
     collection_name: str = Field(default="", init=False)
-    embedding_model: vsq.QdrantEmbeddingModel = Field(
-        default=vsq.QdrantEmbeddingModel.DENSE, init=False
+    qdrant_embedding: QdrantEmbeddingModel = Field(
+        default=encoding_to_qdrantembedding_model(
+            ConfigSettings().RAG.encoding_model
+        ),
+        init=False,
+    )
+    embedding_settings: EmbeddingSettings = Field(
+        default=ConfigSettings().embeddings, init=False
     )
 
     def __init__(
         self,
         client: AsyncQdrantClient,
         collection_name: str,
-        embedding_model: vsq.QdrantEmbeddingModel,
+        qdrant_embedding: QdrantEmbeddingModel,
+        embedding_settings: EmbeddingSettings,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -194,13 +256,14 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         #   raise RuntimeError("Could not initialize the collection")
 
         super().__init__(
-            metadata={'embedding_model': embedding_model.value}
+            metadata={'embedding_model': qdrant_embedding.value}
         )
 
         # Now these can be set normally
         self.client = client
         self.collection_name = collection_name
-        self.embedding_model = embedding_model
+        self.qdrant_embedding = qdrant_embedding
+        self.embedding_settings = embedding_settings
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -240,6 +303,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            embedding_settings=opts.embeddings,
         )
 
     def _points_to_documents(
@@ -282,7 +346,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             vsq.aquery(
                 self.client,
                 self.collection_name,
-                self.embedding_model,
+                self.qdrant_embedding,
+                self.embedding_settings,
                 query,
                 limit=limit,
                 payload=payload,
@@ -308,7 +373,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         points: list[vsq.ScoredPoint] = await vsq.aquery(
             self.client,
             self.collection_name,
-            self.embedding_model,
+            self.qdrant_embedding,
+            self.embedding_settings,
             query,
             limit=limit,
             payload=payload,
@@ -324,14 +390,20 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     """
 
     client: QdrantClient = Field(
-        default=QdrantClient(':memory:'), init=False
+        default=QdrantClient(":memory:"), init=False
     )
     collection_name: str = Field(default="", init=False)
     group_collection: str = Field(default="", init=False)
     group_field: str = Field(default=GROUP_UUID_KEY, init=False)
     limitgroups: int = Field(default=4, init=False)
-    embedding_model: vsq.QdrantEmbeddingModel = Field(
-        default=vsq.QdrantEmbeddingModel.DENSE, init=False
+    qdrant_embedding: QdrantEmbeddingModel = Field(
+        default=encoding_to_qdrantembedding_model(
+            ConfigSettings().RAG.encoding_model
+        ),
+        init=False,
+    )
+    embedding_settings: EmbeddingSettings = Field(
+        default=ConfigSettings().embeddings, init=False
     )
 
     def __init__(
@@ -341,16 +413,20 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         group_collection: str,
         group_field: str,
         limitgroups: int,
-        embedding_model: vsq.QdrantEmbeddingModel,
+        qdrant_embedding: QdrantEmbeddingModel,
+        embedding_settings: EmbeddingSettings,
     ):
         flag: bool = vsq.initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            qdrant_embedding,
+            embedding_settings,
         )
         if not flag:
             raise RuntimeError("Could not initialize the collection")
 
         super().__init__(
-            metadata={'embedding_model': embedding_model.value}
+            metadata={'embedding_model': qdrant_embedding.value}
         )
 
         # Now these can be set normally
@@ -359,7 +435,8 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.group_collection = group_collection
         self.group_field = group_field
         self.limitgroups = limitgroups
-        self.embedding_model = embedding_model
+        self.qdrant_embedding = qdrant_embedding
+        self.embedding_settings = embedding_settings
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -404,6 +481,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            opts.embeddings,
         )
 
     def _results_to_documents(
@@ -438,7 +516,8 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             self.client,
             self.collection_name,
             self.group_collection,
-            self.embedding_model,
+            self.qdrant_embedding,
+            self.embedding_settings,
             query,
             group_field=self.group_field,
             group_size=self.limitgroups,
@@ -456,14 +535,20 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     """
 
     client: AsyncQdrantClient = Field(
-        default=AsyncQdrantClient(':memory:'), init=False
+        default=AsyncQdrantClient(":memory:"), init=False
     )
     collection_name: str = Field(default="", init=False)
     group_collection: str = Field(default="", init=False)
     group_field: str = Field(default=GROUP_UUID_KEY, init=False)
     limitgroups: int = Field(default=4, init=False)
-    embedding_model: vsq.QdrantEmbeddingModel = Field(
-        default=vsq.QdrantEmbeddingModel.DENSE, init=False
+    qdrant_embedding: QdrantEmbeddingModel = Field(
+        default=encoding_to_qdrantembedding_model(
+            ConfigSettings().RAG.encoding_model
+        ),
+        init=False,
+    )
+    embedding_settings: EmbeddingSettings = Field(
+        default=ConfigSettings().embeddings, init=False
     )
 
     def __init__(
@@ -473,7 +558,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         group_collection: str,
         group_field: str,
         limitgroups: int,
-        embedding_model: vsq.QdrantEmbeddingModel,
+        qdrant_embedding: vsq.QdrantEmbeddingModel,
+        embedding_settings: EmbeddingSettings,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -483,7 +569,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         #   raise RuntimeError("Could not initialize the collection")
 
         super().__init__(
-            metadata={'embedding_model': embedding_model.value}
+            metadata={'embedding_model': qdrant_embedding.value}
         )
 
         # Now these can be set normally
@@ -492,7 +578,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.group_collection = group_collection
         self.group_field = group_field
         self.limitgroups = limitgroups
-        self.embedding_model = embedding_model
+        self.qdrant_embedding = qdrant_embedding
+        self.embedding_settings = embedding_settings
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -540,6 +627,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            opts.embeddings,
         )
 
     def _results_to_documents(
@@ -587,7 +675,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 self.client,
                 self.collection_name,
                 self.group_collection,
-                self.embedding_model,
+                self.qdrant_embedding,
+                self.embedding_settings,
                 query,
                 group_field=self.group_field,
                 limit=limit,
@@ -616,7 +705,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             self.client,
             self.collection_name,
             self.group_collection,
-            self.embedding_model,
+            self.qdrant_embedding,
+            self.embedding_settings,
             query,
             limit=limit,
             group_field=self.group_field,

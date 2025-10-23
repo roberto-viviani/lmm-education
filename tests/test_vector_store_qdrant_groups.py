@@ -34,6 +34,7 @@ from lmm_education.stores.chunks import (
     Chunk,
     blocks_to_chunks,
 )
+from lmm_education.config.config import ConfigSettings
 
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
@@ -229,13 +230,20 @@ class TestEncoding(unittest.TestCase):
         embedding_model_companion: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(encoding_model_main)
         )
+        embedding_settings = ConfigSettings().embeddings
 
         if not initialize_collection(
-            client, COLLECTION_MAIN, embedding_model_main
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
         ):
             raise Exception("Could not initialize main collection")
         if not initialize_collection(
-            client, COLLECTION_DOCS, embedding_model_companion
+            client,
+            COLLECTION_DOCS,
+            embedding_model_companion,
+            embedding_settings,
         ):
             raise Exception(
                 "Could not initialize companion collection"
@@ -254,6 +262,7 @@ class TestEncoding(unittest.TestCase):
             client,
             COLLECTION_DOCS,
             embedding_model_companion,
+            embedding_settings,
             companion_chunks,
         )
         self.assertTrue(len(companion_points) > 0)
@@ -284,7 +293,11 @@ class TestEncoding(unittest.TestCase):
             blocks, encoding_model_main
         )
         points: list[Point] = upload(
-            client, COLLECTION_MAIN, embedding_model_main, chunks
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
+            chunks,
         )
         self.assertLess(0, len(points))
         texts: list[str] = points_to_text(points)
@@ -293,7 +306,8 @@ class TestEncoding(unittest.TestCase):
         splitres: list[ScoredPoint] = query(
             client,
             collection_name=COLLECTION_MAIN,
-            model=embedding_model_main,
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
             querytext="How can I estimate the predicted depressiveness from this model?",
             limit=2,
             payload=['page_content', GROUP_UUID_KEY],
@@ -312,6 +326,7 @@ class TestEncoding(unittest.TestCase):
                 client,
                 COLLECTION_DOCS,
                 embedding_model_companion,
+                embedding_settings,
                 "How can I estimate the predicted depressiveness from this model?",
             )
             self.assertLess(0, len(splitres))
@@ -327,7 +342,8 @@ class TestEncoding(unittest.TestCase):
             client,
             collection_name=COLLECTION_MAIN,
             group_collection=COLLECTION_DOCS,
-            model=embedding_model_main,
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
             querytext="How can I estimate the predicted depressiveness from this model?",
             group_field=GROUP_UUID_KEY,
             limit=1,

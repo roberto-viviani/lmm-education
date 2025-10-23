@@ -91,7 +91,7 @@ from lmm_education.stores.vector_store_qdrant import (
     QdrantEmbeddingModel as EmbeddingModel,
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
     client_from_config,
-    initialize_collection,
+    initialize_collection_from_config,
     upload,
     chunks_to_points,
 )
@@ -180,20 +180,20 @@ def initialize_client(
     if client is None:
         return None
 
-    flag: bool = initialize_collection(
+    flag: bool = initialize_collection_from_config(
         client,
         collection_name,
-        encoding_to_embedding_model(opts.RAG.encoding_model),
+        opts,
         logger=logger,
     )
     if not flag:
         return None
 
     if bool(dbOpts.companion_collection):
-        flag = initialize_collection(
+        flag = initialize_collection_from_config(
             client,
             dbOpts.companion_collection,
-            EmbeddingModel.UUID,
+            opts,
             logger=logger,
         )
         if not flag:
@@ -555,12 +555,13 @@ def blocklist_upload(
         points = upload(
             client,
             collection_name=dbOpts.collection_name,
-            model=model,
+            qdrant_model=model,
+            embedding_settings=opts.embeddings,
             chunks=chunks,
             logger=logger,
         )
     else:
-        points = chunks_to_points(chunks, model)
+        points = chunks_to_points(chunks, model, opts.embeddings)
     if not bool(points):
         logger.error("Could not upload documents")
         return []
@@ -578,12 +579,15 @@ def blocklist_upload(
             docpoints = upload(
                 client,
                 collection_name=doc_coll,
-                model=EmbeddingModel.UUID,
+                qdrant_model=EmbeddingModel.UUID,
+                embedding_settings=opts.embeddings,
                 chunks=companion_chunks,
                 logger=logger,
             )
         else:
-            docpoints = chunks_to_points(chunks, EmbeddingModel.UUID)
+            docpoints = chunks_to_points(
+                chunks, EmbeddingModel.UUID, opts.embeddings
+            )
         if not bool(docpoints):
             logger.error("Could not upload documents to " + doc_coll)
             return []

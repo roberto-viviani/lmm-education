@@ -19,20 +19,20 @@ COLLECTION_MAIN = "Main"
 COLLECTION_DOCS = "Main_docs"
 client = QdrantClient(QDRANT_SOURCE)
 
-header = HeaderBlock(content={'title': "Test blocklist"})
+header = HeaderBlock(content={"title": "Test blocklist"})
 metadata = MetadataBlock(
     content={
-        'questions': "What is the ingested test?",
-        '~chat': "Some discussion",
-        'summary': "The summary of the ingested text.",
+        "questions": "What is the ingested test?",
+        "~chat": "Some discussion",
+        "summary": "The summary of the ingested text.",
     }
 )
 heading = HeadingBlock(level=2, content="Ingested text")
 text = TextBlock(content="This is text following the heading.")
 metadata2 = MetadataBlock(
     content={
-        'questions': "Why is the sky blue?",
-        'summary': "The summary of explanations about sky colour.",
+        "questions": "Why is the sky blue?",
+        "summary": "The summary of explanations about sky colour.",
     }
 )
 heading2 = HeadingBlock(level=2, content="Sky colour")
@@ -53,7 +53,7 @@ blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 sets: Settings = Settings(
     embeddings={
-        'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+        "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
     }
 )
 
@@ -61,7 +61,6 @@ am = AnnotationModel(inherited_properties=[TITLES_KEY])
 
 
 class TestInitialization(unittest.TestCase):
-
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = Settings()
@@ -69,11 +68,11 @@ class TestInitialization(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         settings = Settings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
         )
         export_settings(settings)
@@ -90,7 +89,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -104,7 +106,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -118,7 +123,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -132,7 +140,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -146,7 +157,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -160,7 +174,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -174,7 +191,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -188,7 +208,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            ConfigSettings().embeddings,
         )
         self.assertTrue(
             result,
@@ -196,23 +219,22 @@ class TestInitialization(unittest.TestCase):
         )
 
 
-from lmm_education.config.config import DatabaseSettings, RAGSettings
+from lmm_education.config.config import RAGSettings
 
 
 class TestInitializationConfigObject(unittest.TestCase):
-
     def test_encoding_none(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(encoding_model=EncodingModel.NONE),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -222,16 +244,16 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_content(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(encoding_model=EncodingModel.CONTENT),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -241,16 +263,16 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_merged(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(encoding_model=EncodingModel.MERGED),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -260,16 +282,16 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_multivector(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(encoding_model=EncodingModel.MULTIVECTOR),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -279,18 +301,18 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_sparse(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MERGED
             ),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -300,18 +322,18 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_sparse_merged(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MERGED
             ),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -321,18 +343,18 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_sparse_content(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_CONTENT
             ),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -342,18 +364,18 @@ class TestInitializationConfigObject(unittest.TestCase):
 
     def test_encoding_sparse_multivector(self):
         settings = ConfigSettings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MULTIVECTOR
             ),
         )
         collection_name: str = settings.RAG.encoding_model.value
-        result = initialize_collection(
+        result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
@@ -363,7 +385,6 @@ class TestInitializationConfigObject(unittest.TestCase):
 
 
 class TestInitializationLocal(unittest.TestCase):
-
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = Settings()
@@ -371,11 +392,11 @@ class TestInitializationLocal(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         settings = Settings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
         )
         export_settings(settings)
@@ -402,7 +423,11 @@ class TestInitializationLocal(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            local_client, "chunks", embedding_model, logger=logger
+            local_client,
+            "chunks",
+            embedding_model,
+            ConfigSettings().embeddings,
+            logger=logger,
         )
         if logger.count_logs(level=1):
             print("\n".join(logger.get_logs()))
@@ -419,7 +444,6 @@ class TestInitializationLocal(unittest.TestCase):
 
 
 class TestIngestionAndQuery(unittest.TestCase):
-
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = Settings()
@@ -427,11 +451,11 @@ class TestIngestionAndQuery(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         settings = Settings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
         )
         export_settings(settings)
@@ -448,13 +472,25 @@ class TestIngestionAndQuery(unittest.TestCase):
             encoding_model
         )
         collection_name: str = encoding_model.value
-        points = chunks_to_points([], embedding_model)
+        embedding_settings = ConfigSettings().embeddings
+        points = chunks_to_points(
+            [], embedding_model, embedding_settings
+        )
         self.assertEqual(len(points), 0)
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, [])
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            [],
+        )
         self.assertEqual(len(ps), 0)
 
     def test_ingestion_nontext(self):
@@ -467,11 +503,18 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertEqual(len(chunks), len(ps))
         for p, u in zip(points, points_to_ids(ps)):
@@ -490,15 +533,25 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertEqual(len(chunks), len(ps))
         for p, u in zip(points, points_to_ids(ps)):
@@ -517,15 +570,25 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertEqual(len(chunks), len(ps))
         for p, u in zip(points, points_to_ids(ps)):
@@ -543,15 +606,25 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertEqual(len(chunks), len(ps))
         for p, u in zip(points, points_to_ids(ps)):
@@ -566,15 +639,25 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertEqual(len(chunks), len(ps))
         for p, u in zip(points, points_to_ids(ps)):
@@ -592,14 +675,26 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         self.assertEqual(len(chunks), len(ps))
 
     def test_ingestion_SPARSE_MERGED(self):
@@ -617,14 +712,26 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        points = chunks_to_points(chunks, embedding_model)
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
         self.assertEqual(len(chunks), len(points))
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         self.assertEqual(len(chunks), len(ps))
 
     # ------ query ----------------------------------------------------
@@ -635,21 +742,33 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
         points = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         uuids = points_to_ids(points)
         self.assertEqual(len(uuids), len(chunks))
         results: list[ScoredPoint] = query(
-            client, collection_name, embedding_model, uuids[0]
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            uuids[0],
         )
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_CONTENT(self):
         encoding_model = EncodingModel.CONTENT
@@ -657,21 +776,32 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
         self.assertIsNotNone(results[0].payload)
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_CONTENT2(self):
         encoding_model = EncodingModel.CONTENT
@@ -679,20 +809,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "The oygen composition of the air",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text2.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
 
     def test_query_MERGED(self):
         encoding_model = EncodingModel.MERGED
@@ -700,20 +841,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_MERGED2(self):
         encoding_model = EncodingModel.MERGED
@@ -721,20 +873,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What is the ingested text?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_MERGED3(self):
         encoding_model = EncodingModel.MERGED
@@ -742,20 +905,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
@@ -767,25 +941,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
         ps = upload(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             chunks,
         )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What is the ingested text?",
         )
         self.assertTrue(len(results) > 0)
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE_CONTENT(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
@@ -797,20 +977,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE_CONTENT2(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
@@ -818,20 +1009,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What is the ingested text?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
@@ -842,20 +1044,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE_MERGED(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -863,20 +1076,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE_MERGED2(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -884,20 +1108,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What is the ingested text?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[0].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_SPARSE_MERGED3(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -905,20 +1140,31 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         self.assertTrue(flag, "Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload['page_content'], text.get_content())  # type: ignore
+        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
 
     def test_query_to_uuids(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -926,9 +1172,14 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertListEqual(
             [c.uuid for c in chunks], [str(p.id) for p in ps]
@@ -937,6 +1188,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
@@ -955,20 +1207,26 @@ class TestIngestionAndQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         ps: list[Point] = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         self.assertListEqual([c.content for c in chunks], textlist)
         results: list[ScoredPoint] = query(
             client,
             collection_name,
             embedding_model,
+            embedding_settings,
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
         self.assertListEqual(textlist, points_to_text(results))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

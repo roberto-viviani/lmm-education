@@ -20,6 +20,7 @@ from lmm.config.config import (
     export_settings,
 )
 from lmm_education.config.config import (
+    ConfigSettings,
     DatabaseSettings,
     RAGSettings,
     AnnotationModel,
@@ -32,6 +33,7 @@ from lmm_education.stores.vector_store_qdrant import (
     Point,
     encoding_to_qdrantembedding_model,
     initialize_collection,
+    initialize_collection_from_config,
     upload,
     points_to_ids,
     points_to_text,
@@ -46,20 +48,20 @@ from langchain_core.documents import Document
 QDRANT_SOURCE = ":memory:"
 client = QdrantClient(QDRANT_SOURCE)
 
-header = HeaderBlock(content={'title': "Test blocklist"})
+header = HeaderBlock(content={"title": "Test blocklist"})
 metadata = MetadataBlock(
     content={
-        'questions': "What is the ingested test?",
-        '~chat': "Some discussion",
-        'summary': "The summary of the ingested text.",
+        "questions": "What is the ingested test?",
+        "~chat": "Some discussion",
+        "summary": "The summary of the ingested text.",
     }
 )
 heading = HeadingBlock(level=2, content="Ingested text")
 text = TextBlock(content="This is text following the heading.")
 metadata2 = MetadataBlock(
     content={
-        'questions': "Why is the sky blue?",
-        'summary': "The summary of explanations about sky colour.",
+        "questions": "Why is the sky blue?",
+        "summary": "The summary of explanations about sky colour.",
     }
 )
 heading2 = HeadingBlock(level=2, content="Sky colour")
@@ -80,7 +82,6 @@ blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 
 class TestQuery(unittest.TestCase):
-
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = Settings()
@@ -88,11 +89,11 @@ class TestQuery(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         settings = Settings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
         )
         export_settings(settings)
@@ -110,19 +111,30 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
         points = upload(
-            client, collection_name, embedding_model, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         uuids = points_to_ids(points)
         self.assertEqual(len(uuids), len(chunks))
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(uuids[0])
         self.assertEqual(len(results), 1)
@@ -134,15 +146,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What follows the heading"
@@ -157,15 +182,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "The oygen composition of the air"
@@ -180,15 +218,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What follows the heading"
@@ -203,15 +254,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What is the ingested text?"
@@ -226,15 +290,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "Why is the sky blue?"
@@ -253,20 +330,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
         upload(
             client,
             collection_name,
-            embedding_model,  # type: ignore
+            embedding_model,
+            embedding_settings,
             chunks,
         )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What is the ingested text?"
@@ -281,15 +366,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What follows the heading"
@@ -304,14 +402,27 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What is the ingested text?"
@@ -329,15 +440,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "Why is the sky blue?"
@@ -352,15 +476,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What follows the heading"
@@ -375,15 +512,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "What is the ingested text?"
@@ -398,15 +548,28 @@ class TestQuery(unittest.TestCase):
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not initialize_collection(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         ):
             raise Exception("Could not initialize collection")
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "Why is the sky blue?"
@@ -436,23 +599,32 @@ class TestQuery(unittest.TestCase):
                 questions=True,
                 encoding_model=EncodingModel.SPARSE_MERGED,
             ),
+            embeddings={
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
         )
         client = client_from_config(opts)
         embedding_model = encoding_to_qdrantembedding_model(
             opts.RAG.encoding_model
         )
-        flag = initialize_collection(
-            client, collection_name, embedding_model
+        flag = initialize_collection_from_config(
+            client, collection_name, opts
         )
         if not flag:
             raise Exception("Could not initialize collection")
         chunks = blocks_to_chunks(
             blocks, opts.RAG.encoding_model, annotation_model
         )
-        ps = upload(client, collection_name, embedding_model, chunks)
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            opts.embeddings,
+            chunks,
+        )
 
         retriever: Retriever = Retriever(
-            client, collection_name, embedding_model
+            client, collection_name, embedding_model, opts.embeddings
         )
         results: list[Document] = retriever.invoke(
             "Why is the sky blue?"
@@ -463,7 +635,6 @@ class TestQuery(unittest.TestCase):
 
 
 class TestQueryGrouped(unittest.TestCase):
-
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = Settings()
@@ -471,11 +642,11 @@ class TestQueryGrouped(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         settings = Settings(
-            major={'model': "Debug/debug"},
-            minor={'model': "Debug/debug"},
-            aux={'model': "Debug/debug"},
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
         )
         export_settings(settings)
@@ -516,13 +687,20 @@ class TestQueryGrouped(unittest.TestCase):
         embedding_model_companion: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(encoding_model_main)
         )
+        embedding_settings = ConfigSettings().embeddings
 
         if not initialize_collection(
-            client, COLLECTION_MAIN, embedding_model_main
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
         ):
             raise Exception("Could not initialize main collection")
         if not initialize_collection(
-            client, COLLECTION_DOCS, embedding_model_companion
+            client,
+            COLLECTION_DOCS,
+            embedding_model_companion,
+            embedding_settings,
         ):
             raise Exception(
                 "Could not initialize companion collection"
@@ -541,6 +719,7 @@ class TestQueryGrouped(unittest.TestCase):
             client,
             COLLECTION_DOCS,
             embedding_model_companion,
+            embedding_settings,
             companion_chunks,
         )
         self.assertTrue(len(companion_points) > 0)
@@ -573,7 +752,11 @@ class TestQueryGrouped(unittest.TestCase):
             blocks, encoding_model_main
         )
         points: list[Point] = upload(
-            client, COLLECTION_MAIN, embedding_model_main, chunks
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
+            chunks,
         )
         self.assertLess(0, len(points))
         texts: list[str] = points_to_text(points)
@@ -587,6 +770,7 @@ class TestQueryGrouped(unittest.TestCase):
             GROUP_UUID_KEY,
             3,
             embedding_model_main,
+            embedding_settings,
         )
         results: list[Document] = retriever.invoke(
             "How can I estimate the predicted depressiveness from this model?"
@@ -597,5 +781,5 @@ class TestQueryGrouped(unittest.TestCase):
         self.assertTrue(results[0].page_content in companion_texts)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
