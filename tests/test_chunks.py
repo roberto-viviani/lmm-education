@@ -16,6 +16,7 @@ from lmm.markdown.parse_markdown import (
     MetadataBlock,
     HeadingBlock,
     TextBlock,
+    ErrorBlock,
     Block,
 )
 from lmm.scan.scan_keys import (
@@ -53,9 +54,21 @@ class TestChunkNulls(unittest.TestCase):
         self.assertEqual(len(chunks), 0)
 
     def test_dangling_metadata(self):
-        # this creates a chunk with empty content which we do not want
+        # this creates an empty chunk list as there is no text
+        # content.
         chunks = blocks_to_chunks(
             [header, metadata, heading, metadata],
+            EncodingModel.CONTENT,
+        )
+        self.assertEqual(len(chunks), 0)
+
+
+class TestBlocklistWithErrors(unittest.TestCase):
+
+    def test_blocklist_errors(self):
+        # expected behaviour: empty chunk list
+        chunks = blocks_to_chunks(
+            blocks + [ErrorBlock(content="Invalid block here")],
             EncodingModel.CONTENT,
         )
         self.assertEqual(len(chunks), 0)

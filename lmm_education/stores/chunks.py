@@ -27,7 +27,7 @@ housekeeping purposes).
 The annotation model not only specifies what metadata properties are
 included in the emebdding, but also whether to look for them in the
 ancestors of the markdown text, represented as a hierachical tree
-where headings are the nodes in the hierarchy. An _encoding model_
+where headings are the nodes in the hierarchy. The _encoding model_
 further specifies how the annotations are used in dense and sparse
 encodings.
 
@@ -57,7 +57,8 @@ if blocklist_haserrors(blocks)
 
 # add metadata for annotations (here titles)
 blocks = scan_rag(blocks, ScanOpts(titles=True), logger)
-self.assertTrue(logger.count_logs(level=1) == 0)
+if logger.count_logs(level=1) > 0:
+    raise ValueError("\n".join(logger.get_logs(level=1)))
 
 # transform to chunks specifying titles for annotations
 encoding_model = EncodingModel.SPARSE_CONTENT
@@ -156,8 +157,12 @@ class Chunk(BaseModel):
     Each instanch of this class becomes a record or 'point' in the
     database.
 
-    The fields `content` and `metadata` contain information that is
-    stored in the database.
+    The fields `content` and `metadata` contain information that will
+    be stored in the database. The field `content` is meant to contain
+    the text. The field `metadata` contains an associative array. (In
+    some databases, there is no difference in the way material is
+    stored, i.e. text is one field among many possible others; the
+    distinction is present in many frameworks, however).
 
     The field `annotations` contains concatenated metadata strings
     that, depending on the encoding model, may end up in the sparse
@@ -167,9 +172,6 @@ class Chunk(BaseModel):
     that is used for embedding using the respective approaches.
 
     The `uuid` field contains the id of the database record.
-
-    This replaces the langchain_core.documents.Document class by
-    adding an uuid and embedding fields
     """
 
     content: str = Field(
@@ -220,7 +222,7 @@ def blocks_to_chunks(
 
     Args:
         blocklist, a list of markdown blocks
-        encoding_mode: how to allocate information to dense and
+        encoding_model: how to allocate information to dense and
             sparse encoding
         annotations_model: the fields from the metadata to use for
             encoding. Titles, if present, are included if there is
@@ -229,6 +231,11 @@ def blocks_to_chunks(
 
     Returns:
         a list of `Chunk` objects
+
+    Note:
+        this function only encodes text blocks. Markdown documents
+        consisting only of headings and metadata are considered
+        empty.
     """
 
     if not blocklist:
@@ -239,7 +246,7 @@ def blocks_to_chunks(
             inherited_properties=annotation_model
         )
 
-    # collect or create required metadata for RAG: uuid, titles
+    # collect or create required metadata for RAG: uuid, textid
     blocks: list[Block] = scan_rag(
         blocklist_copy(blocklist),
         ScanOpts(textid=True, UUID=True),
@@ -247,15 +254,18 @@ def blocks_to_chunks(
     )
     if blocklist_haserrors(blocks):
         logger.error("blocks_to_chunks called with error blocks")
+        return []
 
     root: MarkdownTree = blocks_to_tree(blocks, logger)
     if not root:
         return []
 
     # integrate text node metadata by collecting metadata from parent,
-    # unless metadata are already specified in the text node. This will
+    # unless metadata are already specified in the text node. These
+    # metadata will be stored in the database as payload. This will
     # not inherit specific properties from ancestors, only the first
-    # metadata block on the ancestor's path
+    # metadata block on the ancestor's path. We exclude metadata
+    # properties that are used to chat and housekeeping.
     exclude_set: list[str] = [
         TXTHASH_KEY,
         CHAT_KEY,
