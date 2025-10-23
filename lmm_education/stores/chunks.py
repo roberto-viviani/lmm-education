@@ -25,7 +25,7 @@ other properties (among others, metadata properties used for
 housekeeping purposes).
 
 The annotation model not only specifies what metadata properties are
-included in the emebdding, but also whether to look for them in the
+included in the embedding, but also whether to look for them in the
 ancestors of the markdown text, represented as a hierachical tree
 where headings are the nodes in the hierarchy. The _encoding model_
 further specifies how the annotations are used in dense and sparse
@@ -51,7 +51,7 @@ logger = LoglistLogger()
 
 # the starting point is a list of blocks, such as one originated
 # from parsing a markdown file
-blocks = scan_markdown("mymarkdown.md")
+blocks = markdown_scan("mymarkdown.md")
 if blocklist_haserrors(blocks)
     raise ValueError("Errors in  markdown")
 
@@ -93,7 +93,7 @@ points = upload(
     logger=logger,
 )
 
-if logger.count_log(level=1) > 0:
+if logger.count_logs(level=1) > 0:
     raise ValueError("Could not ingest blocks")
 ```
 
