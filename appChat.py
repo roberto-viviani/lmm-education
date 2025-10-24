@@ -91,9 +91,25 @@ llm = create_model_from_settings(settings.major)
 # An embedding engine object is created here just to load the engine.
 # This avoids the first query to take too long. The object is cached
 # internally, so we do not actually use the embedding object here.
+# This will also fail if there is no internet (SentenceTransformer
+# engines fail immediately).
 from lmm.language_models.langchain.runnables import create_embeddings
+from requests import ConnectionError
 
-embedding = create_embeddings()
+try:
+    embedding = create_embeddings()
+    if "SentenceTransformer" not in settings.embeddings.dense_model:
+        embedding.embed_query("Test data")
+except ConnectionError as e:
+    print("Could not connect to the model provider -- no internet?")
+    print(f"Error message:\n{e}")
+    exit()
+except Exception as e:
+    print(
+        "Could not connect to the model provider due to a system error."
+    )
+    print(f"Error message:\n{e}")
+    exit()
 
 
 # Internal facility to format messages in chat exchanges.
