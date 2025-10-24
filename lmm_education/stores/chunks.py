@@ -113,6 +113,8 @@ Main functions:
     blocks_to_chunks: list of blocks to list of chunks
     chunks_to_blocks: the inverse transformation (for inspection and
         verification).
+
+# reviewed a 24.10.2025
 """
 
 from pydantic import BaseModel, Field
@@ -145,7 +147,7 @@ from lmm.scan.scan_keys import (
 from lmm.utils.logging import LoggerBase, get_logger
 
 # Set up logger
-logger: LoggerBase = get_logger(__name__)
+default_logger: LoggerBase = get_logger(__name__)
 
 from lmm_education.config.config import AnnotationModel, EncodingModel
 
@@ -154,7 +156,7 @@ class Chunk(BaseModel):
     """
     Class for storing a piece of text and associated metadata, with
     an additional uuid field for its identification in the database.
-    Each instanch of this class becomes a record or 'point' in the
+    Each instance of this class becomes a record or 'point' in the
     database.
 
     The fields `content` and `metadata` contain information that will
@@ -176,12 +178,12 @@ class Chunk(BaseModel):
 
     content: str = Field(
         description="The textual content for storage in the database"
-        + "in the content field of the payload"
+        + " in the content field of the payload"
     )
     metadata: MetadataDict = Field(
         default={},
         description="Metadata of the original text block"
-        + "for storage in the database payload as fields",
+        + " for storage in the database payload as fields",
     )
     annotations: str = Field(
         default="",
@@ -202,8 +204,10 @@ class Chunk(BaseModel):
     )
 
     def get_uuid(self) -> str:
-        """Return the UUID of the document."""
-        if not bool(self.uuid):
+        """Return the UUID of the document. Lazily creates the
+        UUID if missing, storing it in the object to ensure
+        consistency."""
+        if not self.uuid:
             self.uuid = str(uuid4())
         return self.uuid
 
@@ -212,7 +216,7 @@ def blocks_to_chunks(
     blocklist: list[Block],
     encoding_model: EncodingModel,
     annotation_model: AnnotationModel | list[str] = AnnotationModel(),
-    logger: LoggerBase = logger,
+    logger: LoggerBase = default_logger,
 ) -> list[Chunk]:
     """
     Transform a blocklist into a list of `Chunk` objects.
@@ -227,7 +231,8 @@ def blocks_to_chunks(
         annotation_model: the fields from the metadata to use for
             encoding. Titles, if present, are included if there is
             no model. This field is ignored if the encoding model
-            makes no use of annotations.
+            makes no use of annotations
+        logger: a logger object.
 
     Returns:
         a list of `Chunk` objects
@@ -257,7 +262,7 @@ def blocks_to_chunks(
         return []
 
     root: MarkdownTree = blocks_to_tree(blocks, logger)
-    if not root:
+    if root is None:
         return []
 
     # integrate text node metadata by collecting metadata from parent,
@@ -315,7 +320,9 @@ def blocks_to_chunks(
             case EncodingModel.MERGED:
                 # encode the content merged with metadata annotations
                 chunk.dense_encoding = (
-                    chunk.annotations + ": " + chunk.content
+                    f"{chunk.annotations}: {chunk.content}"
+                    if chunk.annotations
+                    else chunk.content
                 )
 
             case EncodingModel.SPARSE:
@@ -338,14 +345,15 @@ def blocks_to_chunks(
                 # encoding of merged content and annotations
                 chunk.sparse_encoding = chunk.annotations
                 chunk.dense_encoding = (
-                    chunk.annotations + ": " + chunk.content
+                    f"{chunk.annotations}: {chunk.content}"
+                    if chunk.annotations
+                    else chunk.content
                 )
 
-            # let type checker flag missing case's
-            # case _:
-            #     raise ValueError(
-            #         f"Unsupported encoding model: {encoding_model}"
-            #     )
+            case _:
+                raise ValueError(
+                    f"Unsupported encoding model: {encoding_model}"
+                )
         return chunk
 
     chunks = traverse_tree_nodetype(
@@ -375,20 +383,24 @@ def chunks_to_blocks(
             and a text block, containing the 'content' value of the chunk.
     """
 
+    from lmm.markdown.parse_yaml import MetadataPrimitive
+
     blocks: list[Block] = []
     for c in chunks:
         if sep:
             blocks.append(TextBlock(content=sep))
         if c.metadata:
             blockmeta = c.metadata.copy()
-            meta = {
+            meta: dict[
+                str, MetadataPrimitive | list[MetadataPrimitive]
+            ] = {
                 'uuid': c.uuid,
                 'content': "<block content>",
                 'annotations': c.annotations,
                 'dense_encoding': c.dense_encoding,
                 'sparse_encoding': c.sparse_encoding,
             }
-            blockmeta[key_chunk] = meta  # type: ignore (safe here)
+            blockmeta[key_chunk] = meta
             blocks.append(MetadataBlock(content=blockmeta))
         blocks.append(TextBlock(content=c.content))
 
@@ -400,7 +412,16 @@ def serialize_chunks(
 ) -> str:
     """
     Serialize a list of `Chunk`objects for debug/inspection purposes.
-    See chunks_to_blocks.
+    See chunks_to_blocks for more details.
+
+    Args:
+        chunks: a list of `Chunk` objects
+        sep: an optional separator to visualize the breaks
+            between chunks
+        key_chunk: the metadata key where the chunk is copied into
+
+    Returns:
+        a string representation of the chunks.
     """
 
     # lazy load
@@ -417,16 +438,16 @@ if __name__ == "__main__":
 
     def interactive_scan(filename: str, target: str) -> list[Block]:
         if filename == target:
-            logger.info(
+            default_logger.info(
                 "Usage: output file in second command line arg must "
                 "differ from input file"
             )
             return []
-        blocks = load_blocks(filename, logger)
+        blocks = load_blocks(filename, default_logger)
         if not blocks:
             return []
         if blocklist_haserrors(blocks):
-            logger.warning("Errors in markdown, fix first.")
+            default_logger.warning("Errors in markdown, fix first.")
             return []
 
         opts: EncodingModel = EncodingModel.MULTIVECTOR
@@ -435,7 +456,7 @@ if __name__ == "__main__":
         )
         blocks = chunks_to_blocks(chunks, sep="------")
         if blocks:
-            save_blocks(target, blocks, logger)
+            save_blocks(target, blocks, default_logger)
         return blocks
 
     create_interface(interactive_scan, sys.argv)
