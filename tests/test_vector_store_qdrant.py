@@ -57,7 +57,7 @@ sets: Settings = Settings(
     }
 )
 
-am = AnnotationModel(inherited_properties=[TITLES_KEY])
+am = AnnotationModel(inherited_properties=[TITLES_KEY, QUESTIONS_KEY])
 
 
 class TestInitialization(unittest.TestCase):

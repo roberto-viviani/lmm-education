@@ -139,6 +139,10 @@ from qdrant_client.models import (
     PointGroup,
 )
 from qdrant_client.http.models import QueryResponse as QdrantResponse
+from qdrant_client.http.exceptions import (
+    ApiException,
+    UnexpectedResponse,
+)
 
 # lmmarkdown
 from lmm.scan.scan_keys import GROUP_UUID_KEY
@@ -228,7 +232,7 @@ def client_from_config(
 ) -> QdrantClient | None:
     """ "
     Create a qdrant clients from config settings. Reads from config
-    toml file settings if none gievn.
+    toml file settings if none given.
 
     Please note that a client should be closed before exiting.
 
@@ -258,6 +262,19 @@ def client_from_config(
             case _:
                 logger.error("Invalid database source")
                 return None
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return None
+    except UnexpectedResponse as e:
+        logger.error(f"Could not initialize qdrant client: {e}")
+        return None
+    except ApiException as e:
+        logger.error(
+            f"Could not initialize qdrant client due to API error: {e}"
+        )
+        return None
     except Exception as e:
         logger.error(f"Could not initialize qdrant client:\n{e}")
         return None
@@ -298,6 +315,19 @@ def async_client_from_config(
                 client = AsyncQdrantClient(url=str(url), port=port)
             case _:
                 raise ValueError("Invalid database source")
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return None
+    except UnexpectedResponse as e:
+        logger.error(f"Could not initialize qdrant client: {e}")
+        return None
+    except ApiException as e:
+        logger.error(
+            f"Could not initialize qdrant client due to API error: {e}"
+        )
+        return None
     except Exception as e:
         logger.error(f"Could not initialize qdrant client:\n{e}")
         return None
@@ -459,6 +489,19 @@ def initialize_collection(
                     + "embedding model: "
                     + str(qdrant_model)
                 )
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return False
+    except UnexpectedResponse as e:
+        logger.error(f"Could not initialize vector database: {e}")
+        return False
+    except ApiException as e:
+        logger.error(
+            f"Could not initialize vector database due to API error: {e}"
+        )
+        return False
     except Exception as e:
         logger.error(f"Could not initialize vector database: {e}")
         return False
@@ -505,7 +548,8 @@ async def ainitialize_collection(
         embedding_settings: the embedding settings
 
     Returns:
-        a boolean
+        a boolean signaling successful initialization and that the
+            client may be used with these parameters.
 
     Note:
         the embedding_settings are required to create an embedding to
@@ -630,8 +674,21 @@ async def ainitialize_collection(
                     + "embedding model: "
                     + str(qdrant_model)
                 )
-    except Exception:
-        logger.error("Could not initialize vector database")
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return False
+    except UnexpectedResponse as e:
+        logger.error(f"Could not initialize vector database: {e}")
+        return False
+    except ApiException as e:
+        logger.error(
+            f"Could not initialize vector database due to API error: {e}"
+        )
+        return False
+    except Exception as e:
+        logger.error(f"Could not initialize vector database: {e}")
         return False
 
     return True
@@ -940,6 +997,19 @@ def upload(
 
     try:
         client.upsert(collection_name=collection_name, points=points)
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return []
+    except UnexpectedResponse as e:
+        logger.error(f"Could not write to vector database: {e}")
+        return []
+    except ApiException as e:
+        logger.error(
+            f"Could not write to database due to API error: {e}"
+        )
+        return []
     except Exception as e:
         logger.error(f"Could not upload chunks to database:\n{e}")
         return []
@@ -990,6 +1060,19 @@ async def aupload(
         await client.upsert(
             collection_name=collection_name, points=points
         )
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return []
+    except UnexpectedResponse as e:
+        logger.error(f"Could not write to vector database: {e}")
+        return []
+    except ApiException as e:
+        logger.error(
+            f"Could not write to database due to API error: {e}"
+        )
+        return []
     except Exception:
         logger.error("Could not upload chunks to database")
         return []
@@ -1056,92 +1139,115 @@ def query(
     # TODO: check querytext is UUID in UUID model
 
     response: QdrantResponse = QdrantResponse(points=[])
-    match qdrant_model:
-        case QdrantEmbeddingModel.UUID:
-            records: list[Record] = client.retrieve(
-                collection_name=collection_name,
-                ids=[querytext],
-                with_payload=payload,
-            )
-            points: list[ScoredPoint] = [
-                ScoredPoint(
-                    id=r.id, version=1, payload=r.payload, score=1
+    try:
+        match qdrant_model:
+            case QdrantEmbeddingModel.UUID:
+                records: list[Record] = client.retrieve(
+                    collection_name=collection_name,
+                    ids=[querytext],
+                    with_payload=payload,
                 )
-                for r in records
-            ]
-            response = QdrantResponse(points=points)
+                points: list[ScoredPoint] = [
+                    ScoredPoint(
+                        id=r.id, version=1, payload=r.payload, score=1
+                    )
+                    for r in records
+                ]
+                response = QdrantResponse(points=points)
 
-        case (
-            QdrantEmbeddingModel.DENSE
-            | QdrantEmbeddingModel.MULTIVECTOR
-        ):
-            vect = encoder.embed_query(querytext)
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'with_payload': payload,
-                'limit': limit,
-            }
-            response = client.query_points(**query_dict)
+            case (
+                QdrantEmbeddingModel.DENSE
+                | QdrantEmbeddingModel.MULTIVECTOR
+            ):
+                vect = encoder.embed_query(querytext)
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'with_payload': payload,
+                    'limit': limit,
+                }
+                response = client.query_points(**query_dict)
 
-        case QdrantEmbeddingModel.SPARSE:
-            sparse_model = _get_sparse_model(embedding_settings)
-            sparse_embeddings = list(sparse_model.embed(querytext))
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'with_payload': payload,
-                'limit': limit,
-            }
-            response = client.query_points(**query_dict)
-
-        case (
-            QdrantEmbeddingModel.HYBRID_DENSE
-            | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
-        ):
-            try:
-                vect: list[float] = encoder.embed_query(querytext)
+            case QdrantEmbeddingModel.SPARSE:
                 sparse_model = _get_sparse_model(embedding_settings)
                 sparse_embeddings = list(
                     sparse_model.embed(querytext)
                 )
-            except Exception:
-                logger.error("Could not create encoding")
-                return []
-            dense_dict: dict[str, Any] = {
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'limit': 25,
-            }
-            sparse_dict: dict[str, Any] = {
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'limit': limit,
-            }
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'prefetch': [
-                    models.Prefetch(**dense_dict),
-                    models.Prefetch(**sparse_dict),
-                ],
-                'query': models.FusionQuery(fusion=models.Fusion.RRF),
-                'with_payload': payload,
-            }
-            response = client.query_points(**query_dict)
-        case _:
-            raise RuntimeError(
-                "Unreachable code reached due to invalid "
-                + "embedding model: "
-                + str(qdrant_model)
-            )
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'with_payload': payload,
+                    'limit': limit,
+                }
+                response = client.query_points(**query_dict)
+
+            case (
+                QdrantEmbeddingModel.HYBRID_DENSE
+                | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
+            ):
+                try:
+                    vect: list[float] = encoder.embed_query(querytext)
+                    sparse_model = _get_sparse_model(
+                        embedding_settings
+                    )
+                    sparse_embeddings = list(
+                        sparse_model.embed(querytext)
+                    )
+                except Exception:
+                    logger.error("Could not create encoding")
+                    return []
+                dense_dict: dict[str, Any] = {
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'limit': 25,
+                }
+                sparse_dict: dict[str, Any] = {
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'limit': limit,
+                }
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'prefetch': [
+                        models.Prefetch(**dense_dict),
+                        models.Prefetch(**sparse_dict),
+                    ],
+                    'query': models.FusionQuery(
+                        fusion=models.Fusion.RRF
+                    ),
+                    'with_payload': payload,
+                }
+                response = client.query_points(**query_dict)
+            case _:
+                raise RuntimeError(
+                    "Unreachable code reached due to invalid "
+                    + "embedding model: "
+                    + str(qdrant_model)
+                )
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return []
+    except UnexpectedResponse as e:
+        logger.error(f"Could not read from the vector database: {e}")
+        return []
+    except ApiException as e:
+        logger.error(
+            f"Could not read from the database due to API error: {e}"
+        )
+        return []
+    except Exception as e:
+        logger.error(f"Could not read from the database: {e}")
+        return []
 
     return response.points
 
@@ -1205,92 +1311,115 @@ async def aquery(
     # TODO: check querytext is UUID in UUID model
 
     response: QdrantResponse = QdrantResponse(points=[])
-    match qdrant_model:
-        case QdrantEmbeddingModel.UUID:
-            records: list[Record] = await client.retrieve(
-                collection_name=collection_name,
-                ids=[querytext],
-                with_payload=payload,
-            )
-            points: list[ScoredPoint] = [
-                ScoredPoint(
-                    id=r.id, version=1, payload=r.payload, score=1
+    try:
+        match qdrant_model:
+            case QdrantEmbeddingModel.UUID:
+                records: list[Record] = await client.retrieve(
+                    collection_name=collection_name,
+                    ids=[querytext],
+                    with_payload=payload,
                 )
-                for r in records
-            ]
-            response = QdrantResponse(points=points)
+                points: list[ScoredPoint] = [
+                    ScoredPoint(
+                        id=r.id, version=1, payload=r.payload, score=1
+                    )
+                    for r in records
+                ]
+                response = QdrantResponse(points=points)
 
-        case (
-            QdrantEmbeddingModel.DENSE
-            | QdrantEmbeddingModel.MULTIVECTOR
-        ):
-            vect = encoder.embed_query(querytext)
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'with_payload': payload,
-                'limit': limit,
-            }
-            response = await client.query_points(**query_dict)
+            case (
+                QdrantEmbeddingModel.DENSE
+                | QdrantEmbeddingModel.MULTIVECTOR
+            ):
+                vect = encoder.embed_query(querytext)
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'with_payload': payload,
+                    'limit': limit,
+                }
+                response = await client.query_points(**query_dict)
 
-        case QdrantEmbeddingModel.SPARSE:
-            sparse_model = _get_sparse_model(embedding_settings)
-            sparse_embeddings = list(sparse_model.embed(querytext))
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'with_payload': payload,
-                'limit': limit,
-            }
-            response = await client.query_points(**query_dict)
-
-        case (
-            QdrantEmbeddingModel.HYBRID_DENSE
-            | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
-        ):
-            try:
-                vect: list[float] = encoder.embed_query(querytext)
+            case QdrantEmbeddingModel.SPARSE:
                 sparse_model = _get_sparse_model(embedding_settings)
                 sparse_embeddings = list(
                     sparse_model.embed(querytext)
                 )
-            except Exception:
-                logger.error("Could not create encoding")
-                return []
-            dense_dict: dict[str, Any] = {
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'limit': 25,
-            }
-            sparse_dict: dict[str, Any] = {
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'limit': limit,
-            }
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'prefetch': [
-                    models.Prefetch(**dense_dict),
-                    models.Prefetch(**sparse_dict),
-                ],
-                'query': models.FusionQuery(fusion=models.Fusion.RRF),
-                'with_payload': payload,
-            }
-            response = await client.query_points(**query_dict)
-        case _:
-            raise RuntimeError(
-                "Unreachable code reached due to invalid "
-                + "embedding model: "
-                + str(qdrant_model)
-            )
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'with_payload': payload,
+                    'limit': limit,
+                }
+                response = await client.query_points(**query_dict)
+
+            case (
+                QdrantEmbeddingModel.HYBRID_DENSE
+                | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
+            ):
+                try:
+                    vect: list[float] = encoder.embed_query(querytext)
+                    sparse_model = _get_sparse_model(
+                        embedding_settings
+                    )
+                    sparse_embeddings = list(
+                        sparse_model.embed(querytext)
+                    )
+                except Exception:
+                    logger.error("Could not create encoding")
+                    return []
+                dense_dict: dict[str, Any] = {
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'limit': 25,
+                }
+                sparse_dict: dict[str, Any] = {
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'limit': limit,
+                }
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'prefetch': [
+                        models.Prefetch(**dense_dict),
+                        models.Prefetch(**sparse_dict),
+                    ],
+                    'query': models.FusionQuery(
+                        fusion=models.Fusion.RRF
+                    ),
+                    'with_payload': payload,
+                }
+                response = await client.query_points(**query_dict)
+            case _:
+                raise RuntimeError(
+                    "Unreachable code reached due to invalid "
+                    + "embedding model: "
+                    + str(qdrant_model)
+                )
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return []
+    except UnexpectedResponse as e:
+        logger.error(f"Could not read from the vector database: {e}")
+        return []
+    except ApiException as e:
+        logger.error(
+            f"Could not read from the database due to API error: {e}"
+        )
+        return []
+    except Exception as e:
+        logger.error(f"Could not read from the database: {e}")
+        return []
 
     return response.points
 
@@ -1364,118 +1493,137 @@ def query_grouped(
     # TODO: check querytext is UUID in UUID model
 
     response: GroupsResult = NullResult
-    match qdrant_model:
-        case QdrantEmbeddingModel.UUID:
-            # ignore grouping
-            hits: list[ScoredPoint] = query(
-                client,
-                collection_name,
-                qdrant_model,
-                embedding_settings,
-                querytext,
-                limit=limit,
-                payload=payload,
-                logger=logger,
-            )
-            return GroupsResult(
-                groups=[PointGroup(hits=hits, id=querytext)]
-            )
+    try:
+        match qdrant_model:
+            case QdrantEmbeddingModel.UUID:
+                # ignore grouping
+                hits: list[ScoredPoint] = query(
+                    client,
+                    collection_name,
+                    qdrant_model,
+                    embedding_settings,
+                    querytext,
+                    limit=limit,
+                    payload=payload,
+                    logger=logger,
+                )
+                return GroupsResult(
+                    groups=[PointGroup(hits=hits, id=querytext)]
+                )
 
-        case (
-            QdrantEmbeddingModel.DENSE
-            | QdrantEmbeddingModel.MULTIVECTOR
-        ):
-            vect = encoder.embed_query(querytext)
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'group_by': group_field,
-                'limit': limit,
-                'group_size': group_size,
-                'with_lookup': models.WithLookup(
-                    collection=group_collection,
-                    with_payload=payload,
-                    with_vectors=False,
-                ),
-            }
-            response = client.query_points_groups(**query_dict)
+            case (
+                QdrantEmbeddingModel.DENSE
+                | QdrantEmbeddingModel.MULTIVECTOR
+            ):
+                vect = encoder.embed_query(querytext)
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'group_by': group_field,
+                    'limit': limit,
+                    'group_size': group_size,
+                    'with_lookup': models.WithLookup(
+                        collection=group_collection,
+                        with_payload=payload,
+                        with_vectors=False,
+                    ),
+                }
+                response = client.query_points_groups(**query_dict)
 
-        case QdrantEmbeddingModel.SPARSE:
-            sparse_model: SparseTextEmbedding = _get_sparse_model(
-                embedding_settings
-            )
-            sparse_embeddings: list[SparseEmbedding] = list(
-                sparse_model.embed(querytext)
-            )
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'group_by': group_field,
-                'limit': limit,
-                'group_size': group_size,
-                'with_lookup': models.WithLookup(
-                    collection=group_collection,
-                    with_payload=payload,
-                    with_vectors=False,
-                ),
-            }
-            response = client.query_points_groups(**query_dict)
-
-        case (
-            QdrantEmbeddingModel.HYBRID_DENSE
-            | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
-        ):
-            try:
-                vect: list[float] = encoder.embed_query(querytext)
+            case QdrantEmbeddingModel.SPARSE:
                 sparse_model: SparseTextEmbedding = _get_sparse_model(
                     embedding_settings
                 )
                 sparse_embeddings: list[SparseEmbedding] = list(
                     sparse_model.embed(querytext)
                 )
-            except Exception:
-                logger.error("Could not create encoding")
-                return NullResult
-            dense_dict: dict[str, Any] = {
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'limit': 25,
-            }
-            sparse_dict: dict[str, Any] = {
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'limit': limit,
-            }
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'prefetch': [
-                    models.Prefetch(**dense_dict),
-                    models.Prefetch(**sparse_dict),
-                ],
-                'query': models.FusionQuery(fusion=models.Fusion.RRF),
-                'group_by': group_field,
-                'group_size': group_size,
-                'with_lookup': models.WithLookup(
-                    collection=group_collection,
-                    with_payload=payload,
-                    with_vectors=False,
-                ),
-            }
-            response = client.query_points_groups(**query_dict)
-        case _:
-            raise RuntimeError(
-                "Unreachable code reached due to invalid "
-                + "embedding model: "
-                + str(qdrant_model)
-            )
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'group_by': group_field,
+                    'limit': limit,
+                    'group_size': group_size,
+                    'with_lookup': models.WithLookup(
+                        collection=group_collection,
+                        with_payload=payload,
+                        with_vectors=False,
+                    ),
+                }
+                response = client.query_points_groups(**query_dict)
+
+            case (
+                QdrantEmbeddingModel.HYBRID_DENSE
+                | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
+            ):
+                try:
+                    vect: list[float] = encoder.embed_query(querytext)
+                    sparse_model: SparseTextEmbedding = (
+                        _get_sparse_model(embedding_settings)
+                    )
+                    sparse_embeddings: list[SparseEmbedding] = list(
+                        sparse_model.embed(querytext)
+                    )
+                except Exception:
+                    logger.error("Could not create encoding")
+                    return NullResult
+                dense_dict: dict[str, Any] = {
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'limit': 25,
+                }
+                sparse_dict: dict[str, Any] = {
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'limit': limit,
+                }
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'prefetch': [
+                        models.Prefetch(**dense_dict),
+                        models.Prefetch(**sparse_dict),
+                    ],
+                    'query': models.FusionQuery(
+                        fusion=models.Fusion.RRF
+                    ),
+                    'group_by': group_field,
+                    'group_size': group_size,
+                    'with_lookup': models.WithLookup(
+                        collection=group_collection,
+                        with_payload=payload,
+                        with_vectors=False,
+                    ),
+                }
+                response = client.query_points_groups(**query_dict)
+            case _:
+                raise RuntimeError(
+                    "Unreachable code reached due to invalid "
+                    + "embedding model: "
+                    + str(qdrant_model)
+                )
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return NullResult
+    except UnexpectedResponse as e:
+        logger.error(f"Could not read from the vector database: {e}")
+        return NullResult
+    except ApiException as e:
+        logger.error(
+            f"Could not read from the database due to API error: {e}"
+        )
+        return NullResult
+    except Exception as e:
+        logger.error(f"Could not read from the database: {e}")
+        return NullResult
 
     return response
 
@@ -1550,118 +1698,143 @@ async def aquery_grouped(
     # TODO: check querytext is UUID in UUID model
 
     response: GroupsResult = NullResult
-    match qdrant_model:
-        case QdrantEmbeddingModel.UUID:
-            # ignore grouping
-            hits: list[ScoredPoint] = await aquery(
-                client,
-                collection_name,
-                qdrant_model,
-                embedding_settings,
-                querytext,
-                limit=limit,
-                payload=payload,
-                logger=logger,
-            )
-            return GroupsResult(
-                groups=[PointGroup(hits=hits, id=querytext)]
-            )
+    try:
+        match qdrant_model:
+            case QdrantEmbeddingModel.UUID:
+                # ignore grouping
+                hits: list[ScoredPoint] = await aquery(
+                    client,
+                    collection_name,
+                    qdrant_model,
+                    embedding_settings,
+                    querytext,
+                    limit=limit,
+                    payload=payload,
+                    logger=logger,
+                )
+                return GroupsResult(
+                    groups=[PointGroup(hits=hits, id=querytext)]
+                )
 
-        case (
-            QdrantEmbeddingModel.DENSE
-            | QdrantEmbeddingModel.MULTIVECTOR
-        ):
-            vect = encoder.embed_query(querytext)
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'group_by': group_field,
-                'limit': limit,
-                'group_size': group_size,
-                'with_lookup': models.WithLookup(
-                    collection=group_collection,
-                    with_payload=payload,
-                    with_vectors=False,
-                ),
-            }
-            response = await client.query_points_groups(**query_dict)
+            case (
+                QdrantEmbeddingModel.DENSE
+                | QdrantEmbeddingModel.MULTIVECTOR
+            ):
+                vect = encoder.embed_query(querytext)
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'group_by': group_field,
+                    'limit': limit,
+                    'group_size': group_size,
+                    'with_lookup': models.WithLookup(
+                        collection=group_collection,
+                        with_payload=payload,
+                        with_vectors=False,
+                    ),
+                }
+                response = await client.query_points_groups(
+                    **query_dict
+                )
 
-        case QdrantEmbeddingModel.SPARSE:
-            sparse_model: SparseTextEmbedding = _get_sparse_model(
-                embedding_settings
-            )
-            sparse_embeddings: list[SparseEmbedding] = list(
-                sparse_model.embed(querytext)
-            )
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'group_by': group_field,
-                'limit': limit,
-                'group_size': group_size,
-                'with_lookup': models.WithLookup(
-                    collection=group_collection,
-                    with_payload=payload,
-                    with_vectors=False,
-                ),
-            }
-            response = await client.query_points_groups(**query_dict)
-
-        case (
-            QdrantEmbeddingModel.HYBRID_DENSE
-            | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
-        ):
-            try:
-                vect: list[float] = encoder.embed_query(querytext)
+            case QdrantEmbeddingModel.SPARSE:
                 sparse_model: SparseTextEmbedding = _get_sparse_model(
                     embedding_settings
                 )
                 sparse_embeddings: list[SparseEmbedding] = list(
                     sparse_model.embed(querytext)
                 )
-            except Exception:
-                logger.error("Could not create encoding")
-                return NullResult
-            dense_dict: dict[str, Any] = {
-                'query': vect,
-                'using': DENSE_VECTOR_NAME,
-                'limit': 25,
-            }
-            sparse_dict: dict[str, Any] = {
-                'query': models.SparseVector(
-                    indices=list(sparse_embeddings[0].indices),
-                    values=list(sparse_embeddings[0].values),
-                ),
-                'using': SPARSE_VECTOR_NAME,
-                'limit': limit,
-            }
-            query_dict: dict[str, Any] = {
-                'collection_name': collection_name,
-                'prefetch': [
-                    models.Prefetch(**dense_dict),
-                    models.Prefetch(**sparse_dict),
-                ],
-                'query': models.FusionQuery(fusion=models.Fusion.RRF),
-                'group_by': group_field,
-                'group_size': group_size,
-                'with_lookup': models.WithLookup(
-                    collection=group_collection,
-                    with_payload=payload,
-                    with_vectors=False,
-                ),
-            }
-            response = await client.query_points_groups(**query_dict)
-        case _:
-            raise RuntimeError(
-                "Unreachable code reached due to invalid "
-                + "embedding model: "
-                + str(qdrant_model)
-            )
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'group_by': group_field,
+                    'limit': limit,
+                    'group_size': group_size,
+                    'with_lookup': models.WithLookup(
+                        collection=group_collection,
+                        with_payload=payload,
+                        with_vectors=False,
+                    ),
+                }
+                response = await client.query_points_groups(
+                    **query_dict
+                )
+
+            case (
+                QdrantEmbeddingModel.HYBRID_DENSE
+                | QdrantEmbeddingModel.HYBRID_MULTIVECTOR
+            ):
+                try:
+                    vect: list[float] = encoder.embed_query(querytext)
+                    sparse_model: SparseTextEmbedding = (
+                        _get_sparse_model(embedding_settings)
+                    )
+                    sparse_embeddings: list[SparseEmbedding] = list(
+                        sparse_model.embed(querytext)
+                    )
+                except Exception:
+                    logger.error("Could not create encoding")
+                    return NullResult
+                dense_dict: dict[str, Any] = {
+                    'query': vect,
+                    'using': DENSE_VECTOR_NAME,
+                    'limit': 25,
+                }
+                sparse_dict: dict[str, Any] = {
+                    'query': models.SparseVector(
+                        indices=list(sparse_embeddings[0].indices),
+                        values=list(sparse_embeddings[0].values),
+                    ),
+                    'using': SPARSE_VECTOR_NAME,
+                    'limit': limit,
+                }
+                query_dict: dict[str, Any] = {
+                    'collection_name': collection_name,
+                    'prefetch': [
+                        models.Prefetch(**dense_dict),
+                        models.Prefetch(**sparse_dict),
+                    ],
+                    'query': models.FusionQuery(
+                        fusion=models.Fusion.RRF
+                    ),
+                    'group_by': group_field,
+                    'group_size': group_size,
+                    'with_lookup': models.WithLookup(
+                        collection=group_collection,
+                        with_payload=payload,
+                        with_vectors=False,
+                    ),
+                }
+                response = await client.query_points_groups(
+                    **query_dict
+                )
+            case _:
+                raise RuntimeError(
+                    "Unreachable code reached due to invalid "
+                    + "embedding model: "
+                    + str(qdrant_model)
+                )
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        return NullResult
+    except UnexpectedResponse as e:
+        logger.error(f"Could not read from the vector database: {e}")
+        return NullResult
+    except ApiException as e:
+        logger.error(
+            f"Could not read from the database due to API error: {e}"
+        )
+        return NullResult
+    except Exception as e:
+        logger.error(f"Could not read from the database: {e}")
+        return NullResult
 
     return response
 
