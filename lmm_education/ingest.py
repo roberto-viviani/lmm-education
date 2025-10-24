@@ -388,9 +388,8 @@ def blocklist_encode(
 
     Args:
         blocklist: the list of markdown blocks
-        annotiations_model: an optional list of metadata keys that
-            are used during embedding
         opts: the ConfigSettings object
+        logger: a logger object
 
     Returns:
         A tuple of two lists of chunks. The first list contains the
@@ -534,10 +533,11 @@ def blocklist_upload(
     Args:
         client: the QdrantClient
         chunks: list of chunks to be uploaded
-        coll_chunks: list of chunks for the companion collection
+        companion_chunks: list of chunks for the companion collection
         opts: the ConfigSettings object
         ingest: Whether to ingest documents into the vector database
             (default: True)
+        logger: a logger object
 
     Returns:
         A list of tuples containing the id's of the ingested objects,

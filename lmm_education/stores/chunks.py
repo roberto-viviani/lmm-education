@@ -221,10 +221,10 @@ def blocks_to_chunks(
         and metadata.
 
     Args:
-        blocklist, a list of markdown blocks
+        blocklist: a list of markdown blocks
         encoding_model: how to allocate information to dense and
             sparse encoding
-        annotations_model: the fields from the metadata to use for
+        annotation_model: the fields from the metadata to use for
             encoding. Titles, if present, are included if there is
             no model. This field is ignored if the encoding model
             makes no use of annotations.

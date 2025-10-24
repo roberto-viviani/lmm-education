@@ -709,8 +709,9 @@ def chunks_to_points(
 
     Args:
         chunks: the chunks list
-        model: the embedding model, or a ConfigSettings object from
+        qdrant_model: the embedding model, or a ConfigSettings object from
             which the model may be deduced
+        embedding_settings: the embedding settings
         logger: a logger object
         chunk_to_payload: a function to map chunks to the Langchain
             representation (internal use)
@@ -1316,14 +1317,14 @@ def query_grouped(
         collection_name: the collection to query
         group_collection: the companion collection that will provide
             the output of the query
-        group_field: the filed to group on
-        limitgroups: max retrieved output from the group collection
         qdrant_model: the qdrant embedding model
         embedding_settings: the embedding settings
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to the text
             retrieved for similarity to the querytext
+        group_size: max retrieved output from the group collection
+        group_field: the filed to group on
         logger: a logger object
 
     Returns:
@@ -1501,14 +1502,15 @@ async def aquery_grouped(
         collection_name: the collection to query
         group_collection: the companion collection that will provide
             the output of the query
-        group_field: the filed to group on
-        limitgroups: max retrieved output from the group collection
         qdrant_model: the qdrant embedding model
         embedding_settings: the embedding settings
+        group_field: the filed to group on
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to the text
             retrieved for similarity to the querytext
+        group_size: max retrieved output from the group collection
+        group_field: the filed to group on
         logger: a logger object
 
     Returns:
