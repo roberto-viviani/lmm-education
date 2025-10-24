@@ -114,6 +114,31 @@ class TestScanRag(unittest.TestCase):
         self.assertTrue(logger.count_logs(level=1) == 0)
 
 
+class TestScanSplit(unittest.TestCase):
+
+    def test_scan_split(self):
+        from lmm.scan.scan_split import scan_split
+        from lmm.markdown.parse_markdown import (
+            parse_markdown_text,
+            Block,
+        )
+        from lmm_education.stores.chunks import (
+            blocks_to_chunks,
+            Chunk,
+            EncodingModel,
+        )
+
+        blocks: list[Block] = parse_markdown_text(text_summarized)
+        blocks = scan_split(blocks)
+        chunks: list[Chunk] = blocks_to_chunks(
+            blocks, EncodingModel.CONTENT
+        )
+        self.assertTrue(len(chunks) > 0)
+
+        uuids = [chunk.uuid for chunk in chunks]
+        self.assertTrue(len(set(uuids)) == len(uuids))
+
+
 class TestChunkingAndIngestion(unittest.TestCase):
 
     # remove the test_storage folder after tests

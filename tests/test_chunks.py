@@ -84,6 +84,60 @@ class TestChunkFormation(unittest.TestCase):
         self.assertIsInstance(reformed_blocks[0], MetadataBlock)
         self.assertIsInstance(reformed_blocks[1], TextBlock)
 
+    def test_uuid_formation(self):
+        chunks = blocks_to_chunks(blocks, EncodingModel.CONTENT)
+        uuids = [chunk.uuid for chunk in chunks]
+        self.assertEqual(len(uuids), len(chunks))
+        for u in uuids[1:]:
+            self.assertIsInstance(u, str)
+            self.assertNotEqual(uuids[0], u)
+
+    def test_docid_unequal(self):
+        from lmm.markdown.parse_markdown import blocklist_copy
+
+        new_blocks = blocklist_copy(blocks)
+        new_blocks[0].content['docid'] = "test1"
+        chunks = blocks_to_chunks(new_blocks, EncodingModel.CONTENT)
+
+        uuids1 = [chunk.uuid for chunk in chunks]
+
+        new_blocks = blocklist_copy(blocks)
+        new_blocks[0].content['docid'] = "test2"
+        chunks = blocks_to_chunks(new_blocks, EncodingModel.CONTENT)
+
+        uuids2 = [chunk.uuid for chunk in chunks]
+        self.assertNotEqual(uuids1, uuids2)
+
+    def test_docid_equal(self):
+        from lmm.markdown.parse_markdown import blocklist_copy
+
+        new_blocks = blocklist_copy(blocks)
+        new_blocks[0].content['docid'] = "test1"
+        chunks = blocks_to_chunks(new_blocks, EncodingModel.CONTENT)
+
+        uuids1 = [chunk.uuid for chunk in chunks]
+
+        new_blocks = blocklist_copy(blocks)
+        new_blocks[0].content['docid'] = "test1"
+        chunks = blocks_to_chunks(new_blocks, EncodingModel.CONTENT)
+
+        uuids2 = [chunk.uuid for chunk in chunks]
+        self.assertEqual(uuids1, uuids2)
+
+    def test_docid_random(self):
+        from lmm.markdown.parse_markdown import blocklist_copy
+
+        new_blocks = blocklist_copy(blocks)
+        chunks = blocks_to_chunks(new_blocks, EncodingModel.CONTENT)
+
+        uuids1 = [chunk.uuid for chunk in chunks]
+
+        new_blocks = blocklist_copy(blocks)
+        chunks = blocks_to_chunks(new_blocks, EncodingModel.CONTENT)
+
+        uuids2 = [chunk.uuid for chunk in chunks]
+        self.assertNotEqual(uuids1, uuids2)
+
 
 class TestChunkInheritance(unittest.TestCase):
 
