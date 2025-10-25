@@ -329,7 +329,8 @@ def markdown_upload(
         if bool(idss):
             if ingest:
                 logger.info(
-                    f"{source} added to {config_opts.storage}."
+                    f"{source} added to {config_opts.storage} "
+                    f"({len(idss)} chunks)."
                 )
             ids.extend(idss)
         else:
@@ -505,6 +506,7 @@ def blocklist_encode(
         annotation_model=annotation_model,
         logger=logger,
     )
+    logger.info(f"Created {len(chunks)} chunks.")
     if not chunks:
         return [], []
 
@@ -552,6 +554,9 @@ def blocklist_upload(
         opts.RAG.encoding_model
     )
     if ingest:
+        print(
+            f"sending {len(chunks)} chunks to {dbOpts.collection_name}"
+        )
         points = upload(
             client,
             collection_name=dbOpts.collection_name,
@@ -562,6 +567,7 @@ def blocklist_upload(
         )
     else:
         points = chunks_to_points(chunks, model, opts.embeddings)
+    logger.info(f"Created {len(points)} points for upload.")
     if not bool(points):
         logger.error("Could not upload documents")
         return []
@@ -574,6 +580,9 @@ def blocklist_upload(
                 + "document chunks generated."
             )
             return []
+        logger.info(
+            f"Ingesting companion collection ({len(companion_chunks)} chunks.)"
+        )
         doc_coll: str = dbOpts.companion_collection
         if ingest:
             docpoints = upload(
@@ -655,25 +664,25 @@ if __name__ == "__main__":
             sys.argv[1], ["md", "Rmd"]
         )
     else:
-        logger.info("Usage: first command line arg is source file")
+        print("Usage: first command line arg is source file")
+        print("       second command line argument is ingest?")
+        print("       third command line argument is save files?")
         filenames = ""
         exit()
 
+    ingest: bool = bool(sys.argv[2]) if len(sys.argv) > 2 else False
+    save_files: bool = (
+        bool(sys.argv[3]) if len(sys.argv) > 3 else True
+    )
+
     if filenames:
         try:
-            # opts = load_settings(DEFAULT_CONFIG_FILE)
-            opts = ConfigSettings(
-                embeddings={
-                    'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
-                },  # type: ignore
-                encoding_model="content",  # type: ignore
-                text_splitter="default",  # type: ignore
-            )
+            opts = ConfigSettings()
         except ValueError | ValidationError as e:
-            logger.error(f"Invalid settings:\n{e}")
+            print(f"Invalid settings:\n{e}")
             exit()
         except Exception as e:
-            logger.error(f"Could not load config settings:\n{e}")
+            print(f"Could not load config settings:\n{e}")
             exit()
 
         try:
@@ -682,10 +691,9 @@ if __name__ == "__main__":
             markdown_upload(
                 filenames,
                 config_opts=opts,
-                save_files=True,
-                ingest=False,
-                logger=logger,
+                save_files=save_files,
+                ingest=ingest,
             )
         except Exception as e:
-            logger.error(f"Error during processing documents:\n{e}")
+            print(f"Error during processing documents:\n{e}")
             exit()
