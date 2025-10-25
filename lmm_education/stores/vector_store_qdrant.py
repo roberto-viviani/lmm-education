@@ -694,7 +694,9 @@ async def ainitialize_collection(
             qdrant_model == QdrantEmbeddingModel.UUID
             or qdrant_model == QdrantEmbeddingModel.SPARSE
         ):
-            data: list[float] = encoder.embed_query("Test query")
+            data: list[float] = await encoder.aembed_query(
+                "Test query"
+            )
             embedding_size: int = len(data)
         else:
             embedding_size: int = 0
@@ -848,6 +850,7 @@ def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
         return {'page_content': x.content, 'metadata': x.metadata}
 
 
+# TODO: async version
 def chunks_to_points(
     chunks: list[Chunk],
     qdrant_model: QdrantEmbeddingModel,
