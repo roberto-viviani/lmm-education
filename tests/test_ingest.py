@@ -448,9 +448,10 @@ class TestMarkdownQueries(unittest.TestCase):
         results = query(
             client,
             collection_name=opts.database.collection_name,
-            model=encoding_to_qdrantembedding_model(
+            qdrant_model=encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            embedding_settings=opts.embeddings,
             querytext="What are the main uses of linear models?",
             limit=4,
             payload=['page_content'],
@@ -495,6 +496,7 @@ class TestMarkdownQueries(unittest.TestCase):
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            opts.embeddings,
         )
 
         # this how to call our function directly
@@ -599,6 +601,7 @@ class TestMarkdownQueries(unittest.TestCase):
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
+            opts.embeddings,
             "What are the main uses of linear models?",
             limit=1,
             group_field=GROUP_UUID_KEY,

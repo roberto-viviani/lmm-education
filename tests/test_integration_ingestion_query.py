@@ -104,25 +104,28 @@ class TestIngestionRetrieval(unittest.TestCase):
         from lmm_education.ingest import markdown_upload
         from lmm_education.config.config import ConfigSettings
 
+        # 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
         config = ConfigSettings(
             embeddings={
-                'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
                 'sparse_model': "Qdrant/bm25",
             },
             storage={'folder': "./test_storage"},
             database={
-                'encoding': "sparse",
-                'companion_collection': "Documents",
+                'collection_name': "Test",
+                'companion_collection': None,  # "Documents",
             },
             RAG={
                 'questions': True,
                 'annotation_model': {'own_properties': ['questions']},
+                'encoding_model': "content",  # "multivector",
             },
         )
-        markdown_upload(
+        idss = markdown_upload(
             "TestRaggedDocument.md",
             config_opts=config,
         )
+        self.assertTrue(len(idss) > 0)
 
         from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
             QdrantVectorStoreRetriever as Qdr,
@@ -131,6 +134,7 @@ class TestIngestionRetrieval(unittest.TestCase):
         retriever = Qdr.from_config_settings(config)
 
         chunks = retriever.invoke("What are observational studies?")
+        retriever.client.close()
         self.assertTrue(len(chunks) > 0)
 
 

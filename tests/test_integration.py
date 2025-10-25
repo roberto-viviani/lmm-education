@@ -201,10 +201,17 @@ class TestChunkingAndIngestion(unittest.TestCase):
             storage=LocalStorage(folder="./test_storage")
         )
         client: QdrantClient = client_from_config(settings, logger)
+        if client is None:
+            self.assertTrue(
+                False, "Could not initialize qdrant client"
+            )
+            return
+
         points = upload(
             client=client,
             collection_name="documents",
-            model=to_embedding_model(encoding_model),
+            qdrant_model=to_embedding_model(encoding_model),
+            embedding_settings=settings.embeddings,
             chunks=chunks,
             logger=logger,
         )
@@ -217,7 +224,8 @@ class TestChunkingAndIngestion(unittest.TestCase):
         scored_points = query(
             client,
             collection_name="documents",
-            model=to_embedding_model(encoding_model),
+            qdrant_model=to_embedding_model(encoding_model),
+            embedding_settings=settings.embeddings,
             querytext="What is a linear model?",
             payload=True,
             limit=3,
