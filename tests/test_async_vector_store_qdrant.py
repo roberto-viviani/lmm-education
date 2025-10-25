@@ -35,6 +35,57 @@ from qdrant_client.models import PointStruct
 from .test_vector_store_qdrant import blocks, text, text2
 
 
+class TestInitializationContext(unittest.TestCase):
+
+    async def test_init_context(self):
+        from lmm_education.config.config import ConfigSettings
+        from lmm_education.stores.vector_store_qdrant import (
+            async_qdrant_client_context,
+        )
+
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        opts = ConfigSettings(storage=":memory:")
+        with async_qdrant_client_context(opts) as client:
+            result = await ainitialize_collection(
+                client,
+                "Main34788",
+                embedding_model,
+                ConfigSettings().embeddings,
+            )
+
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    async def test_init_context_datasource(self):
+        from lmm_education.config.config import DatabaseSource
+        from lmm_education.stores.vector_store_qdrant import (
+            async_qdrant_client_context,
+        )
+
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        opts: DatabaseSource = ":memory:"
+        with async_qdrant_client_context(opts) as client:
+            result = await ainitialize_collection(
+                client,
+                "Main34789",
+                embedding_model,
+                ConfigSettings().embeddings,
+            )
+
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+
 class TestQuery(unittest.IsolatedAsyncioTestCase):
     # detup and teardown replace config.toml to avoid
     # calling the language model server

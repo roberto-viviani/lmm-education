@@ -219,6 +219,57 @@ class TestInitialization(unittest.TestCase):
         )
 
 
+class TestInitializationContext(unittest.TestCase):
+
+    def test_init_context(self):
+        from lmm_education.config.config import ConfigSettings
+        from lmm_education.stores.vector_store_qdrant import (
+            qdrant_client_context,
+        )
+
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        opts = ConfigSettings(storage=":memory:")
+        with qdrant_client_context(opts) as client:
+            result = initialize_collection(
+                client,
+                "Main34788",
+                embedding_model,
+                ConfigSettings().embeddings,
+            )
+
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+    def test_init_context_datasource(self):
+        from lmm_education.config.config import DatabaseSource
+        from lmm_education.stores.vector_store_qdrant import (
+            qdrant_client_context,
+        )
+
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        opts: DatabaseSource = ":memory:"
+        with qdrant_client_context(opts) as client:
+            result = initialize_collection(
+                client,
+                "Main34789",
+                embedding_model,
+                ConfigSettings().embeddings,
+            )
+
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+
 from lmm_education.config.config import RAGSettings
 
 

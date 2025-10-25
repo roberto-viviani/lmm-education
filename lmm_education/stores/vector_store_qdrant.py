@@ -2,7 +2,10 @@
 Computes the embeddings and handles uploading and saving the data
 to the vector database.
 
-Provides the interface to the qdrant database. A connection to the
+This is a low-level module that provides the interface to the qdrant
+database, while also bringing it together with the settings information
+in config.toml and an embeddings provider. Exceptions are relayed to a
+logger object for use in a REPL interface. A connection to the
 database is representend by a `QdrantClient` object of the Qdrant API,
 which may be initialized directly through the constructor, or through
 the `client_from_config` function which reads the database options
@@ -41,6 +44,31 @@ logger is specified, an error message is printed on the console.
         # read causes from logger
 ```
 
+The role of client_from_config is to bind the creation of a QdrantClient
+object with the relevant settings in config.toml, and channel possible
+exceptions through the logger. Note, however, that the QdrantClient can
+also be created with the qdrant API directly. Note that in both cases
+the client needs be closed before exiting.
+
+A slightly more higher-lever alternative is obtaining the client
+through a context manager by calling `qdrant_client_context`:
+
+```python
+try:
+    with qdrant_client_context() as client:
+        result_docs = upload(
+            client, "documents", model, settings, doc_chunks
+        )
+        result_imgs = upload(
+            client, "images", model, settings, img_chunks
+        )
+except Exception as e:
+    .... error handling
+```
+
+Please note that at present you have to capture errors when using
+the context manager.
+
 The remaining functions of the module take the client object to read
 and write to the database. All calls go through initialize_collection,
 which takes the name of the collection and an embedding model to
@@ -63,8 +91,24 @@ vector, or any hybrid combination of those, should be used):
         logger=logger)
 ```
 
+```python
+embedding_model = QdrantEmbeddingModel.DENSE
+opts: DatabaseSource = ":memory:"
+try:
+    with qdrant_client_context(opts) as client:
+        result = initialize_collection(
+            client,
+            "Main",
+            embedding_model,
+            ConfigSettings().embeddings,
+        )
+except Exception as e:
+    .... handle exceptions
+```
+
 In every call to the functions of the module, the client, the
-collection name, and the embedding model are given as arguments.
+collection name, the embedding model, and the embedding provider
+settings are given as arguments.
 
 Data are ingested in the database in the form of lists of `Chunk`
 objects (see the `lmm_education.stores.chunks` module).
@@ -124,6 +168,8 @@ Main functions:
 
 from enum import Enum
 from typing import Callable, Any
+from contextlib import contextmanager, asynccontextmanager
+from typing import Generator, AsyncGenerator
 
 # langchain
 from langchain_core.embeddings import Embeddings
@@ -147,7 +193,11 @@ from qdrant_client.http.exceptions import (
 # lmmarkdown
 from lmm.scan.scan_keys import GROUP_UUID_KEY
 from lmm.config.config import EmbeddingSettings
-from lmm_education.stores.chunks import EncodingModel, Chunk
+from lmm_education.config.config import DatabaseSource
+from lmm_education.stores.chunks import (
+    EncodingModel,
+    Chunk,
+)
 from lmm.markdown.parse_markdown import (
     Block,
     TextBlock,
@@ -227,7 +277,7 @@ def _get_sparse_model(
 
 
 def client_from_config(
-    opts: ConfigSettings | None = None,
+    opts: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> QdrantClient | None:
     """ "
@@ -251,8 +301,12 @@ def client_from_config(
     try:
         if opts is None:
             opts = ConfigSettings()
+
+        opts_storage: DatabaseSource = (
+            opts.storage if isinstance(opts, ConfigSettings) else opts
+        )
         client: QdrantClient
-        match opts.storage:
+        match opts_storage:
             case ':memory:':
                 client = QdrantClient(':memory:')
             case LocalStorage(folder=folder):
@@ -283,7 +337,7 @@ def client_from_config(
 
 
 def async_client_from_config(
-    opts: ConfigSettings | None,
+    opts: DatabaseSource | ConfigSettings | None,
     logger: LoggerBase = default_logger,
 ) -> AsyncQdrantClient | None:
     """ "
@@ -305,8 +359,13 @@ def async_client_from_config(
     try:
         if opts is None:
             opts = ConfigSettings()
+
+        opts_storage: DatabaseSource = (
+            opts.storage if isinstance(opts, ConfigSettings) else opts
+        )
+
         client: AsyncQdrantClient
-        match opts.storage:
+        match opts_storage:
             case ':memory:':
                 client = AsyncQdrantClient(':memory:')
             case LocalStorage(folder=folder):
@@ -333,6 +392,46 @@ def async_client_from_config(
         return None
 
     return client
+
+
+@contextmanager
+def qdrant_client_context(
+    config: DatabaseSource | ConfigSettings | None = None,
+    logger: LoggerBase = default_logger,
+) -> Generator[QdrantClient]:
+    client = None
+    try:
+        client = client_from_config(config, logger)
+        if client is None:
+            logger.error("Failed to create Qdrant client")
+            raise ConnectionError("Failed to create Qdrant client")
+        yield client
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception as e:
+                logger.warning(f"Error closing client: {e}")
+
+
+@asynccontextmanager
+async def async_qdrant_client_context(
+    config: DatabaseSource | ConfigSettings | None = None,
+    logger: LoggerBase = default_logger,
+) -> AsyncGenerator[AsyncQdrantClient]:
+    client = None
+    try:
+        client = async_client_from_config(config, logger)
+        if client is None:
+            logger.error("Failed to create Qdrant client")
+            raise ConnectionError("Failed to create Qdrant client")
+        yield client
+    finally:
+        if client is not None:
+            try:
+                await client.close()
+            except Exception as e:
+                logger.warning(f"Error closing client: {e}")
 
 
 def initialize_collection(
