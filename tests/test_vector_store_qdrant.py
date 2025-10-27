@@ -40,6 +40,17 @@ text2 = TextBlock(
     content="The sky is blue because of the oxygen composition of air."
 )
 
+metadata3 = MetadataBlock(
+    content={
+        "questions": "Why is the grass green?",
+        "summary": "The summary of explanations about grass colour.",
+    }
+)
+heading3 = HeadingBlock(level=2, content="Grass colour")
+text3 = TextBlock(
+    content="The grass is green because of the presence of clorophyll in plants."
+)
+
 blocks: list[Block] = [
     header,
     metadata,
@@ -48,6 +59,9 @@ blocks: list[Block] = [
     metadata2,
     heading2,
     text2,
+    metadata3,
+    heading3,
+    text3,
 ]
 blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
@@ -577,7 +591,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             EncodingModel.NONE,
             AnnotationModel(inherited_properties=[TITLES_KEY]),
         )
-        self.assertEqual(len(chunks), 2)
+        self.assertEqual(len(chunks), 3)
         chunk = chunks[0]
         self.assertEqual(chunk.dense_encoding, "")
         encoding_model = EncodingModel.NONE
@@ -647,7 +661,7 @@ class TestIngestionAndQuery(unittest.TestCase):
 
     def test_ingestion_MERGED(self):
         chunks = blocks_to_chunks(blocks, EncodingModel.MERGED, am)
-        self.assertEqual(len(chunks), 2)
+        self.assertEqual(len(chunks), 3)
         chunk = chunks[0]
         self.assertEqual(
             chunk.dense_encoding,
@@ -681,9 +695,44 @@ class TestIngestionAndQuery(unittest.TestCase):
         for p, u in zip(points, points_to_ids(ps)):
             self.assertEqual(p.id, u)
 
+    def test_ingestion_MULTIVECTOR(self):
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.MULTIVECTOR, am
+        )
+        self.assertEqual(len(chunks), 3)
+        chunk = chunks[0]
+        self.assertEqual(chunk.dense_encoding, text.get_content())
+        encoding_model = EncodingModel.MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        for p, u in zip(points, points_to_ids(ps)):
+            self.assertEqual(p.id, u)
+
     def test_ingestion_SPARSE(self):
         chunks = blocks_to_chunks(blocks, EncodingModel.SPARSE, am)
-        self.assertEqual(len(chunks), 2)
+        self.assertEqual(len(chunks), 3)
         chunk = chunks[0]
         self.assertEqual(chunk.sparse_encoding, chunk.annotations)
         encoding_model = EncodingModel.SPARSE
@@ -718,7 +767,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         chunks = blocks_to_chunks(
             blocks, EncodingModel.SPARSE_CONTENT, am
         )
-        self.assertEqual(len(chunks), 2)
+        self.assertEqual(len(chunks), 3)
         chunk = chunks[0]
         self.assertEqual(chunk.sparse_encoding, chunk.annotations)
         self.assertEqual(chunk.dense_encoding, text.get_content())
@@ -752,7 +801,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         chunks = blocks_to_chunks(
             blocks, EncodingModel.SPARSE_MERGED, am
         )
-        self.assertEqual(len(chunks), 2)
+        self.assertEqual(len(chunks), 3)
         chunk = chunks[0]
         self.assertEqual(chunk.sparse_encoding, chunk.annotations)
         self.assertEqual(
@@ -784,6 +833,41 @@ class TestIngestionAndQuery(unittest.TestCase):
             chunks,
         )
         self.assertEqual(len(chunks), len(ps))
+
+    def test_ingestion_SPARSE_MULTIVECTOR(self):
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.SPARSE_MULTIVECTOR, am
+        )
+        self.assertEqual(len(chunks), 3)
+        chunk = chunks[0]
+        self.assertEqual(chunk.dense_encoding, text.get_content())
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        for p, u in zip(points, points_to_ids(ps)):
+            self.assertEqual(p.id, u)
 
     # ------ query ----------------------------------------------------
 
@@ -980,7 +1064,45 @@ class TestIngestionAndQuery(unittest.TestCase):
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
+        self.assertEqual(
+            str(results[0].payload["page_content"]),
+            text2.get_content(),
+        )
+
+    def test_query_MULTIVECTOR(self):
+        encoding_model = EncodingModel.MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "Why is the sky blue?",
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertEqual(
+            str(results[0].payload["page_content"]),
+            text2.get_content(),
+        )
 
     def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
@@ -1119,7 +1241,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
 
     def test_query_SPARSE_MERGED(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -1215,25 +1337,29 @@ class TestIngestionAndQuery(unittest.TestCase):
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
 
-    def test_query_to_uuids(self):
-        encoding_model = EncodingModel.SPARSE_MERGED
+    def test_query_SPARSE_MULTIVECTOR(self):
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
         chunks = blocks_to_chunks(blocks, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
             encoding_model
         )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
-        ps: list[Point] = upload(
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
             client,
             collection_name,
             embedding_model,
             embedding_settings,
             chunks,
-        )
-        self.assertListEqual(
-            [c.uuid for c in chunks], [str(p.id) for p in ps]
         )
         results: list[ScoredPoint] = query(
             client,
@@ -1243,11 +1369,44 @@ class TestIngestionAndQuery(unittest.TestCase):
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertListEqual(
-            [c.uuid for c in chunks], points_to_ids(results)
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
+
+    def test_query_to_uuids(self):
+        # tests uuids we get out are those we put in
+        encoding_model = EncodingModel.SPARSE_MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
         )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value + "uuids"
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        cuuids = [c.uuid for c in chunks]
+        cuuids.sort()
+        pids = [str(p.id) for p in ps]
+        pids.sort()
+        self.assertListEqual(cuuids, pids)
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+        uuids = points_to_ids(results)
+        uuids.sort()
+        self.assertListEqual(cuuids, uuids)
 
     def test_query_to_text(self):
+        # tests equality of text ingested and retrieved
         encoding_model = EncodingModel.SPARSE_MERGED
         textlist = [
             b.get_content()
@@ -1276,7 +1435,795 @@ class TestIngestionAndQuery(unittest.TestCase):
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertListEqual(textlist, points_to_text(results))
+        textlist.sort()
+        resultlist = points_to_text(results)
+        resultlist.sort()
+        self.assertListEqual(textlist, resultlist)
+
+
+class TestIngestionLargeText(unittest.TestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
+            embeddings={
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
+
+    def _get_blocks(self) -> list[Block]:
+        from tests.test_integration_ingestion_query import document
+
+        return parse_markdown_text(document)
+
+    def _get_blocks_len(self) -> int:
+        blocks = self._get_blocks()
+        return len([b for b in blocks if isinstance(b, TextBlock)])
+
+    # ------ ingestion ------------------------------------------------
+
+    def test_ingestion_CONTENT(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(blocks, EncodingModel.CONTENT, am)
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.CONTENT
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        for p, u in zip(points, points_to_ids(ps)):
+            self.assertEqual(p.id, u)
+
+    def test_ingestion_MERGED(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(blocks, EncodingModel.MERGED, am)
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.MERGED
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        for p, u in zip(points, points_to_ids(ps)):
+            self.assertEqual(p.id, u)
+
+    def test_ingestion_MULTIVECTOR(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(blocks, EncodingModel.MERGED, am)
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        for p, u in zip(points, points_to_ids(ps)):
+            self.assertEqual(p.id, u)
+
+    def test_ingestion_SPARSE(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(blocks, EncodingModel.SPARSE, am)
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.SPARSE
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps: list[Point] = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+        for p, u in zip(points, points_to_ids(ps)):
+            self.assertEqual(p.id, u)
+
+    def test_ingestion_SPARSE_CONTENT(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.SPARSE_CONTENT, am
+        )
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.SPARSE_CONTENT
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+
+    def test_ingestion_SPARSE_MERGED(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.SPARSE_MERGED, am
+        )
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.SPARSE_MERGED
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+
+    def test_ingestion_SPARSE_MULTIVECTOR(self):
+        blocks = self._get_blocks()
+        chunks = blocks_to_chunks(
+            blocks, EncodingModel.SPARSE_MULTIVECTOR, am
+        )
+        self.assertEqual(len(chunks), self._get_blocks_len())
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        points = chunks_to_points(
+            chunks, embedding_model, embedding_settings
+        )
+        self.assertEqual(len(chunks), len(points))
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        self.assertEqual(len(chunks), len(ps))
+
+
+class TestQueryLargeText(unittest.TestCase):
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = Settings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = Settings(
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
+            embeddings={
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            textSplitter={"splitter": "default", "threshold": 125},
+        )
+        export_settings(settings)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
+
+    def _get_blocks(self) -> list[Block]:
+        from tests.test_integration_ingestion_query import document
+
+        return parse_markdown_text(document)
+
+    # ------ query ----------------------------------------------------
+
+    def test_query_NULL(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.NONE
+        chunks = blocks_to_chunks(blocks, encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        points = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        uuids = points_to_ids(points)
+        self.assertEqual(len(uuids), len(chunks))
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            uuids[0],
+        )
+        self.assertEqual(len(results), 1)
+
+    def test_query_CONTENT(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.CONTENT
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertIsNotNone(results[0].payload)
+
+    def test_query_CONTENT2(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.CONTENT
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "The oygen composition of the air",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_MERGED(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_MERGED2(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What is the ingested text?",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_MERGED3(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "Why is the sky blue?",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_MULTIVECTOR(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE
+        chunks = blocks_to_chunks(
+            blocks,
+            encoding_model,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What is the ingested text?",
+        )
+        self.assertTrue(len(results) > 0)
+
+    def test_query_SPARSE_CONTENT(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_CONTENT
+        chunks = blocks_to_chunks(
+            blocks,
+            encoding_model,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE_CONTENT2(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_CONTENT
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What is the ingested text?",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE_CONTENT3(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_CONTENT
+        blocklist = scan_rag(
+            blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
+        )
+        chunks = blocks_to_chunks(blocklist, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "Why is the sky blue?",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE_MERGED(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE_MERGED2(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What is the ingested text?",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE_MERGED3(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_MERGED
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "Why is the sky blue?",
+        )
+        self.assertEqual(len(results), len(ps))
+
+    def test_query_SPARSE_MERGED_MULTIVECTOR(self):
+        blocks = self._get_blocks()
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model, am)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        flag = initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        self.assertTrue(flag, "Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+        results: list[ScoredPoint] = query(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What is the ingested text?",
+        )
+        self.assertEqual(len(results), len(ps))
 
 
 if __name__ == "__main__":

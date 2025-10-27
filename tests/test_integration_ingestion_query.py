@@ -61,6 +61,8 @@ questions: "How do linear models function as computational devices that process 
 We may perhaps add that there is a third way to look at linear models, which is as computational devices that crunch numbers to output sophisticated averages of the data. From this perspective, the linear model does not care at all what kind of numbers are fed to it, as it will usually be able to compute something from them. Linear models are not oracles that can divine aspects of reality: all that they see is just numbers. Therefore, an important task when estimating linear models is our capacity to relate these numbers to measurements and observations in the real world, and interpret the output of the model in the light of this knowledge. The distinction between the interpretation of the associations in observational and experimental studies is one example of this task. Nevertheless, linear models can quantify the relative role of predictors on outcomes in ways that are not available to simple inspection. Furthermore, they can make optimal use of the information contained in the data, unlike a human observer.
 """
 
+from lmm_education.config.config import EncodingModel
+
 
 def setUpModule():
     # crate a ragged markdown on disk
@@ -97,9 +99,44 @@ def tearDownModule():
             pass
 
 
+def get_text_block_count() -> int:
+    from lmm.markdown.parse_markdown import (
+        parse_markdown_text,
+        TextBlock,
+    )
+    from lmm.scan.scan_split import scan_split
+
+    blocks = parse_markdown_text(document)
+    blocks = scan_split(blocks)
+    return len([b for b in blocks if isinstance(b, TextBlock)])
+
+
+def get_chunks_count() -> int:
+    from lmm.markdown.parse_markdown import (
+        parse_markdown_text,
+        MetadataBlock,
+    )
+    from lmm.scan.scan_keys import SUMMARIES_KEY
+    from lmm_education.config.config import ConfigSettings
+
+    settings = ConfigSettings()
+    count_chunks = get_text_block_count()
+
+    if settings.RAG.summaries:
+        blocks = parse_markdown_text(document)
+        meta_blocks = [
+            b for b in blocks if isinstance(b, MetadataBlock)
+        ]
+        count_chunks += len(
+            [m for m in meta_blocks if m.get_key(SUMMARIES_KEY)]
+        )
+
+    return count_chunks
+
+
 class TestIngestionRetrieval(unittest.TestCase):
 
-    def test_integration_retrieval(self):
+    def test_integration_retrieval_content(self):
         pass
         from lmm_education.ingest import markdown_upload
         from lmm_education.config.config import ConfigSettings
@@ -112,7 +149,7 @@ class TestIngestionRetrieval(unittest.TestCase):
             },
             storage={'folder': "./test_storage"},
             database={
-                'collection_name': "Test",
+                'collection_name': "TestContent",
                 'companion_collection': None,  # "Documents",
             },
             RAG={
@@ -120,12 +157,55 @@ class TestIngestionRetrieval(unittest.TestCase):
                 'annotation_model': {'own_properties': ['questions']},
                 'encoding_model': "content",  # "multivector",
             },
+            textSplitter={"splitter": "default", "threshold": 125},
         )
         idss = markdown_upload(
             "TestRaggedDocument.md",
             config_opts=config,
         )
         self.assertTrue(len(idss) > 0)
+        self.assertEqual(len(idss), get_chunks_count())
+
+        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+            QdrantVectorStoreRetriever as Qdr,
+        )
+
+        retriever = Qdr.from_config_settings(config)
+
+        docs = retriever.invoke("What are observational studies?")
+        retriever.client.close()
+        self.assertTrue(len(docs) > 0)
+
+    def _do_test_integration_retrieval(
+        self, encoding_model: EncodingModel
+    ):
+        from lmm_education.ingest import markdown_upload
+        from lmm_education.config.config import ConfigSettings
+
+        # 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+        # 'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+        config = ConfigSettings(
+            embeddings={
+                'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+                'sparse_model': "Qdrant/bm25",
+            },
+            storage={'folder': "./test_storage"},
+            database={
+                'collection_name': "Test" + str(encoding_model.value),
+                'companion_collection': None,  # "Documents",
+            },
+            RAG={
+                'questions': True,
+                'annotation_model': {'own_properties': ['questions']},
+                'encoding_model': encoding_model,
+            },
+        )
+        idss = markdown_upload(
+            "TestRaggedDocument.md",
+            config_opts=config,
+        )
+        self.assertTrue(len(idss) > 0)
+        self.assertEqual(len(idss), get_chunks_count())
 
         from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
             QdrantVectorStoreRetriever as Qdr,
@@ -136,6 +216,19 @@ class TestIngestionRetrieval(unittest.TestCase):
         chunks = retriever.invoke("What are observational studies?")
         retriever.client.close()
         self.assertTrue(len(chunks) > 0)
+
+    def test_integration_retrieval_models(self):
+        # CONTENT already tested, test rest
+        models: list[EncodingModel] = [
+            EncodingModel.SPARSE,
+            EncodingModel.SPARSE_CONTENT,
+            EncodingModel.SPARSE_MERGED,
+            EncodingModel.SPARSE_MULTIVECTOR,
+            EncodingModel.MULTIVECTOR,
+            EncodingModel.MERGED,
+        ]
+        for m in models:
+            self._do_test_integration_retrieval(m)
 
 
 if __name__ == "__main__":

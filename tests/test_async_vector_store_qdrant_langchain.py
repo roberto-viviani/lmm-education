@@ -60,7 +60,9 @@ metadata2 = MetadataBlock(
     }
 )
 heading2 = HeadingBlock(level=2, content="Sky colour")
-text2 = TextBlock(content="The sky is blue because of the oxygen composition of air.")
+text2 = TextBlock(
+    content="The sky is blue because of the oxygen composition of air."
+)
 
 blocks: list[Block] = [
     header,
@@ -101,7 +103,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_NULL(self):
         encoding_model = EncodingModel.NONE
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -112,7 +116,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         points = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         uuids = points_to_ids(points)
         self.assertEqual(len(uuids), len(chunks))
@@ -130,7 +138,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_CONTENT(self):
         encoding_model = EncodingModel.CONTENT
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -141,7 +151,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -150,7 +164,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What follows the heading")
+        results: list[Document] = await retriever.ainvoke(
+            "What follows the heading"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
@@ -158,7 +174,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_CONTENT2(self):
         encoding_model = EncodingModel.CONTENT
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -169,7 +187,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -188,7 +210,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_MERGED(self):
         encoding_model = EncodingModel.MERGED
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -199,7 +223,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -208,7 +236,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What follows the heading")
+        results: list[Document] = await retriever.ainvoke(
+            "What follows the heading"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
@@ -216,7 +246,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_MERGED2(self):
         encoding_model = EncodingModel.MERGED
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -227,7 +259,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -236,7 +272,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What is the ingested text?")
+        results: list[Document] = await retriever.ainvoke(
+            "What is the ingested text?"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
@@ -244,7 +282,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_MERGED3(self):
         encoding_model = EncodingModel.MERGED
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -255,7 +295,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -264,15 +308,57 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("Why is the sky blue?")
+        results: list[Document] = await retriever.ainvoke(
+            "Why is the sky blue?"
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertTrue(results[1].page_content)
+        self.assertEqual(results[1].page_content, text.get_content())  # type: ignore
+
+    async def test_query_MULTIVECTOR(self):
+        encoding_model = EncodingModel.MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        if not await ainitialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        ):
+            raise Exception("Could not initialize collection")
+        ps = await aupload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+
+        retriever: Retriever = Retriever(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        results: list[Document] = await retriever.ainvoke(
+            "Why is the sky blue?"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[1].page_content)
         self.assertEqual(results[1].page_content, text.get_content())  # type: ignore
 
     async def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
-        chunks = blocks_to_chunks(blocks, encoding_model, [QUESTIONS_KEY])
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        chunks = blocks_to_chunks(
+            blocks, encoding_model, [QUESTIONS_KEY]
+        )
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -296,14 +382,18 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What is the ingested text?")
+        results: list[Document] = await retriever.ainvoke(
+            "What is the ingested text?"
+        )
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
 
     async def test_query_SPARSE_CONTENT(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -314,7 +404,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -323,7 +417,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What follows the heading")
+        results: list[Document] = await retriever.ainvoke(
+            "What follows the heading"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
@@ -331,7 +427,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_SPARSE_CONTENT2(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -342,7 +440,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
         retriever: Retriever = Retriever(
             client,
@@ -350,16 +452,22 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What is the ingested text?")
+        results: list[Document] = await retriever.ainvoke(
+            "What is the ingested text?"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
 
     async def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        blocklist = scan_rag(blocklist_copy(blocks), ScanOpts(textid=True, UUID=True))
+        blocklist = scan_rag(
+            blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
+        )
         chunks = blocks_to_chunks(blocklist, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -370,7 +478,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -379,7 +491,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("Why is the sky blue?")
+        results: list[Document] = await retriever.ainvoke(
+            "Why is the sky blue?"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[1].page_content)
         self.assertEqual(results[1].page_content, text.get_content())  # type: ignore
@@ -387,7 +501,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_SPARSE_MERGED(self):
         encoding_model = EncodingModel.SPARSE_MERGED
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -398,7 +514,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -407,7 +527,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What follows the heading")
+        results: list[Document] = await retriever.ainvoke(
+            "What follows the heading"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
@@ -415,7 +537,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_SPARSE_MERGED2(self):
         encoding_model = EncodingModel.SPARSE_MERGED
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -426,7 +550,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -435,7 +563,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("What is the ingested text?")
+        results: list[Document] = await retriever.ainvoke(
+            "What is the ingested text?"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[0].page_content)
         self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
@@ -443,7 +573,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_SPARSE_MERGED3(self):
         encoding_model = EncodingModel.SPARSE_MERGED
         chunks = blocks_to_chunks(blocks, encoding_model)
-        embedding_model = encoding_to_qdrantembedding_model(encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
         embedding_settings = ConfigSettings().embeddings
         collection_name: str = encoding_model.value
         if not await ainitialize_collection(
@@ -454,7 +586,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ):
             raise Exception("Could not initialize collection")
         ps = await aupload(
-            client, collection_name, embedding_model, embedding_settings, chunks
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
         )
 
         retriever: Retriever = Retriever(
@@ -463,10 +599,48 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        results: list[Document] = await retriever.ainvoke("Why is the sky blue?")
+        results: list[Document] = await retriever.ainvoke(
+            "Why is the sky blue?"
+        )
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[1].page_content)
         self.assertEqual(results[1].page_content, text.get_content())  # type: ignore
+
+    async def test_query_SPARSE_MULTIVECTOR(self):
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        if not await ainitialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        ):
+            raise Exception("Could not initialize collection")
+        ps = await aupload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+
+        retriever: Retriever = Retriever(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        results: list[Document] = await retriever.ainvoke(
+            "What is the ingested text?"
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertTrue(results[0].page_content)
+        self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
 
 
 class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
@@ -509,24 +683,36 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
         COLLECTION_DOCS = "Main_docs"
 
         # init collections
-        encoding_model_main: chk.EncodingModel = chk.EncodingModel.CONTENT
-        embedding_model_main: QdrantEmbeddingModel = encoding_to_qdrantembedding_model(
-            encoding_model_main
+        encoding_model_main: chk.EncodingModel = (
+            chk.EncodingModel.CONTENT
         )
-        encoding_model_companion: chk.EncodingModel = chk.EncodingModel.CONTENT
+        embedding_model_main: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(encoding_model_main)
+        )
+        encoding_model_companion: chk.EncodingModel = (
+            chk.EncodingModel.CONTENT
+        )
         embedding_model_companion: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(encoding_model_main)
         )
         embedding_settings = ConfigSettings().embeddings
 
         if not await ainitialize_collection(
-            client, COLLECTION_MAIN, embedding_model_main, embedding_settings
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
         ):
             raise Exception("Could not initialize main collection")
         if not await ainitialize_collection(
-            client, COLLECTION_DOCS, embedding_model_companion, embedding_settings
+            client,
+            COLLECTION_DOCS,
+            embedding_model_companion,
+            embedding_settings,
         ):
-            raise Exception("Could not initialize companion collection")
+            raise Exception(
+                "Could not initialize companion collection"
+            )
 
         blocks: list[Block] = scan_rag(
             blocklist,
@@ -554,7 +740,9 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
         for b in blocks:
             if isinstance(b, MetadataBlock):
                 if UUID_KEY in b.content.keys():
-                    b.content[GROUP_UUID_KEY] = b.content.pop(UUID_KEY)
+                    b.content[GROUP_UUID_KEY] = b.content.pop(
+                        UUID_KEY
+                    )
         blocks = scan_split(
             blocks,
             text_splitter=RecursiveCharacterTextSplitter(
@@ -563,12 +751,20 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(blocks, ScanOpts(titles=True, textid=True, UUID=True))
+        blocks = scan_rag(
+            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+        )
 
         # ingest chunks of splitted text
-        chunks: list[Chunk] = chk.blocks_to_chunks(blocks, encoding_model_main)
+        chunks: list[Chunk] = chk.blocks_to_chunks(
+            blocks, encoding_model_main
+        )
         points: list[Point] = await aupload(
-            client, COLLECTION_MAIN, embedding_model_main, embedding_settings, chunks
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
+            chunks,
         )
         self.assertLess(0, len(points))
         texts: list[str] = points_to_text(points)

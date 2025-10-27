@@ -36,6 +36,13 @@ from lmm_education.stores.chunks import (
 )
 from lmm_education.config.config import ConfigSettings
 
+from lmm.utils.logging import ExceptionConsoleLogger
+
+default_logger = ExceptionConsoleLogger(
+    "test_vector_store_qdrant_groups"
+)
+
+
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
 COLLECTION_MAIN = "Main"
@@ -81,6 +88,7 @@ The second use of linear models is to predict the outcome given certain values o
 
 ---
 summary:  The text discusses the importance of distinguishing between observational and experimental studies when assessing the significance of associations between predictors and outcomes. In observational studies, predictors may be confounded by other factors, making it difficult to infer causality, while experimental studies allow for randomization, which can help to control for confounders and infer causal effects. The methods used to estimate models in both types of studies are the same, but the conclusions drawn from them differ significantly. Additionally, when using models purely for prediction, the concerns about confounding and inference are less critical, as the goal is simply to accurately predict the outcome.'
+questions: What are observational studies? - What are experimental studies? What is the difference between experimental and observational studies?
 ---
 ### Observational and experimental studies
 
@@ -96,6 +104,7 @@ When we use models for prediction only, the caveats about inference of the first
 
 ---
 summary: This section introduces the model equation, emphasizing its importance in understanding the linear model.
+questions: What is the model equation? - Estimate of predicted depressiveness
 ...
 ## The model equation
 
@@ -224,11 +233,16 @@ class TestEncoding(unittest.TestCase):
         embedding_model_main: QdrantEmbeddingModel = (
             encoding_to_qdrantembedding_model(encoding_model_main)
         )
+        # encoding_model_companion: EncodingModel = EncodingModel.NONE
+        # checks loading content independently by adding encoding to
+        # companion collection
         encoding_model_companion: EncodingModel = (
             EncodingModel.CONTENT
         )
         embedding_model_companion: QdrantEmbeddingModel = (
-            encoding_to_qdrantembedding_model(encoding_model_main)
+            encoding_to_qdrantembedding_model(
+                encoding_model_companion
+            )
         )
         embedding_settings = ConfigSettings().embeddings
 
@@ -237,6 +251,7 @@ class TestEncoding(unittest.TestCase):
             COLLECTION_MAIN,
             embedding_model_main,
             embedding_settings,
+            logger=default_logger,
         ):
             raise Exception("Could not initialize main collection")
         if not initialize_collection(
@@ -244,6 +259,7 @@ class TestEncoding(unittest.TestCase):
             COLLECTION_DOCS,
             embedding_model_companion,
             embedding_settings,
+            logger=default_logger,
         ):
             raise Exception(
                 "Could not initialize companion collection"
@@ -264,8 +280,337 @@ class TestEncoding(unittest.TestCase):
             embedding_model_companion,
             embedding_settings,
             companion_chunks,
+            logger=default_logger,
         )
         self.assertTrue(len(companion_points) > 0)
+        companion_uuids: list[str] = points_to_ids(companion_points)
+        companion_texts: list[str] = points_to_text(companion_points)
+
+        # split text
+        for b in blocks:
+            if isinstance(b, MetadataBlock):
+                if UUID_KEY in b.content.keys():
+                    b.content[GROUP_UUID_KEY] = b.content.pop(
+                        UUID_KEY
+                    )
+        blocks = scan_split(
+            blocks,
+            text_splitter=RecursiveCharacterTextSplitter(
+                chunk_size=750,
+                chunk_overlap=150,
+                add_start_index=False,
+            ),
+        )
+        blocks = scan_rag(
+            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+        )
+        self.assertTrue(len(blocks) > 0)
+
+        # ingest chunks of splitted text
+        chunks: list[Chunk] = blocks_to_chunks(
+            blocks, encoding_model_main
+        )
+        points: list[Point] = upload(
+            client,
+            COLLECTION_MAIN,
+            embedding_model_main,
+            embedding_settings,
+            chunks,
+            logger=default_logger,
+        )
+        self.assertLess(0, len(points))
+        texts: list[str] = points_to_text(points)
+
+        # query in the main collection (splitted chunks)
+        splitres: list[ScoredPoint] = query(
+            client,
+            collection_name=COLLECTION_MAIN,
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
+            querytext="How can I estimate the predicted depressiveness from this model?",
+            limit=2,
+            payload=['page_content', GROUP_UUID_KEY],
+            logger=default_logger,
+        )
+        self.assertLess(0, len(splitres))
+        self.assertTrue(splitres[0].payload)
+        if splitres[0].payload:
+            self.assertIn(splitres[0].payload['page_content'], texts)
+            self.assertIn(GROUP_UUID_KEY, splitres[0].payload)
+
+        # query in the companion collection
+        if (
+            not embedding_model_companion == QdrantEmbeddingModel.UUID
+        ):  # content query
+            splitres: list[ScoredPoint] = query(
+                client,
+                COLLECTION_DOCS,
+                embedding_model_companion,
+                embedding_settings,
+                "How can I estimate the predicted depressiveness from this model?",
+                logger=default_logger,
+            )
+            self.assertLess(0, len(splitres))
+            self.assertTrue(splitres[0].payload)
+            if splitres[0].payload:
+                self.assertIn(
+                    splitres[0].payload['page_content'],
+                    companion_texts,
+                )
+
+        # grouped query
+        results: GroupsResult = query_grouped(
+            client,
+            collection_name=COLLECTION_MAIN,
+            group_collection=COLLECTION_DOCS,
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
+            querytext="How can I estimate the predicted depressiveness from this model?",
+            group_field=GROUP_UUID_KEY,
+            limit=1,
+            logger=default_logger,
+        )
+        result_points: list[ScoredPoint] = groups_to_points(results)
+        result_text: list[str] = points_to_text(result_points)
+
+        self.assertLess(0, len(result_points))
+        self.assertTrue(result_text[0] in companion_texts)
+        self.assertTrue(results.groups[0].id in companion_uuids)
+
+    def test_encode_SPARSE(self):
+        from lmm_education.config.config import AnnotationModel
+        from lmm.scan.scan_keys import QUESTIONS_KEY
+
+        # init collections
+        encoding_model_main: EncodingModel = EncodingModel.SPARSE
+        embedding_model_main: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(encoding_model_main)
+        )
+        # encoding_model_companion: EncodingModel = EncodingModel.NONE
+        # checks loading content independently by adding encoding to
+        # companion collection
+        encoding_model_companion: EncodingModel = (
+            EncodingModel.CONTENT
+        )
+        embedding_model_companion: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(
+                encoding_model_companion
+            )
+        )
+        embedding_settings = ConfigSettings().embeddings
+
+        if not initialize_collection(
+            client,
+            COLLECTION_MAIN + "_sparse",
+            embedding_model_main,
+            embedding_settings,
+            logger=default_logger,
+        ):
+            raise Exception("Could not initialize main collection")
+        if not initialize_collection(
+            client,
+            COLLECTION_DOCS + "_sparse",
+            embedding_model_companion,
+            embedding_settings,
+            logger=default_logger,
+        ):
+            raise Exception(
+                "Could not initialize companion collection"
+            )
+
+        blocks: list[Block] = scan_rag(
+            blocklist,
+            ScanOpts(titles=True, textid=True, UUID=True),
+        )
+        self.assertTrue(len(blocks) > 0)
+
+        # ingest text into companion collection
+        companion_chunks: list[Chunk] = blocks_to_chunks(
+            blocks, encoding_model_companion
+        )
+        self.assertTrue(len(companion_chunks) > 0)
+        companion_points: list[Point] = upload(
+            client,
+            COLLECTION_DOCS + "_sparse",
+            embedding_model_companion,
+            embedding_settings,
+            companion_chunks,
+        )
+        self.assertTrue(len(companion_points) > 0)
+        companion_uuids: list[str] = points_to_ids(companion_points)
+        companion_texts: list[str] = points_to_text(companion_points)
+
+        # split text
+        for b in blocks:
+            if isinstance(b, MetadataBlock):
+                if UUID_KEY in b.content.keys():
+                    b.content[GROUP_UUID_KEY] = b.content.pop(
+                        UUID_KEY
+                    )
+        blocks = scan_split(
+            blocks,
+            text_splitter=RecursiveCharacterTextSplitter(
+                chunk_size=750,
+                chunk_overlap=150,
+                add_start_index=False,
+            ),
+        )
+        blocks = scan_rag(
+            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+        )
+        self.assertTrue(len(blocks) > 0)
+
+        # ingest chunks of splitted text
+        chunks: list[Chunk] = blocks_to_chunks(
+            blocks,
+            encoding_model_main,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
+        from lmm.markdown.parse_markdown import TextBlock
+
+        self.assertEqual(
+            len(chunks),
+            len([b for b in blocks if isinstance(b, TextBlock)]),
+        )
+        points: list[Point] = upload(
+            client,
+            COLLECTION_MAIN + "_sparse",
+            embedding_model_main,
+            embedding_settings,
+            chunks,
+            logger=default_logger,
+        )
+        self.assertLess(0, len(points))
+        self.assertEqual(len(points), len(chunks))
+        texts: list[str] = points_to_text(points)
+
+        # query in the main collection (splitted chunks)
+        from lmm.utils.logging import LoglistLogger
+
+        listlogger = LoglistLogger()
+
+        splitres: list[ScoredPoint] = query(
+            client,
+            collection_name=COLLECTION_MAIN + "_sparse",
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
+            querytext="Waht is the model equation?",
+            limit=2,
+            payload=['page_content', GROUP_UUID_KEY],
+            logger=listlogger,
+        )
+        if listlogger.count_logs(level=1) > 0:
+            print(listlogger.logs)
+        else:
+            print("logger ok")
+        self.assertLess(0, len(splitres))
+        self.assertTrue(splitres[0].payload)
+        if splitres[0].payload:
+            self.assertIn(splitres[0].payload['page_content'], texts)
+            self.assertIn(GROUP_UUID_KEY, splitres[0].payload)
+
+        # query in the companion collection
+        if (
+            not embedding_model_companion == QdrantEmbeddingModel.UUID
+        ):  # content query
+            splitres: list[ScoredPoint] = query(
+                client,
+                COLLECTION_DOCS + "_sparse",
+                embedding_model_companion,
+                embedding_settings,
+                "What is the model equation?",
+                logger=default_logger,
+            )
+            self.assertLess(0, len(splitres))
+            self.assertTrue(splitres[0].payload)
+            if splitres[0].payload:
+                self.assertIn(
+                    splitres[0].payload['page_content'],
+                    companion_texts,
+                )
+
+        # grouped query
+        results: GroupsResult = query_grouped(
+            client,
+            collection_name=COLLECTION_MAIN + "_sparse",
+            group_collection=COLLECTION_DOCS + "_sparse",
+            qdrant_model=embedding_model_main,
+            embedding_settings=embedding_settings,
+            querytext="What is the model equation?",
+            group_field=GROUP_UUID_KEY,
+            limit=1,
+            logger=default_logger,
+        )
+        result_points: list[ScoredPoint] = groups_to_points(results)
+        result_text: list[str] = points_to_text(result_points)
+
+        self.assertLess(0, len(result_points))
+        self.assertTrue(result_text[0] in companion_texts)
+        self.assertTrue(results.groups[0].id in companion_uuids)
+
+    def _do_test_encode_grouped(self, encoding_model: EncodingModel):
+        from lmm_education.config.config import AnnotationModel
+        from lmm.scan.scan_keys import QUESTIONS_KEY
+
+        # init collections
+        encoding_model_main: EncodingModel = encoding_model
+        embedding_model_main: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(encoding_model_main)
+        )
+        # encoding_model_companion: EncodingModel = EncodingModel.NONE
+        # checks loading content independently by adding encoding to
+        # companion collection
+        encoding_model_companion: EncodingModel = (
+            EncodingModel.CONTENT
+        )
+        embedding_model_companion: QdrantEmbeddingModel = (
+            encoding_to_qdrantembedding_model(
+                encoding_model_companion
+            )
+        )
+        embedding_settings = ConfigSettings().embeddings
+
+        if not initialize_collection(
+            client,
+            COLLECTION_MAIN + str(encoding_model),
+            embedding_model_main,
+            embedding_settings,
+            logger=default_logger,
+        ):
+            raise Exception("Could not initialize main collection")
+        if not initialize_collection(
+            client,
+            COLLECTION_DOCS + str(encoding_model),
+            embedding_model_companion,
+            embedding_settings,
+            logger=default_logger,
+        ):
+            raise Exception(
+                "Could not initialize companion collection"
+            )
+
+        blocks: list[Block] = scan_rag(
+            blocklist,
+            ScanOpts(titles=True, textid=True, UUID=True),
+        )
+        self.assertTrue(len(blocks) > 0)
+
+        # ingest text into companion collection
+        companion_chunks: list[Chunk] = blocks_to_chunks(
+            blocks,
+            encoding_model_companion,
+            AnnotationModel(inherited_properties=[QUESTIONS_KEY]),
+        )
+        companion_points: list[Point] = upload(
+            client,
+            COLLECTION_DOCS + str(encoding_model),
+            embedding_model_companion,
+            embedding_settings,
+            companion_chunks,
+            logger=default_logger,
+        )
+        self.assertTrue(len(companion_points) > 0)
+        self.assertEqual(len(companion_points), len(companion_chunks))
         companion_uuids: list[str] = points_to_ids(companion_points)
         companion_texts: list[str] = points_to_text(companion_points)
 
@@ -294,25 +639,32 @@ class TestEncoding(unittest.TestCase):
         )
         points: list[Point] = upload(
             client,
-            COLLECTION_MAIN,
+            COLLECTION_MAIN + str(encoding_model),
             embedding_model_main,
             embedding_settings,
             chunks,
+            logger=default_logger,
         )
-        self.assertLess(0, len(points))
+        self.assertLess(
+            0, len(points), "Failure for " + str(encoding_model)
+        )
+        self.assertEqual(len(points), len(chunks))
         texts: list[str] = points_to_text(points)
 
         # query in the main collection (splitted chunks)
         splitres: list[ScoredPoint] = query(
             client,
-            collection_name=COLLECTION_MAIN,
+            collection_name=COLLECTION_MAIN + str(encoding_model),
             qdrant_model=embedding_model_main,
             embedding_settings=embedding_settings,
             querytext="How can I estimate the predicted depressiveness from this model?",
             limit=2,
             payload=['page_content', GROUP_UUID_KEY],
+            logger=default_logger,
         )
-        self.assertLess(0, len(splitres))
+        self.assertLess(
+            0, len(splitres), "Failure for " + str(encoding_model)
+        )
         self.assertTrue(splitres[0].payload)
         if splitres[0].payload:
             self.assertIn(splitres[0].payload['page_content'], texts)
@@ -324,36 +676,66 @@ class TestEncoding(unittest.TestCase):
         ):  # content query
             splitres: list[ScoredPoint] = query(
                 client,
-                COLLECTION_DOCS,
+                COLLECTION_DOCS + str(encoding_model),
                 embedding_model_companion,
                 embedding_settings,
                 "How can I estimate the predicted depressiveness from this model?",
+                logger=default_logger,
             )
-            self.assertLess(0, len(splitres))
-            self.assertTrue(splitres[0].payload)
+            self.assertLess(
+                0, len(splitres), "Failure for " + str(encoding_model)
+            )
+            self.assertTrue(
+                splitres[0].payload,
+                "Failure for " + str(encoding_model),
+            )
             if splitres[0].payload:
                 self.assertIn(
                     splitres[0].payload['page_content'],
                     companion_texts,
+                    "Failure for " + str(encoding_model),
                 )
 
         # grouped query
         results: GroupsResult = query_grouped(
             client,
-            collection_name=COLLECTION_MAIN,
-            group_collection=COLLECTION_DOCS,
+            collection_name=COLLECTION_MAIN + str(encoding_model),
+            group_collection=COLLECTION_DOCS + str(encoding_model),
             qdrant_model=embedding_model_main,
             embedding_settings=embedding_settings,
             querytext="How can I estimate the predicted depressiveness from this model?",
             group_field=GROUP_UUID_KEY,
             limit=1,
+            logger=default_logger,
         )
         result_points: list[ScoredPoint] = groups_to_points(results)
         result_text: list[str] = points_to_text(result_points)
 
-        self.assertLess(0, len(result_points))
-        self.assertTrue(result_text[0] in companion_texts)
-        self.assertTrue(results.groups[0].id in companion_uuids)
+        self.assertLess(
+            0,
+            len(result_points),
+            "Failure for " + str(encoding_model),
+        )
+        self.assertTrue(
+            result_text[0] in companion_texts,
+            "Failure for " + str(encoding_model),
+        )
+        self.assertTrue(
+            results.groups[0].id in companion_uuids,
+            "Failure for " + str(encoding_model),
+        )
+
+    def test_encode_encodings(self):
+        # EncodingModel.CONTENT and SPARSE already tested, test rest
+        models: list[EncodingModel] = [
+            EncodingModel.MERGED,
+            EncodingModel.MULTIVECTOR,
+            EncodingModel.SPARSE_MERGED,
+            EncodingModel.SPARSE_CONTENT,
+            EncodingModel.SPARSE_MULTIVECTOR,
+        ]
+        for encoding_model in models:
+            self._do_test_encode_grouped(encoding_model)
 
 
 if __name__ == '__main__':

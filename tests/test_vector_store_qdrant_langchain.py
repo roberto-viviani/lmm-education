@@ -320,6 +320,42 @@ class TestQuery(unittest.TestCase):
         self.assertTrue(results[1].page_content)
         self.assertEqual(results[1].page_content, text.get_content())  # type: ignore
 
+    def test_query_MULTIVECTOR(self):
+        encoding_model = EncodingModel.MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        if not initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        ):
+            raise Exception("Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+
+        retriever: Retriever = Retriever(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        results: list[Document] = retriever.invoke(
+            "What is the ingested text?"
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertTrue(results[0].page_content)
+        self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
+
     def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
         chunks = blocks_to_chunks(
@@ -632,6 +668,42 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len(results), len(ps))
         self.assertTrue(results[1].page_content)
         self.assertEqual(results[1].page_content, text.get_content())
+
+    def test_query_SPARSE_MULTIVECTOR(self):
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        if not initialize_collection(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        ):
+            raise Exception("Could not initialize collection")
+        ps = upload(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            chunks,
+        )
+
+        retriever: Retriever = Retriever(
+            client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+        )
+        results: list[Document] = retriever.invoke(
+            "What follows the heading"
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertTrue(results[0].page_content)
+        self.assertEqual(results[0].page_content, text.get_content())  # type: ignore
 
 
 class TestQueryGrouped(unittest.TestCase):

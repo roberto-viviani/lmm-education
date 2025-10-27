@@ -302,7 +302,33 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
+
+    async def test_query_MULTIVECTOR(self):
+        encoding_model = EncodingModel.MULTIVECTOR
+        chunks = blocks_to_chunks(
+            blocks, encoding_model, [QUESTIONS_KEY]
+        )
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        ps = await self._create_collection(
+            collection_name,
+            chunks,
+            embedding_model,
+            embedding_settings,
+        )
+        results: list[ScoredPoint] = await aquery(
+            self.async_client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "Why is the sky blue?",
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
 
     async def test_query_SPARSE(self):
         encoding_model = EncodingModel.SPARSE
@@ -403,7 +429,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
 
     async def test_query_SPARSE_MERGED(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -475,7 +501,31 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             "Why is the sky blue?",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertEqual(results[1].payload["page_content"], text.get_content())  # type: ignore
+        self.assertEqual(results[0].payload["page_content"], text2.get_content())  # type: ignore
+
+    async def test_query_SPARSE_MULTIVECTOR(self):
+        encoding_model = EncodingModel.SPARSE_MULTIVECTOR
+        chunks = blocks_to_chunks(blocks, encoding_model)
+        embedding_model = encoding_to_qdrantembedding_model(
+            encoding_model
+        )
+        embedding_settings = ConfigSettings().embeddings
+        collection_name: str = encoding_model.value
+        ps = await self._create_collection(
+            collection_name,
+            chunks,
+            embedding_model,
+            embedding_settings,
+        )
+        results: list[ScoredPoint] = await aquery(
+            self.async_client,
+            collection_name,
+            embedding_model,
+            embedding_settings,
+            "What follows the heading",
+        )
+        self.assertEqual(len(results), len(ps))
+        self.assertEqual(results[0].payload["page_content"], text.get_content())  # type: ignore
 
     async def test_query_to_uuids(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -491,9 +541,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             embedding_model,
             embedding_settings,
         )
-        self.assertListEqual(
-            [c.uuid for c in chunks], [str(p.id) for p in ps]
-        )
+        cuuids = [c.uuid for c in chunks]
+        cuuids.sort()
+        pids = [str(p.id) for p in ps]
+        pids.sort()
+        self.assertListEqual(cuuids, pids)
         results: list[ScoredPoint] = await aquery(
             self.async_client,
             collection_name,
@@ -502,9 +554,9 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertListEqual(
-            [c.uuid for c in chunks], points_to_ids(results)
-        )
+        uuids = points_to_ids(results)
+        uuids.sort()
+        self.assertListEqual(cuuids, uuids)
 
     async def test_query_to_text(self):
         encoding_model = EncodingModel.SPARSE_MERGED
@@ -534,7 +586,10 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             "What follows the heading",
         )
         self.assertEqual(len(results), len(ps))
-        self.assertListEqual(textlist, points_to_text(results))
+        textlist.sort()
+        resultlist = points_to_text(results)
+        resultlist.sort()
+        self.assertListEqual(textlist, resultlist)
 
 
 if __name__ == "__main__":
