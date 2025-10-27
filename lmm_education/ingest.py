@@ -280,7 +280,7 @@ def markdown_upload(
         sources = [sources]
     error_sources: dict[str, list[ErrorBlock]] = {}
     logger_level = logger.get_level()
-    logger.set_level(40)  # avoid info
+    # logger.set_level(40)  # avoid info
     for source in sources:
         blocks = markdown_scan(source, False, logger)
         if not bool(blocks):
@@ -554,9 +554,6 @@ def blocklist_upload(
         opts.RAG.encoding_model
     )
     if ingest:
-        print(
-            f"sending {len(chunks)} chunks to {dbOpts.collection_name}"
-        )
         points = upload(
             client,
             collection_name=dbOpts.collection_name,
