@@ -11,6 +11,11 @@ from lmm.markdown.parse_markdown import *
 from lmm_education.stores.chunks import *
 from lmm_education.stores.vector_store_qdrant import *
 
+from lmm_education.config.config import ConfigSettings
+
+settings = ConfigSettings()
+
+
 # A global client object (for now)
 QDRANT_SOURCE = ":memory:"
 COLLECTION_MAIN = "Main"
@@ -59,7 +64,7 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model
+            client, collection_name, embedding_model, settings
         )
         self.assertFalse(result)
 
@@ -70,7 +75,7 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model
+            client, collection_name, embedding_model, settings
         )
         self.assertEqual(flag, False)
 
