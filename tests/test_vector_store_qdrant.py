@@ -2110,11 +2110,6 @@ class TestQueryLargeText(unittest.TestCase):
             "What follows the heading",
             logger=exception_logger,
         )
-        if len(results) > len(ps):
-            print("\n-------\n".join(points_to_text(results)))
-            print("#####################")
-            print("\n-------\n".join(points_to_text(ps)))
-            print("#####################")
         self.assertEqual(len(results), len(ps))
 
     def test_query_SPARSE(self):
