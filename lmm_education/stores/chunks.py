@@ -251,6 +251,27 @@ def blocks_to_chunks(
             inherited_properties=annotation_model
         )
 
+    # check there are annotations when sparse or hybrid models
+    # are used
+    if encoding_model == EncodingModel.SPARSE:
+        if not annotation_model.has_properties():
+            logger.error(
+                f"{encoding_model} specified, but no annotations in model"
+            )
+            return []
+
+    if encoding_model in [
+        EncodingModel.SPARSE_CONTENT,
+        EncodingModel.SPARSE_MULTIVECTOR,
+        EncodingModel.SPARSE_MERGED,
+        EncodingModel.MULTIVECTOR,
+        EncodingModel.MERGED,
+    ]:
+        if not annotation_model.has_properties():
+            logger.warning(
+                f"{encoding_model} specified, but no annotations in model"
+            )
+
     # collect or create required metadata for RAG: uuid, textid
     blocks: list[Block] = scan_rag(
         blocklist_copy(blocklist),

@@ -70,7 +70,7 @@ from lmm.config.config import (
     export_settings,
     serialize_settings,
 )
-from lmm.scan.scan_keys import QUESTIONS_KEY
+from lmm.scan.scan_keys import QUESTIONS_KEY, TITLES_KEY
 
 # Module-level constants
 DEFAULT_CONFIG_FILE = "config.toml"
@@ -259,6 +259,18 @@ class AnnotationModel(BaseModel):
             if p not in self.own_properties:
                 self.own_properties.append(p)
 
+    def has_property(self, prop: str) -> bool:
+        return (
+            prop in self.inherited_properties
+            or prop in self.own_properties
+        )
+
+    def has_properties(self) -> bool:
+        return (
+            len(self.inherited_properties) > 0
+            or len(self.own_properties) > 0
+        )
+
 
 # vector database settings. Location in sturage field
 class DatabaseSettings(BaseModel):
@@ -287,6 +299,10 @@ class DatabaseSettings(BaseModel):
 # RAG settings
 class RAGSettings(BaseModel):
 
+    titles: bool = Field(
+        default=True,
+        description="Annotate text blocks with titles to aid retrieval",
+    )
     questions: bool = Field(
         default=False,
         description="Annotate text with questions to aid retrieval",
@@ -306,6 +322,19 @@ class RAGSettings(BaseModel):
         description="Model to select metadata for annotations and "
         + "filtering",
     )
+
+    def get_annotation_model(self) -> AnnotationModel:
+        """Returns an annotation model that is consistent with the
+        RAG settings"""
+        model: AnnotationModel = self.annotation_model.model_copy()
+
+        if self.titles:
+            if not model.has_property(TITLES_KEY):
+                model.add_own_properties(TITLES_KEY)
+        if self.questions:
+            if not model.has_property(QUESTIONS_KEY):
+                model.add_inherited_properties(QUESTIONS_KEY)
+        return model
 
 
 # By inheriting from LMMSettings, we add the functionality to read
@@ -367,10 +396,14 @@ class ConfigSettings(LMMSettings):
 
         Returns:
             an annotation model object
+
+        Note:
+            use this function to add manual annotations to the
+                annotation model
         """
-        annotation_model = self.RAG.annotation_model.model_copy()
-        if self.RAG.questions:
-            annotation_model.add_inherited_properties(QUESTIONS_KEY)
+        annotation_model: AnnotationModel = (
+            self.RAG.get_annotation_model()
+        )
         annotation_model.add_inherited_properties(keys)
         return annotation_model
 

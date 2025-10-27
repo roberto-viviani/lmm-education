@@ -72,7 +72,6 @@ from lmm.scan.scan_keys import (
     UUID_KEY,
     GROUP_UUID_KEY,
     SUMMARY_KEY,
-    TITLES_KEY,
 )
 from lmm.scan.scan_split import (
     NullTextSplitter,
@@ -280,13 +279,12 @@ def markdown_upload(
         sources = [sources]
     error_sources: dict[str, list[ErrorBlock]] = {}
     logger_level = logger.get_level()
-    # logger.set_level(40)  # avoid info
     for source in sources:
         blocks = markdown_scan(source, False, logger)
         if not bool(blocks):
             error_sources[str(source)] = [
                 ErrorBlock(
-                    content=f"Empy or nonexistent file: {source}"
+                    content=f"Empty or nonexistent file: {source}"
                 )
             ]
         elif blocklist_haserrors(blocks):
@@ -421,7 +419,7 @@ def blocklist_encode(
     # * summaries are additional text blocks encoded on their own (see
     #       raptor paper)
     scan_opts = ScanOpts(
-        titles=True,
+        titles=bool(opts.RAG.titles),
         questions=bool(opts.RAG.questions),
         summaries=bool(opts.RAG.summaries),
         # if computing a companion collection (group queries)
@@ -499,11 +497,10 @@ def blocklist_encode(
     # the blocks_to_chunks function transforms the chunks into the
     # format recognized by qdrant for ingestion, also adding the
     # embedding specified by the encoding model.
-    annotation_model = opts.get_annotation_model([TITLES_KEY])
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
         encoding_model=opts.RAG.encoding_model,
-        annotation_model=annotation_model,
+        annotation_model=opts.get_annotation_model(),
         logger=logger,
     )
     logger.info(f"Created {len(chunks)} chunks.")
