@@ -83,7 +83,7 @@ from pydantic import Field, ConfigDict
 from lmm.scan.scan_keys import GROUP_UUID_KEY
 from lmm.utils.logging import ExceptionConsoleLogger
 from lmm.config.config import EmbeddingSettings
-from lmm_education.config.config import ConfigSettings
+from lmm_education.config.config import ConfigSettings, load_settings
 from lmm_education.stores.vector_store_qdrant import (
     client_from_config,
     async_client_from_config,
@@ -157,8 +157,13 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             A QdrantVectorStoreRetriever object
         """
 
+        logger = ExceptionConsoleLogger()
+        opts = opts or load_settings(logger=logger)
         if opts is None:
-            opts = ConfigSettings()
+            raise ValueError(
+                "Could not initialize retriever due to "
+                + "invalid config settings"
+            )
         dbOpts = opts.database
 
         if bool(dbOpts.companion_collection):
@@ -166,7 +171,6 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 opts
             )
 
-        logger = ExceptionConsoleLogger()
         client: QdrantClient | None = client_from_config(
             opts=opts, logger=logger
         )
@@ -282,8 +286,13 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         Returns:
             An AsyncQdrantVectorStoreRetriever object
         """
+        logger = ExceptionConsoleLogger()
+        opts = opts or load_settings(logger=logger)
         if opts is None:
-            opts = ConfigSettings()
+            raise ValueError(
+                "Could not initialize retriever due to "
+                + "invalid config settings"
+            )
         dbOpts = opts.database
 
         if bool(dbOpts.companion_collection):
@@ -291,7 +300,6 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 opts
             )
 
-        logger = ExceptionConsoleLogger()
         client: AsyncQdrantClient | None = async_client_from_config(
             opts, logger
         )
@@ -457,8 +465,13 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         """
         from lmm.scan.scan_keys import GROUP_UUID_KEY
 
+        logger = ExceptionConsoleLogger()
+        opts = opts or load_settings(logger=logger)
         if opts is None:
-            opts = ConfigSettings()
+            raise ValueError(
+                "Could not initialize retriever due to "
+                + "invalid config settings"
+            )
         dbOpts = opts.database
 
         if not bool(dbOpts.companion_collection):
@@ -466,7 +479,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 opts
             )
 
-        logger = ExceptionConsoleLogger()
         client: QdrantClient | None = client_from_config(
             opts=opts, logger=logger
         )
@@ -601,8 +613,13 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         """
         from lmm.scan.scan_keys import GROUP_UUID_KEY
 
+        logger = ExceptionConsoleLogger()
+        opts = opts or load_settings(logger=logger)
         if opts is None:
-            opts = ConfigSettings()
+            raise ValueError(
+                "Could not initialize retriever due to "
+                + "invalid config settings"
+            )
         dbOpts = opts.database
 
         if not bool(dbOpts.companion_collection):
@@ -612,7 +629,6 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 )
             )
 
-        logger = ExceptionConsoleLogger()
         client: AsyncQdrantClient | None = async_client_from_config(
             opts, logger
         )

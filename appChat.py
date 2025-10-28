@@ -30,7 +30,7 @@ MSG_ERROR_QUERY = (
 
 # settings. If config.toml does not exist, create it
 from lmm_education.config.config import (
-    ConfigSettings,
+    load_settings,
     create_default_config_file,
 )
 import os # fmt: skip
@@ -39,7 +39,9 @@ if not os.path.exists("config.toml"):
     print("config.toml created in app folder, change as appropriate")
 
 # this reads the settings from config.toml
-settings = ConfigSettings()
+settings = load_settings()
+if settings is None:
+    exit()
 
 # logs
 from lmm.utils.logging import FileConsoleLogger # fmt: skip
@@ -535,9 +537,11 @@ with gr.Blocks() as app:
 
 if __name__ == "__main__":
     # run the app
-    from lmm_education.config.config import ConfigSettings
 
-    config_settings = ConfigSettings()
+    config_settings = load_settings()
+    if config_settings is None:
+        exit()
+
     if config_settings.server.mode == "local":
         app.launch(
             show_api=False, auth=('accesstoken', 'hackerbrücke')

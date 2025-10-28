@@ -48,7 +48,7 @@ class TestReadConfig(unittest.TestCase):
 
     def test_load_settings(self):
         # Test the load_settings function
-        settings = load_settings(temp_file['temp_file'])
+        settings = load_settings(file_name=temp_file['temp_file'])
         self.assertTrue(bool(settings))
         self.assertEqual(settings.storage, ":memory:")
         self.assertEqual(

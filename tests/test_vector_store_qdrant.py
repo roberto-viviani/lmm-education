@@ -13,6 +13,7 @@ from lmm_education.stores.vector_store_qdrant import *
 from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 from lmm.utils.logging import ExceptionConsoleLogger
+import re
 
 exception_logger = ExceptionConsoleLogger()
 
@@ -481,7 +482,6 @@ class TestInitializationLocal(unittest.TestCase):
             embeddings={
                 "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            storage=":memory:",
         )
         export_settings(settings)
 
@@ -495,11 +495,7 @@ class TestInitializationLocal(unittest.TestCase):
 
         logger = LoglistLogger()
 
-        try:
-            local_client = QdrantClient(path="./test_storage")
-        except Exception as e:
-            print(f"{e}")
-            self.assertTrue(False)
+        local_client = QdrantClient(path="./test_storage")
 
         encoding_model = EncodingModel.CONTENT
         embedding_model = encoding_to_qdrantembedding_model(
@@ -525,6 +521,51 @@ class TestInitializationLocal(unittest.TestCase):
         import shutil
 
         shutil.rmtree("./test_storage")
+
+
+class TestInitializationConfigError(unittest.TestCase):
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    original_settings = ConfigSettings()
+
+    @classmethod
+    def setUpClass(cls):
+        settings = ConfigSettings(
+            RAG={'encoding_model': "multivector"},
+        )
+        export_settings(settings)
+
+        # Replace standalone occurrences of 'multivector' with 'hybrid_multivector'
+        # in the config file to simulate a misconfiguration scenario.
+        try:
+            with open('config.toml', "r", encoding="utf-8") as f:
+                text = f.read()
+        except FileNotFoundError:
+            # Nothing to do if the config doesn't exist
+            return
+
+        # Use a regex to avoid changing substrings like 'sparse_multivector'
+        updated = re.sub(
+            r"(?<!_)multivector(?![A-Za-z_])",
+            "hybrid_multivector",
+            text,
+        )
+        with open('config.toml', "w", encoding="utf-8") as f:
+            f.write(updated)
+
+    @classmethod
+    def tearDownClass(cls):
+        settings = cls.original_settings
+        export_settings(settings)
+
+    def test_encoding_content(self):
+        from lmm.utils.logging import LoglistLogger
+
+        logger = LoglistLogger()
+
+        client = client_from_config(logger=logger)
+        self.assertIsNone(client)
+        self.assertLess(0, logger.count_logs(level=1))
 
 
 class TestIngestionAndQuery(unittest.TestCase):

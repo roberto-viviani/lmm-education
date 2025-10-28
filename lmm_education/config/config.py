@@ -54,6 +54,7 @@ from pydantic import (
     HttpUrl,
     model_validator,
     field_validator,
+    ValidationError,
 )
 from pydantic_settings import (
     BaseSettings,
@@ -69,7 +70,11 @@ from lmm.config.config import (
     Settings as LMMSettings,
     export_settings,
     serialize_settings,
+    format_pydantic_error_message,
 )
+from lmm.utils.logging import LoggerBase, ExceptionConsoleLogger
+from tomllib import TOMLDecodeError
+
 from lmm.scan.scan_keys import QUESTIONS_KEY, TITLES_KEY
 
 # Module-level constants
@@ -458,6 +463,8 @@ def create_default_config_file(
         ImportError: If tomlkit is not available
         OSError: If file cannot be written
         ValueError: If settings cannot be serialized
+        ValidationError: if config.toml is invalid
+        tomllib.TOMLDecodeError: if config.toml is invalid
 
     Example:
         ```python
@@ -483,29 +490,58 @@ def create_default_config_file(
 
 
 def load_settings(
+    *,
     file_name: str | Path | None = None,
-) -> ConfigSettings:
+    logger: LoggerBase = ExceptionConsoleLogger(),
+) -> ConfigSettings | None:
     """Load and return a ConfigSettings object from the specified file.
 
     Args:
-        file_name: Path to the configuration file (TOML format)
+        file_name: Path to settings file (defaults to config.toml)
+        logger: logger to use. Defaults to a exception-raising logger.
+        This centralizes exception handling, instead of writing
+        the except clauses for each instantiation of ConfigSettings().
 
     Returns:
-        ConfigSettings: The loaded configuration settings object
+        ConfigSettings: The loaded configuration settings object, or
+        None if exception raised.
 
-    Raises:
-        FileNotFoundError: If the specified file does not exist
-        ValueError: If the file contains invalid configuration data
-        Exception: For other file reading or parsing errors
+    Expected behaviour:
+        Exceptions handled through logger, but raises exceptions in
+        the default logger.
 
     Example:
         ```python
         # Load settings from a custom config file
-        settings = upload_settings("my_config.toml")
+        settings = load_settings("my_config.toml")
 
         # Load settings using Path object
         from pathlib import Path
-        settings = upload_settings(Path("configs/custom.toml"))
+        settings = load_settings(Path("configs/custom.toml"))
+        ```
+
+    Note:
+        Use of an ExceptionConsoleLogger still requires to check that
+        return value is not None to satisfy a type checker.
+
+        ```python
+        logger = ExceptionConsoleLogger()
+        settings = load_settings(logger=logger)
+        if settings is None:
+            raise ValueError("Unreacheable code reached")
+        ```
+
+        Here, the type checker is told that settings is not None, but
+        the condition is always satisfied because load_settings will
+        raise an exception whenever it would be returning None.
+
+        Contrast with the following:
+
+        ```python
+        logger = ConsoleLogger()
+        settings = load_settings(logger=logger)
+        if settings is None:
+            raise ValueError("Could not read config.toml")
         ```
     """
     if file_name is None:
@@ -538,7 +574,22 @@ def load_settings(
         # Load and return the settings from the specified file
         return TempConfigSettings()
 
+    except TOMLDecodeError:
+        logger.error(
+            "An invalid value was found in the config file "
+            "(often, 'None').\nCheck that all values are numbers "
+            "or strings.\n"
+            "Express None as an empty string or as 'None'."
+        )
+        return None
+    except ValidationError as e:
+        logger.error(
+            format_pydantic_error_message(f"Invalid settings:\n{e}")
+        )
+        return None
+    except ValueError as e:
+        logger.error(f"Invalid settings:\n{e}")
+        return None
     except Exception as e:
-        raise ValueError(
-            f"Error loading configuration from {file_path}: {str(e)}"
-        ) from e
+        logger.error(f"Could not load config settings:\n{e}")
+        return None

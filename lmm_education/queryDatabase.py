@@ -45,7 +45,7 @@ from lmm_education.stores.vector_store_qdrant import (
     groups_to_points,
     points_to_text,
 )
-from lmm_education.config.config import ConfigSettings
+from lmm_education.config.config import load_settings
 
 
 @validate_call
@@ -64,7 +64,10 @@ def do_query(query_text: str) -> str:
         print("No query text provided")
         return ""
 
-    settings = ConfigSettings()
+    settings = load_settings()
+    if not settings:
+        return ""
+
     client = client_from_config(settings)
     if client is None:
         print("Failed to initialize qdrant client")
@@ -94,6 +97,9 @@ def do_query(query_text: str) -> str:
             query_text,
         )
     client.close()
+
+    if not points:
+        return "No results, please check that there are data in the database."
 
     return "\n---\n".join(points_to_text(points))
 

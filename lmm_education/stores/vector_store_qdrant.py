@@ -164,6 +164,8 @@ Main functions:
     upload / aupload
     query / aquery
     query_grouped / aquery_grouped
+
+rev a 26.10
 """
 
 from enum import Enum
@@ -205,7 +207,7 @@ from lmm.markdown.parse_markdown import (
 )
 
 # lmm markdown for education
-from lmm_education.config.config import ConfigSettings
+from lmm_education.config.config import ConfigSettings, load_settings
 
 # Set up logger
 from lmm.utils.logging import LoggerBase, get_logger
@@ -298,10 +300,14 @@ def client_from_config(
         RemoteSource,
     )
 
-    try:
-        if opts is None:
-            opts = ConfigSettings()
+    opts = opts or load_settings(logger=logger)
+    if opts is None:
+        logger.error(
+            "Could not initialize client due to invalid " "settings."
+        )
+        return None
 
+    try:
         opts_storage: DatabaseSource = (
             opts.storage if isinstance(opts, ConfigSettings) else opts
         )
@@ -356,10 +362,14 @@ def async_client_from_config(
         RemoteSource,
     )
 
-    try:
-        if opts is None:
-            opts = ConfigSettings()
+    opts = opts or load_settings(logger=logger)
+    if opts is None:
+        logger.error(
+            "Could not initialize client due to invalid " "settings."
+        )
+        return None
 
+    try:
         opts_storage: DatabaseSource = (
             opts.storage if isinstance(opts, ConfigSettings) else opts
         )
@@ -616,8 +626,12 @@ def initialize_collection_from_config(
     logger: LoggerBase = default_logger,
 ) -> bool:
     """See initialize_collection"""
+    opts = opts or load_settings(logger=logger)
     if opts is None:
-        opts = ConfigSettings()
+        logger.error(
+            "Could not initialize client due to invalid " "settings."
+        )
+        return False
     return initialize_collection(
         client,
         collection_name,
@@ -805,8 +819,12 @@ async def ainitialize_collection_from_config(
     logger: LoggerBase = default_logger,
 ) -> bool:
     """See ainitialize_collection"""
+    opts = opts or load_settings(logger=logger)
     if opts is None:
-        opts = ConfigSettings()
+        logger.error(
+            "Could not initialize client due to invalid " "settings."
+        )
+        return False
     return await ainitialize_collection(
         client,
         collection_name,

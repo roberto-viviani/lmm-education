@@ -37,7 +37,8 @@ Main functions:
 
 import io
 from pathlib import Path
-from pydantic import validate_call, ValidationError
+
+from pydantic import validate_call
 
 # LM markdown
 from lmm.markdown.parse_markdown import (
@@ -154,17 +155,10 @@ def initialize_client(
         a Qdrant client object
     """
 
-    # Check the config file is ok.
+    # Load and checks configuration settings.
     if opts is None:
-        try:
-            opts = load_settings(DEFAULT_CONFIG_FILE)
-        except ValueError | ValidationError as e:
-            logger.error(
-                f"The configuration file has an invalid value:\n{e}"
-            )
-            return None
-        except Exception as e:
-            logger.error(f"Could not read configuration file:\n{e}")
+        opts = load_settings(logger=logger)
+        if opts is None:
             return None
 
     dbOpts = opts.database
@@ -238,18 +232,10 @@ def markdown_upload(
     """
 
     # Check the config file is ok. The ConfigSettings constructor
-    # will read the config.toml file if no arguments
-    # are provided.
+    # will read the config.toml file if no arguments are provided
     if config_opts is None:
-        try:
-            config_opts = ConfigSettings()
-        except ValueError | ValidationError as e:
-            logger.error(
-                f"The configuration file has an invalid value:\n{e}"
-            )
-            return []
-        except Exception as e:
-            logger.error(f"Could not read configuration file:\n{e}")
+        config_opts = load_settings(logger=logger)
+        if config_opts is None:
             return []
 
     # initialize qdrant client. The config_opts object will be used
@@ -652,6 +638,7 @@ def _list_files_by_extension(
 if __name__ == "__main__":
     """CLI interface to ingest files"""
     import sys
+    from lmm.utils.logging import ConsoleLogger
 
     if len(sys.argv) > 1:
         filenames = _list_files_by_extension(
@@ -669,25 +656,19 @@ if __name__ == "__main__":
         bool(sys.argv[3]) if len(sys.argv) > 3 else True
     )
 
+    # error logged to console, and exit if required
+    logger = ConsoleLogger()
     if filenames:
-        try:
-            opts = ConfigSettings()
-        except ValueError | ValidationError as e:
-            print(f"Invalid settings:\n{e}")
-            exit()
-        except Exception as e:
-            print(f"Could not load config settings:\n{e}")
+        opts = load_settings(logger=logger)
+        if opts is None:
             exit()
 
-        try:
-            # this will go through the encoding and chunking, and
-            # save the chunked documents for inspection in the input folder
-            markdown_upload(
-                filenames,
-                config_opts=opts,
-                save_files=save_files,
-                ingest=ingest,
-            )
-        except Exception as e:
-            print(f"Error during processing documents:\n{e}")
-            exit()
+        # this will go through the encoding and chunking, and
+        # save the chunked documents for inspection in the input folder
+        markdown_upload(
+            filenames,
+            config_opts=opts,
+            save_files=save_files,
+            ingest=ingest,
+            logger=logger,
+        )
