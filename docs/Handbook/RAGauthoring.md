@@ -31,7 +31,9 @@ Here, part of the message that is sent to the language model is "evaluate the te
 To send the message to the model, open a Python REPL, and send the following command:
 
 ```python
-lmm.scan.scan_messages("Lecture01.md")
+from lmm.scan.scan_messages import markdown_messages
+
+markdown_messages("Lecture01.md")
 ```
 
 where Lecture01.md is the markdown file in questions. The response of the language model appears in the editor under the property `~chat`:
@@ -102,10 +104,18 @@ keywords=false
 Note:
     it is strongly recommended to use the same annotation model in the whole project.
 
-To have LM markdown to generate the annotations without ingesting the document, use the Python REPL:
+To have LM markdown to generate the annotations without ingesting the document, use Python from the console:
+
+```bash
+python -m lmm.scan.scan_rag.markdown_rag("Lecture01.md")
+```
+
+or from the Python REPL:
 
 ```python
-lmm.scan.scan_rag.markdown_rag("Lecture01.md")
+from lmm_scan_scan_rag import markdown_rag
+
+markdown_rag("Lecture01.md")
 ```
 
 After this, any modern editor that has Lecture01.md open will display the annotations added by the langauge model:
@@ -159,12 +169,22 @@ When forming the database, or after adding new text, you may want that the right
 
 When doing this, you may want to be sure that the original question or similar questions retrieve this material if asked again. This is what test retrieval is for.
 
-You start with ingesting the document in the Python REPL, and then you test that the material is retrieved when you ask the question:
+You start with ingesting the document with Python, and then you test that the material is retrieved when you ask the question:
+
+```bash
+python -m lmm_education.ingest("AddedMaterial.md")
+
+python -m lmm_education.query("What is the reason to add a family parameter to glm call?")
+```
+
+or from the Python REPL:
 
 ```python
-lmm_education.ingest("AddedMaterial.md")
+from lmm_education.ingest import markdown_upload
+from lmm_education.query  import do_query
 
-response = lmm_education.query("What is the reason to add a family parameter to glm call?")
+markdown_upload("AddedMaterial.md")
+response = do_query("What is the reason to add a family parameter to a glm call?")
 print(response)
 ```
 
