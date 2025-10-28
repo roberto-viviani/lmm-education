@@ -459,7 +459,7 @@ if __name__ == "__main__":
 
     def interactive_scan(filename: str, target: str) -> list[Block]:
         if filename == target:
-            default_logger.info(
+            print(
                 "Usage: output file in second command line arg must "
                 "differ from input file"
             )
