@@ -81,7 +81,11 @@ from lmm.scan.scan_split import (
 )
 
 # LMM for education
-from lmm_education.config.config import EncodingModel
+from lmm_education.config.config import (
+    LocalStorage,
+    RemoteSource,
+    EncodingModel,
+)
 from lmm_education.stores.chunks import (
     Chunk,
     blocks_to_chunks,
@@ -312,10 +316,17 @@ def markdown_upload(
         )
         if bool(idss):
             if ingest:
-                logger.info(
-                    f"{source} added to {config_opts.storage} "
-                    f"({len(idss)} chunks)."
-                )
+                storage_location: str
+                match config_opts.storage:
+                    case LocalStorage():
+                        storage_location = config_opts.storage.folder
+                    case RemoteSource():
+                        storage_location = str(
+                            config_opts.storage.url
+                        )
+                    case _:
+                        storage_location = "memory database"
+                logger.info(f"{source} added to {storage_location}.")
             ids.extend(idss)
         else:
             logger.warning(f"{source} could not be ingested.")
@@ -489,7 +500,7 @@ def blocklist_encode(
         annotation_model=opts.get_annotation_model(),
         logger=logger,
     )
-    logger.info(f"Created {len(chunks)} chunks.")
+    logger.info(f"Created {len(chunks)} chunks for ingestion.")
     if not chunks:
         return [], []
 
@@ -547,10 +558,13 @@ def blocklist_upload(
         )
     else:
         points = chunks_to_points(chunks, model, opts.embeddings)
-    logger.info(f"Created {len(points)} points for upload.")
     if not bool(points):
         logger.error("Could not upload documents")
         return []
+    else:
+        logger.info(
+            f"Ingested {len(points)} chunks in main collection."
+        )
 
     # ingestion of the document collection (if specified)
     if bool(dbOpts.companion_collection):
@@ -646,14 +660,18 @@ if __name__ == "__main__":
         )
     else:
         print("Usage: first command line arg is source file")
-        print("       second command line argument is ingest?")
-        print("       third command line argument is save files?")
+        print(
+            "       second command line argument is ingest? (default True)"
+        )
+        print(
+            "       third command line argument is save files? (default False)"
+        )
         filenames = ""
         exit()
 
-    ingest: bool = bool(sys.argv[2]) if len(sys.argv) > 2 else False
+    ingest: bool = bool(sys.argv[2]) if len(sys.argv) > 2 else True
     save_files: bool = (
-        bool(sys.argv[3]) if len(sys.argv) > 3 else True
+        bool(sys.argv[3]) if len(sys.argv) > 3 else False
     )
 
     # error logged to console, and exit if required
