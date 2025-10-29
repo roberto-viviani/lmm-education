@@ -467,6 +467,55 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
 
+    def test_encoding_invalid(self):
+        from lmm.utils.logging import LoglistLogger
+
+        logger = LoglistLogger()
+
+        settings = ConfigSettings(
+            major={"model": "Debug/debug"},
+            minor={"model": "Debug/debug"},
+            aux={"model": "Debug/debug"},
+            embeddings={
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+            },
+            storage=":memory:",
+            RAG=RAGSettings(
+                encoding_model=EncodingModel.SPARSE_MULTIVECTOR
+            ),
+        )
+        collection_name: str = (
+            settings.RAG.encoding_model.value + "_invalid"
+        )
+
+        # init with correct settings
+        result = initialize_collection_from_config(
+            client, collection_name, settings, logger=logger
+        )
+        print("\n".join(logger.get_logs()))
+        logger.clear_logs()
+        self.assertTrue(result)
+
+        # we change the settings then we call initialize again
+        settings = ConfigSettings(
+            embeddings={
+                "dense_model": "SentenceTransformers/all-MiniLM-L6-v2"
+            },
+            storage=":memory:",
+            RAG=RAGSettings(encoding_model=EncodingModel.SPARSE),
+        )
+
+        result = initialize_collection_from_config(
+            client, collection_name, settings, logger=logger
+        )
+        logs = logger.get_logs()
+        print("\n".join(logs))
+        self.assertFalse(result)
+        self.assertIn("Differences from Database Settings", logs[-1])
+        self.assertIn(
+            "Value Change for 'embeddings.dense_model", logs[-1]
+        )
+
 
 class TestInitializationLocal(unittest.TestCase):
     # detup and teardown replace config.toml to avoid

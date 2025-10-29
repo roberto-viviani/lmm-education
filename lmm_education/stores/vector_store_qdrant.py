@@ -206,8 +206,15 @@ from lmm.markdown.parse_markdown import (
     MetadataBlock,
 )
 
+
 # lmm markdown for education
 from lmm_education.config.config import ConfigSettings, load_settings
+
+# utils
+from lmm_education.stores.vector_store_qdrant_utils import (
+    check_schema,
+    acheck_schema,
+)
 
 # Set up logger
 from lmm.utils.logging import LoggerBase, get_logger
@@ -502,9 +509,16 @@ def initialize_collection(
         if client.collection_exists(collection_name):
             info = client.get_collection(collection_name)
             params = info.config.params  # noqa  #type: ignore
-            # TODO: add checks that the opts and the collection
+
+            # checks that the opts and the collection
             # are compatible
-            return True
+            return check_schema(
+                client,
+                collection_name,
+                qdrant_model,
+                embedding_settings,
+                logger=logger,
+            )
 
         # determine embedding size
         if not (
@@ -604,16 +618,34 @@ def initialize_collection(
         )
         return False
     except UnexpectedResponse as e:
-        logger.error(f"Could not initialize vector database: {e}")
+        logger.error(f"Could not initialize {collection_name}: {e}")
         return False
     except ApiException as e:
         logger.error(
-            f"Could not initialize vector database due to API error: {e}"
+            f"Could not initialize {collection_name} due to API error: {e}"
         )
         return False
     except Exception as e:
-        logger.error(f"Could not initialize vector database: {e}")
+        logger.error(f"Could not initialize {collection_name}: {e}")
         return False
+
+    # register the schema
+    try:
+        check_schema(
+            client,
+            collection_name,
+            qdrant_model,
+            embedding_settings,
+            logger=logger,
+        )
+    except Exception as e:
+        logger.error(
+            f"Unepected error: {collection_name} was"
+            "initialized, but the schema could not be"
+            "registered.\nCall initialize_collection again to"
+            f"attempt to record schema. Reason for the failure:\n{e}"
+        )
+        # return True nevertheless
 
     return True
 
@@ -699,9 +731,15 @@ async def ainitialize_collection(
         if await client.collection_exists(collection_name):
             info = await client.get_collection(collection_name)
             params = info.config.params  # noqa  # type: ignore
-            # TODO: add checks that the opts and the collection
+
+            # checks that the opts and the collection
             # are compatible
-            return True
+            return await acheck_schema(
+                client,
+                collection_name,
+                qdrant_model,
+                embedding_settings,
+            )
 
         # determine embedding size
         if not (
@@ -797,16 +835,34 @@ async def ainitialize_collection(
         )
         return False
     except UnexpectedResponse as e:
-        logger.error(f"Could not initialize vector database: {e}")
+        logger.error(f"Could not initialize {collection_name}: {e}")
         return False
     except ApiException as e:
         logger.error(
-            f"Could not initialize vector database due to API error: {e}"
+            f"Could not initialize {collection_name} due to API error: {e}"
         )
         return False
     except Exception as e:
-        logger.error(f"Could not initialize vector database: {e}")
+        logger.error(f"Could not initialize {collection_name}: {e}")
         return False
+
+    # register the schema
+    try:
+        await acheck_schema(
+            client,
+            collection_name,
+            qdrant_model,
+            embedding_settings,
+            logger=logger,
+        )
+    except Exception as e:
+        logger.error(
+            f"Unepected error: {collection_name} was"
+            "initialized, but the schema could not be"
+            "registered.\nCall initialize_collection again to"
+            f"attempt to record schema. Reason for the failure:\n{e}"
+        )
+        # return True nevertheless
 
     return True
 
