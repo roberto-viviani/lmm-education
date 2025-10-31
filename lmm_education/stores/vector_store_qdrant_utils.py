@@ -133,7 +133,12 @@ def check_schema(
             payload, records[0].payload
         )
         if delta:
-            logger.error(format_difference_report(delta))
+            logger.error(
+                format_difference_report(
+                    delta,
+                    collection_name,
+                )
+            )
             return False
 
     return True
@@ -215,7 +220,12 @@ async def acheck_schema(
             payload, records[0].payload
         )
         if check:
-            logger.error(format_difference_report(check))
+            logger.error(
+                format_difference_report(
+                    check,
+                    collection_name,
+                )
+            )
             return False
 
     return True

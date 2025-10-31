@@ -96,6 +96,7 @@ def find_dictionary_differences(
 
 def format_difference_report(
     differences: Union[DiffResult, ErrorResult],
+    collection: str = "",
 ) -> str:
     """
     Takes the output of find_dictionary_differences and formats it into
@@ -117,7 +118,12 @@ def format_difference_report(
     if not diff_result:
         return ""
 
-    report_lines = ["--- Differences from Database Settings ---"]
+    if collection:
+        report_lines = [
+            f"--- Differences from Database Settings in {collection} ---"
+        ]
+    else:
+        report_lines = ["--- Differences from Database Settings ---"]
 
     for key, data in diff_result.items():
         value_a = data.get('dict_a')
