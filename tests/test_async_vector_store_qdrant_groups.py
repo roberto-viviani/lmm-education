@@ -4,8 +4,9 @@ import unittest
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from lmm_education.stores.chunks import (
+from lmm.scan.chunks import (
     Chunk,
+    EncodingModel,
 )
 from lmm.markdown.parse_markdown import (
     MetadataBlock,
@@ -17,13 +18,12 @@ from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_rag import scan_rag, ScanOpts
 from lmm.scan.scan_split import scan_split
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, TITLES_KEY
-from lmm_education.stores.chunks import blocks_to_chunks
+from lmm.scan.chunks import blocks_to_chunks
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
     QdrantEmbeddingModel,
     Point,
     ScoredPoint,
-    EncodingModel,
     GroupsResult,
     encoding_to_qdrantembedding_model,
     points_to_ids,

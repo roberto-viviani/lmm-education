@@ -2,9 +2,11 @@ import unittest
 import tempfile
 import asyncio
 
-from lmm_education.stores.chunks import (
+from lmm.scan.chunks import (
     Chunk,
     blocks_to_chunks,
+    AnnotationModel,
+    EncodingModel,
 )
 from lmm.markdown.parse_markdown import blocklist_copy, TextBlock
 from lmm.config.config import (
@@ -15,13 +17,11 @@ from lmm.config.config import (
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 from lmm.scan.scan_rag import scan_rag, ScanOpts
 from lmm_education.config.config import (
-    AnnotationModel,
     ConfigSettings,
 )
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
     QdrantEmbeddingModel,
-    EncodingModel,
     ScoredPoint,
     encoding_to_qdrantembedding_model,
     points_to_ids,

@@ -8,7 +8,7 @@ NOTE: initialize collection tested in test_lmm_rag.py
 import unittest
 
 from lmm.markdown.parse_markdown import *
-from lmm_education.stores.chunks import *
+from lmm.scan.chunks import *
 from lmm_education.stores.vector_store_qdrant import *
 from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY

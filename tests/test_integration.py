@@ -122,7 +122,7 @@ class TestScanSplit(unittest.TestCase):
             parse_markdown_text,
             Block,
         )
-        from lmm_education.stores.chunks import (
+        from lmm.scan.chunks import (
             blocks_to_chunks,
             Chunk,
             EncodingModel,
@@ -161,7 +161,7 @@ class TestChunkingAndIngestion(unittest.TestCase):
             AnnotationModel,
             EncodingModel,
         )
-        from lmm_education.stores.chunks import blocks_to_chunks
+        from lmm.scan.chunks import blocks_to_chunks
 
         logger = LoglistLogger()
 

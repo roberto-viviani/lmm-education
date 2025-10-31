@@ -79,17 +79,18 @@ from lmm.scan.scan_split import (
     defaultSplitter,
     scan_split,
 )
+from lmm.scan.chunks import (
+    Chunk,
+    blocks_to_chunks,
+    chunks_to_blocks,
+    AnnotationModel,
+)
 
 # LMM for education
 from lmm_education.config.config import (
     LocalStorage,
     RemoteSource,
     EncodingModel,
-)
-from lmm_education.stores.chunks import (
-    Chunk,
-    blocks_to_chunks,
-    chunks_to_blocks,
 )
 from lmm_education.stores.vector_store_qdrant import (
     QdrantEmbeddingModel,
@@ -104,7 +105,6 @@ from lmm_education.config.config import (
     create_default_config_file,
     load_settings,
     ConfigSettings,
-    AnnotationModel,
 )
 
 # langchain, import text splitters from here

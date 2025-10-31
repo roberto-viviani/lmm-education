@@ -5,6 +5,7 @@ from qdrant_client import QdrantClient
 
 from lmm.markdown.parse_markdown import parse_markdown_text
 from lmm.utils.logging import LoglistLogger
+from lmm.scan.chunks import EncodingModel
 
 # from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY, SUMMARY_KEY
 
@@ -19,7 +20,6 @@ from lmm_education.config.config import (
     DatabaseSettings,
     export_settings,
 )
-from lmm_education.stores import EncodingModel
 
 
 document = """

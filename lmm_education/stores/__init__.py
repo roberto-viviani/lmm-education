@@ -1,14 +1,6 @@
 # pyright: reportUnusedImport=false
 # flake8: noqa
 
-from .chunks import (
-    EncodingModel,
-    AnnotationModel,
-    Chunk,
-    blocks_to_chunks,
-    chunks_to_blocks,
-)
-
 from .vector_store_qdrant import (
     QdrantEmbeddingModel,
     encoding_to_qdrantembedding_model,

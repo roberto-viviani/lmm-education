@@ -195,8 +195,7 @@ from qdrant_client.http.exceptions import (
 # lmmarkdown
 from lmm.scan.scan_keys import GROUP_UUID_KEY
 from lmm.config.config import EmbeddingSettings
-from lmm_education.config.config import DatabaseSource
-from lmm_education.stores.chunks import (
+from lmm.scan.chunks import (
     EncodingModel,
     Chunk,
 )
@@ -206,9 +205,12 @@ from lmm.markdown.parse_markdown import (
     MetadataBlock,
 )
 
-
 # lmm markdown for education
-from lmm_education.config.config import ConfigSettings, load_settings
+from lmm_education.config.config import (
+    DatabaseSource,
+    ConfigSettings,
+    load_settings,
+)
 
 # utils
 from lmm_education.stores.vector_store_qdrant_utils import (

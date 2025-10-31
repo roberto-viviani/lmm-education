@@ -5,9 +5,10 @@ NOTE: initialize collection tested in test_lmm_rag.py
 
 import unittest
 
-from lmm_education.stores.chunks import (
+from lmm.scan.chunks import (
     Chunk,
     blocks_to_chunks,
+    EncodingModel,
 )
 from lmm.markdown.parse_markdown import (
     blocklist_copy,
@@ -24,7 +25,6 @@ from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
 from lmm_education.stores.vector_store_qdrant import (
     AsyncQdrantClient,
     QdrantEmbeddingModel,
-    EncodingModel,
     Point,
     encoding_to_qdrantembedding_model,
     points_to_ids,
@@ -666,7 +666,7 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
         export_settings(settings)
 
     async def test_query(self):
-        import lmm_education.stores.chunks as chk
+        import lmm.scan.chunks as chk
 
         from langchain_text_splitters import (
             RecursiveCharacterTextSplitter,

@@ -14,13 +14,18 @@ from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import GROUP_UUID_KEY, UUID_KEY
 from lmm.scan.scan_rag import ScanOpts, scan_rag
 from lmm.scan.scan_split import scan_split
+from lmm.scan.chunks import (
+    Chunk,
+    blocks_to_chunks,
+    EncodingModel,
+)
+
 from lmm_education.stores.vector_store_qdrant import (
     QdrantClient,
     Point,
     ScoredPoint,
     GroupsResult,
     QdrantEmbeddingModel,
-    EncodingModel,
     points_to_text,
     points_to_ids,
     groups_to_points,
@@ -29,10 +34,6 @@ from lmm_education.stores.vector_store_qdrant import (
     upload,
     query,
     query_grouped,
-)
-from lmm_education.stores.chunks import (
-    Chunk,
-    blocks_to_chunks,
 )
 from lmm_education.config.config import ConfigSettings
 

@@ -19,16 +19,15 @@ from lmm.config.config import (
     Settings,
     export_settings,
 )
+from lmm.scan.chunks import Chunk, blocks_to_chunks, EncodingModel
 from lmm_education.config.config import (
     ConfigSettings,
     DatabaseSettings,
     RAGSettings,
     AnnotationModel,
 )
-from lmm_education.stores.chunks import Chunk, blocks_to_chunks
 from lmm_education.stores.vector_store_qdrant import (
     QdrantClient,
-    EncodingModel,
     QdrantEmbeddingModel,
     Point,
     encoding_to_qdrantembedding_model,
@@ -729,7 +728,7 @@ class TestQueryGrouped(unittest.TestCase):
         export_settings(settings)
 
     def test_query(self):
-        import lmm_education.stores.chunks as chk
+        import lmm.scan.chunks as chk
         from lmm.scan.scan_split import scan_split
 
         from langchain_text_splitters import (

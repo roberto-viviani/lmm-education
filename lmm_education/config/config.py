@@ -72,10 +72,11 @@ from lmm.config.config import (
     serialize_settings,
     format_pydantic_error_message,
 )
+from lmm.scan.chunks import EncodingModel, AnnotationModel
 from lmm.utils.logging import LoggerBase, ExceptionConsoleLogger
-from tomllib import TOMLDecodeError
-
 from lmm.scan.scan_keys import QUESTIONS_KEY, TITLES_KEY
+
+from tomllib import TOMLDecodeError
 
 # Module-level constants
 DEFAULT_CONFIG_FILE = "config.toml"
@@ -125,57 +126,6 @@ class ServerSettings(BaseSettings):
         return v
 
 
-# Encoding model allowed by the system
-from enum import StrEnum  # fmt: skip
-class EncodingModel(StrEnum):
-    """
-    Enum for encoding strategies
-
-    Attributes:
-        NONE: no encoding (no embedding).
-        CONTENT: the textual content of the chunk is also used for
-            the emebdding
-        MERGED: merge textual content and annotations in a larger
-            piece of text for the emebdding
-        MULTIVECTOR: textual content and annotations are encoded
-            by multivectors
-        SPARSE: use annotations only and use sparse encoding
-        SPARSE_CONTENT: annotations for sparse encoding, textual
-            content for dense encoding
-        SPARSE_MERGED: annotations for sparse encoding, merged
-            annotations and textual content for dense encoding
-        SPARSE_MULTIVECTOR: annotations for sparse encoding,
-            annotations and textual content for multivector encoding
-    """
-
-    # No encoding
-    NONE = "none"
-
-    # Encode only textual content in dense vector
-    CONTENT = "content"
-
-    # Encode textual content merged with metadata
-    # annotations in dense vectors
-    MERGED = "merged"
-
-    # Encode content and annotations using multivectors
-    MULTIVECTOR = "multivector"
-
-    # Sparse encoding of annotations only
-    SPARSE = "sparse"
-
-    # Sparse annotations, dense encoding of content
-    SPARSE_CONTENT = "sparse_content"
-
-    # Sparse annotations, dense encoding of merged
-    # content and annotations
-    SPARSE_MERGED = "sparse_merged"
-
-    # Sparse annotations, multivector encoding of merged
-    # content and annotations
-    SPARSE_MULTIVECTOR = "sparse_multivector"
-
-
 # In the qdrant implementation used here, the database may be located
 # in local or in a remote storage. The following models help making
 # sure that the specification is correct.
@@ -213,68 +163,6 @@ class TextSplitters(BaseModel):
         description="Threshold for text splitter."
         + " Ignored if the splitter value is 'none'",
     )
-
-
-# AnnotationModel. Low-level specification of how
-# to look for metadata properties to include in encodings
-class AnnotationModel(BaseModel):
-    """
-    Specifies what metadata properties are selected to form
-    annotations and how. Also selects properties to be indexed
-    for filtering.
-
-    The AnnotationModel is meant to allow users to add annotations
-    to an encoding model by specifying them in the config file.
-    Note that an annotation model is implicit when using scan_rag
-    to generate metadata properties such as questions, etc.
-
-    Attributes:
-        inherited_properties: properties are sought among ancestors.
-        own_properties: limit propertis to those owned by node.
-        filters: properties that should be indexed to allow filter
-            searches.
-    """
-
-    inherited_properties: list[str] = Field(
-        default=[],
-        description="Metadata properties inherited from ancestors",
-    )
-    own_properties: list[str] = Field(
-        default=[],
-        description="Metadata properties of the node",
-    )
-    filters: list[str] = Field(
-        default=[],
-        description="Metadata properties to be indexed for filtering",
-    )
-
-    def add_inherited_properties(
-        self, props: str | list[str]
-    ) -> None:
-        if isinstance(props, str):
-            props = [props]
-        for p in props:
-            if p not in self.inherited_properties:
-                self.inherited_properties.append(p)
-
-    def add_own_properties(self, props: str | list[str]) -> None:
-        if isinstance(props, str):
-            props = [props]
-        for p in props:
-            if p not in self.own_properties:
-                self.own_properties.append(p)
-
-    def has_property(self, prop: str) -> bool:
-        return (
-            prop in self.inherited_properties
-            or prop in self.own_properties
-        )
-
-    def has_properties(self) -> bool:
-        return (
-            len(self.inherited_properties) > 0
-            or len(self.own_properties) > 0
-        )
 
 
 # vector database settings. Location in sturage field

@@ -12,7 +12,7 @@ from lmm_education.config.config import (
     RAGSettings,
     DatabaseSettings,
 )
-from lmm_education.stores import EncodingModel
+from lmm.scan.chunks import EncodingModel
 
 # pyright: basic
 
