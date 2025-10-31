@@ -372,7 +372,7 @@ def async_client_from_config(
     opts = opts or load_settings(logger=logger)
     if opts is None:
         logger.error(
-            "Could not initialize client due to invalid " "settings."
+            "Could not initialize client due to invalid settings."
         )
         return None
 
