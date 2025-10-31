@@ -92,10 +92,11 @@ from lmm_education.stores.chunks import (
     chunks_to_blocks,
 )
 from lmm_education.stores.vector_store_qdrant import (
-    QdrantEmbeddingModel as EmbeddingModel,
+    QdrantEmbeddingModel,
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
     client_from_config,
     initialize_collection_from_config,
+    initialize_collection,
     upload,
     chunks_to_points,
 )
@@ -187,10 +188,11 @@ def initialize_client(
         return None
 
     if bool(dbOpts.companion_collection):
-        flag = initialize_collection_from_config(
+        flag = initialize_collection(
             client,
             dbOpts.companion_collection,
-            opts,
+            QdrantEmbeddingModel.UUID,
+            opts.embeddings,
             logger=logger,
         )
         if not flag:
@@ -544,7 +546,7 @@ def blocklist_upload(
 
     # ingestion of the chunks
     dbOpts = opts.database
-    model: EmbeddingModel = encoding_to_embedding_model(
+    model: QdrantEmbeddingModel = encoding_to_embedding_model(
         opts.RAG.encoding_model
     )
     if ingest:
@@ -582,14 +584,14 @@ def blocklist_upload(
             docpoints = upload(
                 client,
                 collection_name=doc_coll,
-                qdrant_model=EmbeddingModel.UUID,
+                qdrant_model=QdrantEmbeddingModel.UUID,
                 embedding_settings=opts.embeddings,
                 chunks=companion_chunks,
                 logger=logger,
             )
         else:
             docpoints = chunks_to_points(
-                chunks, EmbeddingModel.UUID, opts.embeddings
+                chunks, QdrantEmbeddingModel.UUID, opts.embeddings
             )
         if not bool(docpoints):
             logger.error("Could not upload documents to " + doc_coll)
