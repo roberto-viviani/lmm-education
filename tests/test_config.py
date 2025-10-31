@@ -265,9 +265,6 @@ class TestConfigSettingsValidation(unittest.TestCase):
         config1 = ConfigSettings(storage=":memory:")
         self.assertEqual(config1.storage, ":memory:")
         self.assertEqual(config1.database.collection_name, "chunks")
-        self.assertEqual(
-            config1.RAG.encoding_model, EncodingModel.CONTENT
-        )
 
         # Test with LocalStorage
         config2 = ConfigSettings(

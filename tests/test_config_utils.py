@@ -287,7 +287,7 @@ class TestFormatDifferenceReport(unittest.TestCase):
         differences = {}
         report = format_difference_report(differences)
 
-        self.assertIn("identical", report.lower())
+        self.assertEqual(report, "")
 
     def test_format_value_change(self):
         """Test formatting of value changes"""
