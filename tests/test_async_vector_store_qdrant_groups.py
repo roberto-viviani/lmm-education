@@ -1,6 +1,7 @@
 """Tests for grouped qdrant queries"""
 
 import unittest
+import asyncio
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -55,6 +56,10 @@ from tests.test_vector_store_qdrant_groups import document
 blocklist: list[Block] = parse_markdown_text(document)
 if blocklist_haserrors(blocklist):
     raise Exception("Invalid markdown")
+
+
+def tearDownModule():
+    asyncio.run(client.close())
 
 
 class TestEncoding(unittest.IsolatedAsyncioTestCase):

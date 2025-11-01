@@ -133,7 +133,7 @@ def _prepare_messages(
 
 async def chat_function(
     querytext: str,
-    history: list[dict[str, str]],
+    history: list[dict[str, str]] = [],
     retriever: BaseRetriever | None = None,
     llm: BaseChatModel | None = None,
     *,

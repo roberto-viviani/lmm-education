@@ -57,10 +57,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test a normal query (if LLM is available)."""
         print("Test 3: Normal query")
         try:
-            iterator = await chat_function(
-                "What is a linear model?",
-                [],
-            )
+            iterator = await chat_function("What is a linear model?")
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
