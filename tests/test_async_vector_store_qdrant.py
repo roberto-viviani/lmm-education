@@ -118,8 +118,6 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         self.async_client = AsyncQdrantClient(path=self.test_dir_path)
 
     def tearDown(self):
-        # self.synch_client.close()
-
         promise = self.async_client.close()
         loop = asyncio.get_event_loop()
         task = loop.create_task(promise)

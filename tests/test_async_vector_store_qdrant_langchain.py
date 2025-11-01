@@ -3,6 +3,7 @@
 NOTE: initialize collection tested in test_lmm_rag.py
 """
 
+import asyncio
 import unittest
 
 from lmm.scan.chunks import (
@@ -74,6 +75,10 @@ blocks: list[Block] = [
     text2,
 ]
 blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
+
+
+def tearDownModule():
+    asyncio.run(client.close())
 
 
 class TestQuery(unittest.IsolatedAsyncioTestCase):
