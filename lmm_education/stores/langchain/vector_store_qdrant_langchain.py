@@ -100,7 +100,9 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     """
 
     client: QdrantClient = Field(
-        default=QdrantClient(":memory:"), init=False
+        # Pydantic's BaseModel requires an object here
+        default=QdrantClient(":memory:"),
+        init=False,
     )
     collection_name: str = Field(default="", init=False)
     qdrant_embedding: QdrantEmbeddingModel = Field(
@@ -133,7 +135,12 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             metadata={'embedding_model': qdrant_embedding.value}
         )
 
-        # Now these can be set normally
+        # Now these can be set normally, except that self.client
+        # may have already been initialized
+        try:
+            self.client.close()
+        except Exception:
+            pass
         self.client = client
         self.collection_name = collection_name
         self.qdrant_embedding = qdrant_embedding
@@ -241,7 +248,9 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     """
 
     client: AsyncQdrantClient = Field(
-        default=AsyncQdrantClient(":memory:"), init=False
+        # Pydantic's BaseModel requires an object here
+        default=AsyncQdrantClient(":memory:"),
+        init=False,
     )
     collection_name: str = Field(default="", init=False)
     qdrant_embedding: QdrantEmbeddingModel = Field(
@@ -272,7 +281,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             metadata={'embedding_model': qdrant_embedding.value}
         )
 
-        # Now these can be set normally
+        # Now these can be set normally. self.client may already
+        # be initialized, but we can't await close() here.
         self.client = client
         self.collection_name = collection_name
         self.qdrant_embedding = qdrant_embedding
@@ -286,7 +296,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
 
         Note: AsyncQdrantClient.close() is async and cannot be properly
         called from __del__. Users should explicitly close the client
-        using 'await client.close()' or use it as an async context manager.
+        using 'await retriever.client_close()' or use it as an async
+        context manager.
         """
         pass
 
@@ -421,7 +432,9 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     """
 
     client: QdrantClient = Field(
-        default=QdrantClient(":memory:"), init=False
+        # Pydantic's BaseModel requires an object here
+        default=QdrantClient(":memory:"),
+        init=False,
     )
     collection_name: str = Field(default="", init=False)
     group_collection: str = Field(default="", init=False)
@@ -460,7 +473,12 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             metadata={'embedding_model': qdrant_embedding.value}
         )
 
-        # Now these can be set normally
+        # Now these can be set normally, except that self.client
+        # may have already been initialized
+        try:
+            self.client.close()
+        except Exception:
+            pass
         self.client = client
         self.collection_name = collection_name
         self.group_collection = group_collection
@@ -579,7 +597,9 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     """
 
     client: AsyncQdrantClient = Field(
-        default=AsyncQdrantClient(":memory:"), init=False
+        # Pydantic's BaseModel requires an object here
+        default=AsyncQdrantClient(":memory:"),
+        init=False,
     )
     collection_name: str = Field(default="", init=False)
     group_collection: str = Field(default="", init=False)
@@ -616,7 +636,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             metadata={'embedding_model': qdrant_embedding.value}
         )
 
-        # Now these can be set normally
+        # Now these can be set normally. self.client may already
+        # be initialized, but we can't await close() here.
         self.client = client
         self.collection_name = collection_name
         self.group_collection = group_collection
@@ -633,7 +654,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
         Note: AsyncQdrantClient.close() is async and cannot be properly
         called from __del__. Users should explicitly close the client
-        using 'await client.close()' or use it as an async context manager.
+        using 'await retriever.client_close()' or use it as an async
+        context manager.
         """
         pass
 
