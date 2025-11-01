@@ -50,7 +50,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-    AsyncQdrantVectorStoreRetriever as QdrantRetriever,
+    AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
 
 # messages
@@ -161,9 +161,6 @@ async def chat_function(
         AsyncIterator[BaseMessageChunk]: Iterator yielding response chunks
     """
 
-    if retriever is None:
-        retriever = QdrantRetriever.from_config_settings()
-
     if llm is None:
         from lmm_education.config.config import ConfigSettings # fmt: skip
         llm = create_model_from_settings(ConfigSettings().major)
@@ -184,7 +181,14 @@ async def chat_function(
 
     # if the history is empty, retrieve the context. The context
     # will be contained in the history thereafter.
+    import typing
+
     if not history:
+        create_flag: bool = False
+        if retriever is None:
+            retriever = AsyncQdrantRetriever.from_config_settings()
+            create_flag = True
+
         try:
             documents: list[Document] = await retriever.ainvoke(
                 querytext,
@@ -199,6 +203,10 @@ async def chat_function(
             [d.page_content for d in documents]
         )
         querytext = prompt.format(context=context, query=querytext)
+
+        if create_flag:
+            retriever = typing.cast(AsyncQdrantRetriever, retriever)
+            await retriever.close_client()
 
     # Query language model
     query = _prepare_messages(querytext, history, system_msg)

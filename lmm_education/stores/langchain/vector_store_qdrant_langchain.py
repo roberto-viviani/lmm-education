@@ -141,6 +141,15 @@ class QdrantVectorStoreRetriever(BaseRetriever):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    def __del__(self):
+        """Destructor to close the Qdrant client connection."""
+        if hasattr(self, 'client'):
+            self.client.close()
+
+    def close_client(self) -> None:
+        if hasattr(self, 'client'):
+            self.client.close()
+
     @staticmethod
     def from_config_settings(
         opts: ConfigSettings | None = None,
@@ -270,6 +279,20 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         self.embedding_settings = embedding_settings
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def __del__(self):
+        """
+        Destructor for async Qdrant client.
+
+        Note: AsyncQdrantClient.close() is async and cannot be properly
+        called from __del__. Users should explicitly close the client
+        using 'await client.close()' or use it as an async context manager.
+        """
+        pass
+
+    async def close_client(self) -> None:
+        if hasattr(self, 'client'):
+            await self.client.close()
 
     @staticmethod
     def from_config_settings(
@@ -448,6 +471,15 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    def __del__(self):
+        """Destructor to close the Qdrant client connection."""
+        if hasattr(self, 'client'):
+            self.client.close()
+
+    def close_client(self) -> None:
+        if hasattr(self, 'client'):
+            self.client.close()
+
     @staticmethod
     def from_config_settings(
         opts: ConfigSettings | None = None,
@@ -594,6 +626,20 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.embedding_settings = embedding_settings
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def __del__(self):
+        """
+        Destructor for async Qdrant client.
+
+        Note: AsyncQdrantClient.close() is async and cannot be properly
+        called from __del__. Users should explicitly close the client
+        using 'await client.close()' or use it as an async context manager.
+        """
+        pass
+
+    async def close_client(self) -> None:
+        if hasattr(self, 'client'):
+            await self.client.close()
 
     @staticmethod
     def from_config_settings(
