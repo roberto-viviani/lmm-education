@@ -655,11 +655,16 @@ if __name__ == "__main__":
     """CLI interface to ingest files"""
     import sys
     from lmm.utils.logging import ConsoleLogger
+    from requests import ConnectionError
 
     if len(sys.argv) > 1:
-        filenames = _list_files_by_extension(
-            sys.argv[1], ["md", "Rmd"]
-        )
+        try:
+            filenames = _list_files_by_extension(
+                sys.argv[1], ["md", "Rmd"]
+            )
+        except Exception as e:
+            print(e)
+            exit()
     else:
         print("Usage: first command line arg is source file")
         print(
@@ -685,10 +690,17 @@ if __name__ == "__main__":
 
         # this will go through the encoding and chunking, and
         # save the chunked documents for inspection in the input folder
-        markdown_upload(
-            filenames,
-            config_opts=opts,
-            save_files=save_files,
-            ingest=ingest,
-            logger=logger,
-        )
+        try:
+            markdown_upload(
+                filenames,
+                config_opts=opts,
+                save_files=save_files,
+                ingest=ingest,
+                logger=logger,
+            )
+        except ConnectionError as e:
+            print("Cannot form embeddings due a connection error")
+            print(e)
+            print("Check the internet connection.")
+        except Exception as e:
+            print(f"ERROR: {e}")

@@ -163,6 +163,36 @@ encoding_model=sparse_merged
 
 Remember that the same encoding model must be used in all interactions with the database.
 
+### Skipping parts of the markdown
+
+You can annotate text blocks or entire headings and their underlying material such as to exclude them from the RAG. To this end, use the annotation `skip: True`:
+
+```markdown
+---
+title: chapter 1
+---
+
+# Introduction
+
+This text is sent to the RAG database.
+
+---
+skip: True
+---
+This text is not sent.
+
+This text is sent again.
+
+---
+skip: True
+---
+## More introductory words
+
+Everything that lies under this heading is not included in the database.
+---
+
+
+
 ## Step 3: test retrieval
 
 When forming the database, or after adding new text, you may want that the right text is retrieved by queries. LM markdown for education is also designed for the database to grow with the experience of the questions asked by students and that the system did not address. You can write a new markdown document with the material to answer these new question, and add it to the database.
@@ -174,21 +204,51 @@ You start with ingesting the document with Python, and then you test that the ma
 ```bash
 python -m lmm_education.ingest("AddedMaterial.md")
 
-python -m lmm_education.query("What is the reason to add a family parameter to glm call?")
+python -m lmm_education.querydb("What is the reason to add a family parameter to glm call?")
 ```
 
 or from the Python REPL:
 
 ```python
 from lmm_education.ingest import markdown_upload
-from lmm_education.query  import do_query
+from lmm_education.query  import querydb
 
 markdown_upload("AddedMaterial.md")
-response = do_query("What is the reason to add a family parameter to a glm call?")
+response = querydb("What is the reason to add a family parameter to a glm call?")
 print(response)
 ```
 
 If the material is not retrieved as you expected, go back to the document and change the annotations, trying to be specific. If even this does not work, it may help changing the text to be more explicit about what the text explains (for example, by mentioning the textual fragment "family parameter to glm call"). The interaction with the model may be repeated, as long as the `docid` property in AddedMaterial.md is not changed. Keeping this property to the same value ensures that the edited markdown replaces the old in the database.
+
+After you are satisfied with the way the material is being retrieved from the database in response to your queries, you can test the response from the language model with the `query` function:
+
+```bash
+python -m lmm_education.query "What are observational studies?"
+```
+
+Using the Python REPL:
+
+```python
+from lmm_education import query
+
+response = query("What are observational studies?")
+print(response)
+```
+
+The configuration file contains three model specifications: `major`, `minor`, and `aux`. By default, the end-user interactions with the language model use the major model. You can experiment with other models by specifying them as a second argument to the query:
+
+```bash
+python -m lmm_education.query "What are observational studies?" minor
+```
+
+When using the Python REPL or from code, you can specify a model to which you have access directly using the following syntax.
+
+```python
+from lmm_education import query
+
+response = query("What are observational studies?", {'model': "OpenAI/gpt-4-mini", 'temperature': 0.3})
+print(response)
+```
 
 ### Forming a database of questions
 

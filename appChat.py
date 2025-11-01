@@ -114,46 +114,14 @@ except Exception as e:
     exit()
 
 
-# Internal facility to format messages in chat exchanges.
-def _prepare_messages(
-    query: str,
-    history: list[dict[str, str]],
-    system_message: str = "",
-) -> list[tuple[str, str]]:
-    """
-    Customized message history for stateless interaction. The first
-    element is always the system message. There follow the first
-    request and its response (the first request contains the context),
-    and the last query and response.
-    """
-
-    messages: list[tuple[str, str]] = []
-    if system_message:
-        messages.append(('system', system_message))
-
-    # first two messages are user's and assistant's
-    if len(history) > 1:
-        for m in history[:2]:
-            messages.append((m['role'], m['content']))
-
-    # let us resend the last two messages' exchange
-    if len(history) > 3:
-        for m in history[len(history) - 2 :]:
-            messages.append((m['role'], m['content']))
-    elif len(history) > 2:  # not clear when this would occur
-        for m in history[-1:]:
-            messages.append((m['role'], m['content']))
-    else:
-        pass
-
-    messages.append(('user', query))
-
-    return messages
-
-
 from collections.abc import AsyncIterator
 from langchain_core.messages import BaseMessageChunk
-from langchain_core.documents import Document
+
+# Import refactored chat functions
+from lmm_education.query import (
+    chat_function,
+    chat_function_with_validation,
+)
 
 
 # Callback for Gradio to call when a chat message is sent.
@@ -167,11 +135,9 @@ async def fn(
     request is a wrapper around FastAPI information, used to write a
     session ID in the logs. Note we collect IP address.
 
-    This version streams the content of the response.
+    This version streams the content of the response using the refactored
+    chat_function from lmm_education.query.
     """
-
-    # the max allowed number of words in the user's query
-    MAX_QUERY_LENGTH: int = 60
 
     def _preproc_for_markdown(response: str) -> str:
         # replace square brackets containing the character '\' to one
@@ -180,46 +146,22 @@ async def fn(
         response = re.sub(r"\\\(|\\\)", "$", response)
         return response
 
-    # checks
-    if not querytext:
-        yield MSG_EMPTY_QUERY
-        return
-
-    if len(querytext.split()) > MAX_QUERY_LENGTH:
-        yield MSG_LONG_QUERY
-        return
-
-    querytext = querytext.replace(
-        "the textbook", "the context provided"
-    )
-
-    # The gradio framework will deliver an empty history list
-    # if this is the first message in the exchange. Context is
-    # retrieved in this case
-    if not history:
-        try:
-            documents: list[Document] = await retriever.ainvoke(
-                querytext,
-                limit=6,
-            )
-        except Exception as e:
-            logger.error(
-                f"Error retrieving from vector database:\n{e}"
-            )
-            yield MSG_ERROR_QUERY
-            return
-        context: str = "\n\n".join(
-            [d.page_content for d in documents]
-        )
-        querytext = prompt.format(context=context, query=querytext)
-
-    # Query
-    query = _prepare_messages(querytext, history, SYSTEM_MESSAGE)
+    # Get iterator from refactored chat_function
     buffer: str = ""
     try:
-        response_iter: AsyncIterator[BaseMessageChunk] = llm.astream(
-            query
+        response_iter: AsyncIterator[BaseMessageChunk] = (
+            await chat_function(
+                querytext=querytext,
+                history=history,
+                retriever=retriever,
+                llm=llm,
+                system_msg=SYSTEM_MESSAGE,
+                prompt=prompt,
+                logger=logger,
+            )
         )
+
+        # Stream and yield for Gradio
         async for item in response_iter:
             buffer += _preproc_for_markdown(item.text())
             yield buffer
@@ -261,24 +203,9 @@ async def fn_checked(
     request is a wrapper around FastAPI information, used to write a
     session ID in the logs. Note we collect IP address.
 
-    This version checks the content of the stream before releasing it.
+    This version checks the content of the stream before releasing it
+    using the refactored chat_function_with_validation from lmm_education.query.
     """
-
-    from lmm.language_models.langchain.runnables import (
-        create_runnable,
-    )
-
-    try:
-        query_model = create_runnable(
-            "check_content"
-        )  # uses config.toml
-    except Exception as e:
-        logger.error(f"Could not initialize query_model: {e}")
-        yield MSG_ERROR_QUERY
-        return
-
-    # the max allowed number of words in the user's query
-    MAX_QUERY_LENGTH: int = 60
 
     def _preproc_for_markdown(response: str) -> str:
         # replace square brackets containing the character '\' to one
@@ -287,169 +214,28 @@ async def fn_checked(
         response = re.sub(r"\\\(|\\\)", "$", response)
         return response
 
-    # checks
-    if not querytext:
-        yield MSG_EMPTY_QUERY
-        return
-
-    if len(querytext.split()) > MAX_QUERY_LENGTH:
-        yield MSG_LONG_QUERY
-        return
-
-    querytext = querytext.replace(
-        "the textbook", "the context provided"
-    )
-
-    # The gradio framework will deliver an empty history list
-    # if this is the first message in the exchange. Context is
-    # retrieved in this case
-    if not history:
-        try:
-            documents: list[Document] = await retriever.ainvoke(
-                querytext,
-                limit=6,
-            )
-        except Exception as e:
-            logger.error(
-                f"Error retrieving from vector database:\n{e}"
-            )
-            yield MSG_ERROR_QUERY
-            return
-        context: str = "\n\n".join(
-            [d.page_content for d in documents]
-        )
-        querytext = prompt.format(context=context, query=querytext)
-
-    # check function querying model for content of response with retry logic
-    async def _check_content(
-        response: str, max_retries: int = 2
-    ) -> tuple[bool, str]:
-        """
-        Check content with retry logic and proper error handling.
-        Returns (is_valid, error_message) tuple.
-        """
-        import asyncio
-
-        for attempt in range(max_retries + 1):
-            try:
-                # Use ainvoke for truly async, non-blocking operation
-                check: str = await query_model.ainvoke(
-                    {'text': response}
-                )
-                if (
-                    "statistics" in check
-                    or "human interaction" in check
-                ):
-                    return True, ""
-                else:
-                    return (
-                        False,
-                        MSG_WRONG_CONTENT,
-                    )
-
-            except Exception as e:
-                logger.warning(
-                    f"Content check attempt {attempt + 1}/{max_retries + 1} failed: {e}"
-                )
-
-                if attempt == max_retries:
-                    # All retries exhausted - fail-open strategy
-                    logger.error(
-                        f"Content checker failed after {max_retries + 1} attempts: {e}"
-                    )
-                    return (
-                        True,
-                        "Content validation temporarily unavailable",
-                    )
-
-                # Wait before retry with exponential backoff
-                await asyncio.sleep(0.5 * (attempt + 1))
-
-        # Should never reach here, but for safety
-        return (
-            True,
-            "Content validation system error",
-        )
-
-    # local iterator wrapping up the language model stream
-    # imolementing check and conditional release
-    async def _check_and_relay(
-        response_iter: AsyncIterator[BaseMessageChunk],
-    ) -> AsyncGenerator[str, None]:
-        """
-        Buffers initial chunks from the LLM, checks its content by
-        making a second request to a LLM, and then either yields an
-        error or starts relaying the stream.
-        """
-        buffer: str = ""
-        initial_buffer_size: int = 150  # Check after 150 characters
-        check_complete: bool = False
-
-        async for item in response_iter:
-            chunk = _preproc_for_markdown(item.text())
-            buffer += chunk
-
-            # --- Check Logic ---
-            if (
-                not check_complete
-                and len(buffer) >= initial_buffer_size
-            ):
-                # Check the initial 'N' characters for sensitive content
-                flag, error_message = await _check_content(
-                    buffer + "..."
-                )
-                if not flag:
-                    # If the check fails, yield an error message and stop
-                    yield error_message
-                    return
-
-                # If the check passes, mark as complete and yield the buffered content
-                check_complete = True
-                if (
-                    error_message
-                ):  # This should be empty, unless LMM did not respond
-                    logger.warning(
-                        "LMM exchange without check: " + buffer
-                    )
-                yield buffer
-                continue  # Go to the next iteration
-
-            # --- Relay Logic ---
-            if check_complete:
-                # Once the check is complete, yield the stream *chunk by chunk*
-                yield buffer  # Yield the *accumulated* buffer after this new chunk
-
-            # Note: If check_complete is False and len(buffer) < initial_buffer_size,
-            # it just keeps buffering and doesn't yield anything yet.
-
-        # If the stream finishes before the buffer size is reached,
-        # perform a final check and yield the result
-        if not check_complete:
-            flag, error_message = await _check_content(buffer)
-            if not flag:
-                # If the check fails, yield an error message and stop
-                yield error_message
-            else:
-                if (
-                    error_message
-                ):  # This should be empty, unless LMM did not respond
-                    logger.warning(
-                        "LMM exchange without check: " + buffer
-                    )
-                yield buffer  # Yield the full response if it passed the check
-
-    # Query
-    query = _prepare_messages(querytext, history, SYSTEM_MESSAGE)
+    # Get validated iterator from refactored chat_function_with_validation
     buffer: str = ""
     try:
-        response_iter: AsyncIterator[BaseMessageChunk] = llm.astream(
-            query
+        response_iter: AsyncIterator[BaseMessageChunk] = (
+            await chat_function_with_validation(
+                querytext=querytext,
+                history=history,
+                retriever=retriever,
+                llm=llm,
+                system_msg=SYSTEM_MESSAGE,
+                prompt=prompt,
+                validation_config="check_content",
+                initial_buffer_size=150,
+                max_retries=2,
+                logger=logger,
+            )
         )
 
-        # Use the wrapper generator here
-        async for stream_output in _check_and_relay(response_iter):
-            buffer = stream_output  # Keep track of the full output for logging/exceptions
-            yield stream_output  # Release the checked/relayed output
+        # Stream and yield for Gradio
+        async for item in response_iter:
+            buffer += _preproc_for_markdown(item.text())
+            yield buffer
 
     except Exception as e:
         now = datetime.now()
