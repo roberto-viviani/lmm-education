@@ -11,6 +11,9 @@ from lmm_education.config.config import (
     ConfigSettings,
     export_settings,
 )
+from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+    AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
+)
 
 original_settings = ConfigSettings()
 
@@ -62,6 +65,36 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             self.assertTrue(len(result) > 0)
+            print("✓ Passed\n")
+        except Exception as e:
+            print(f"⚠ Skipped (LLM not available): {e}\n")
+            raise Exception(
+                "Error in test_validation_normal_query"
+            ) from e
+
+    async def test_repeated_query(self):
+        """Test a repeated query (if LLM is available)."""
+        print("Test 4: Repeated query")
+        try:
+            # explicit retirever, that may be re-used
+            retriever = AsyncQdrantRetriever.from_config_settings()
+            iterator = await chat_function(
+                "What is a linear model?", retriever=retriever
+            )
+            result = await consume_chat_stream(iterator)
+            print(f"Result length: {len(result)} characters")
+            print(f"First 100 chars: {result[:100]}...")
+            self.assertTrue(len(result) > 0)
+            iterator = await chat_function(
+                "What is a logistic regression?", retriever=retriever
+            )
+            result = await consume_chat_stream(iterator)
+            print(f"Result length: {len(result)} characters")
+            print(f"First 100 chars: {result[:100]}...")
+            # must be closed down
+            await retriever.close_client()  # type: ignore
+            self.assertTrue(len(result) > 0)
+
             print("✓ Passed\n")
         except Exception as e:
             print(f"⚠ Skipped (LLM not available): {e}\n")
