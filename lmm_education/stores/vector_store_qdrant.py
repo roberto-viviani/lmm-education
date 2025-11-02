@@ -312,7 +312,7 @@ def client_from_config(
     opts = opts or load_settings(logger=logger)
     if opts is None:
         logger.error(
-            "Could not initialize client due to invalid " "settings."
+            "Could not initialize client due to invalid settings."
         )
         return None
 
@@ -351,8 +351,8 @@ def client_from_config(
     return client
 
 
-def async_client_from_config(
-    opts: DatabaseSource | ConfigSettings | None,
+async def async_client_from_config(
+    opts: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> AsyncQdrantClient | None:
     """ "
@@ -440,7 +440,7 @@ async def async_qdrant_client_context(
 ) -> AsyncGenerator[AsyncQdrantClient]:
     client = None
     try:
-        client = async_client_from_config(config, logger)
+        client = await async_client_from_config(config, logger)
         if client is None:
             logger.error("Failed to create Qdrant client")
             raise ConnectionError("Failed to create Qdrant client")
