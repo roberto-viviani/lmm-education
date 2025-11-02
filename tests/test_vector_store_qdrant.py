@@ -292,6 +292,7 @@ class TestInitializationContext(unittest.TestCase):
 from lmm_education.config.config import RAGSettings
 from lmm_education.stores.vector_store_qdrant_utils import (
     check_schema,
+    get_schema,
 )
 
 
@@ -320,6 +321,17 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        # embeddings object should be empty for UUID encoding
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': {},
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -348,6 +360,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -376,6 +398,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -404,6 +436,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -434,6 +476,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -464,6 +516,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -494,6 +556,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
@@ -524,6 +596,16 @@ class TestInitializationConfigObject(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
         self.assertTrue(client.collection_exists(collection_name))
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
         self.assertTrue(
             check_schema(
                 client,
