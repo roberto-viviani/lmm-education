@@ -71,12 +71,6 @@ blocks: list[Block] = [
 ]
 blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
 
-sets: Settings = Settings(
-    embeddings={
-        "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
-    }
-)
-
 am = AnnotationModel(inherited_properties=[TITLES_KEY, QUESTIONS_KEY])
 
 
@@ -296,175 +290,249 @@ class TestInitializationContext(unittest.TestCase):
 
 
 from lmm_education.config.config import RAGSettings
+from lmm_education.stores.vector_store_qdrant_utils import (
+    check_schema,
+)
 
 
 class TestInitializationConfigObject(unittest.TestCase):
+    def _random_collection_name(self) -> str:
+        import random
+        import string
+
+        characters = string.ascii_letters + string.digits
+        return ''.join(random.choice(characters) for i in range(8))
+
     def test_encoding_none(self):
+        collection_name: str = self._random_collection_name()
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(encoding_model=EncodingModel.NONE),
         )
-        collection_name: str = settings.RAG.encoding_model.value
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_content(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(encoding_model=EncodingModel.CONTENT),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_merged(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(encoding_model=EncodingModel.MERGED),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_multivector(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(encoding_model=EncodingModel.MULTIVECTOR),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_sparse(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MERGED
             ),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_sparse_merged(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MERGED
             ),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_sparse_content(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_CONTENT
             ),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_sparse_multivector(self):
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MULTIVECTOR
             ),
         )
-        collection_name: str = settings.RAG.encoding_model.value
+        collection_name: str = self._random_collection_name()
         result = initialize_collection_from_config(
             client, collection_name, settings
         )
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
+        )
+        self.assertTrue(client.collection_exists(collection_name))
+        self.assertTrue(
+            check_schema(
+                client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
         )
 
     def test_encoding_invalid(self):
@@ -473,26 +541,20 @@ class TestInitializationConfigObject(unittest.TestCase):
         logger = LoglistLogger()
 
         settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
             embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
             },
-            storage=":memory:",
             RAG=RAGSettings(
                 encoding_model=EncodingModel.SPARSE_MULTIVECTOR
             ),
         )
-        collection_name: str = (
-            settings.RAG.encoding_model.value + "_invalid"
-        )
+        collection_name: str = self._random_collection_name()
 
         # init with correct settings
         result = initialize_collection_from_config(
             client, collection_name, settings, logger=logger
         )
-        print("\n".join(logger.get_logs()))
         logger.clear_logs()
         self.assertTrue(result)
 
@@ -509,7 +571,6 @@ class TestInitializationConfigObject(unittest.TestCase):
             client, collection_name, settings, logger=logger
         )
         logs = logger.get_logs()
-        print("\n".join(logs))
         self.assertFalse(result)
         self.assertIn("Differences from Database Settings", logs[-1])
         self.assertIn(
