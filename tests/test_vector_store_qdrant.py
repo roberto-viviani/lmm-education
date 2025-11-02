@@ -661,20 +661,31 @@ class TestInitializationConfigObject(unittest.TestCase):
 
 
 class TestInitializationLocal(unittest.TestCase):
+    # tests the initialization of a local database
+
     # detup and teardown replace config.toml to avoid
     # calling the language model server
     original_settings = ConfigSettings()
 
+    def _get_settings() -> ConfigSettings:
+        from lmm_education.config.config import LocalStorage
+
+        return ConfigSettings(
+            embeddings={
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
+            },
+            RAG={'encoding_model': EncodingModel.CONTENT},
+            database={
+                'collection_name': "chunks",
+                'companion_collection': None,
+            },
+            storage=LocalStorage(folder="./test_storage"),
+        )
+
     @classmethod
     def setUpClass(cls):
-        settings = ConfigSettings(
-            major={"model": "Debug/debug"},
-            minor={"model": "Debug/debug"},
-            aux={"model": "Debug/debug"},
-            embeddings={
-                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
-            },
-        )
+        settings = cls._get_settings()
         export_settings(settings)
 
     @classmethod
@@ -686,33 +697,188 @@ class TestInitializationLocal(unittest.TestCase):
         from lmm.utils.logging import LoglistLogger
 
         logger = LoglistLogger()
-
-        local_client = QdrantClient(path="./test_storage")
-
-        encoding_model = EncodingModel.CONTENT
-        embedding_model = encoding_to_qdrantembedding_model(
-            encoding_model
+        collection_name = "chunks"
+        settings: ConfigSettings = (
+            TestInitializationLocal._get_settings()
         )
-        collection_name: str = "TIL_" + encoding_model.value
-        result = initialize_collection(
-            local_client,
-            "chunks",
-            embedding_model,
-            ConfigSettings().embeddings,
-            logger=logger,
+
+        local_client = client_from_config(logger=logger)
+        self.assertIsNotNone(local_client)
+        self.assertEqual(logger.count_logs(level=1), 0)
+
+        result = initialize_collection_from_config(
+            local_client, collection_name, logger=logger
         )
         if logger.count_logs(level=1):
             print("\n".join(logger.get_logs()))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertEqual(logger.count_logs(level=1), 0)
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
         )
+
+        self.assertTrue(
+            local_client.collection_exists(collection_name)
+        )
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(local_client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
+        self.assertTrue(
+            check_schema(
+                local_client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
+        )
+        from lmm_education.stores.vector_store_qdrant_utils import (
+            database_info,
+        )
+
+        info = database_info(local_client)
+        self.assertEqual(info['storage'], "./test_storage")
+        self.assertDictEqual(
+            info['main_collection'][collection_name],
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
+
         local_client.close()
+
         # delete the storage directory and all its contents
         import shutil
 
         shutil.rmtree("./test_storage")
+
+
+class TestInitializationMemory(unittest.TestCase):
+    # tests the initialization of a database for different
+    # encoding settings
+
+    # detup and teardown replace config.toml to avoid
+    # calling the language model server
+    # original_settings = ConfigSettings()
+
+    # def _get_settings() -> ConfigSettings:
+    #     from lmm_education.config.config import LocalStorage
+
+    #     return ConfigSettings(
+    #         embeddings={
+    #             "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+    #             "sparse_model": "Qdrant/bm25",
+    #         },
+    #         RAG={'encoding_model': EncodingModel.CONTENT},
+    #         database={
+    #             'collection_name': "chunks",
+    #             'companion_collection': None,
+    #         },
+    #         storage=":memory:",
+    #     )
+
+    # @classmethod
+    # def setUpClass(cls):
+    #     settings = cls._get_settings()
+    #     export_settings(settings)
+
+    # @classmethod
+    # def tearDownClass(cls):
+    #     settings = cls.original_settings
+    #     export_settings(settings)
+
+    def dotest_encoding(
+        self,
+        encoding: EncodingModel,
+    ):
+        from lmm.utils.logging import LoglistLogger
+
+        logger = LoglistLogger()
+        collection_name = "collection" + encoding.value
+
+        settings = ConfigSettings(
+            embeddings={
+                "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+                "sparse_model": "Qdrant/bm25",
+            },
+            RAG={'encoding_model': encoding},
+            database={
+                'collection_name': collection_name,
+                'companion_collection': "",
+            },
+            storage=":memory:",
+        )
+
+        local_client = client_from_config(settings, logger=logger)
+        self.assertIsNotNone(local_client)
+        self.assertEqual(logger.count_logs(level=1), 0)
+
+        result = initialize_collection_from_config(
+            local_client, collection_name, settings, logger=logger
+        )
+        if logger.count_logs(level=1):
+            print("\n".join(logger.get_logs()))
+        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertTrue(
+            result,
+            "init_collection should return True for encoding model",
+        )
+
+        self.assertTrue(
+            local_client.collection_exists(collection_name)
+        )
+        qdrant_model = encoding_to_qdrantembedding_model(
+            settings.RAG.encoding_model
+        )
+        self.assertDictEqual(
+            get_schema(local_client, collection_name),
+            {
+                'qdrant_embedding_model': qdrant_model.value,
+                'embeddings': settings.embeddings.model_dump(),
+            },
+        )
+        self.assertTrue(
+            check_schema(
+                local_client,
+                collection_name,
+                encoding_to_qdrantembedding_model(
+                    settings.RAG.encoding_model
+                ),
+                settings.embeddings,
+            )
+        )
+
+        local_client.close()
+
+    def test_encoding_content(self):
+        self.dotest_encoding(EncodingModel.CONTENT)
+
+    def test_encoding_sparse(self):
+        self.dotest_encoding(EncodingModel.SPARSE)
+
+    def test_encoding_merged(self):
+        self.dotest_encoding(EncodingModel.MERGED)
+
+    def test_encoding_multivector(self):
+        self.dotest_encoding(EncodingModel.MULTIVECTOR)
+
+    def test_encoding_sparse_content(self):
+        self.dotest_encoding(EncodingModel.SPARSE_CONTENT)
+
+    def test_encoding_sparse_merged(self):
+        self.dotest_encoding(EncodingModel.SPARSE_MERGED)
+
+    def test_encoding_sparse_multivector(self):
+        self.dotest_encoding(EncodingModel.SPARSE_MULTIVECTOR)
 
 
 class TestInitializationConfigError(unittest.TestCase):
