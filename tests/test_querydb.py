@@ -27,7 +27,7 @@ class TestQueryDb(unittest.TestCase):
                 "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
             storage=":memory:",
-            RAG={'encoding_model': "content", 'questions': True},
+            RAG={'encoding_model': "sparse", 'questions': True},
         )
         export_settings(settings)
 
@@ -61,9 +61,12 @@ class TestQueryDb(unittest.TestCase):
         from lmm_education.ingest import markdown_upload
         from qdrant_client import QdrantClient
 
-        markdown = """---\ntitle: document\nfrozen: True\n---\n
-        ---\nquestions: what is logistic regression?\n---\n
-        This is logistic regression.\n"""
+        logger = LoglistLogger()
+
+        markdown = """
+---\ntitle: document\nfrozen: True\n---\n
+---\nquestions: what is logistic regression?\n---\n
+\nThis is logistic regression.\n"""
 
         import tempfile
         import os
@@ -75,16 +78,37 @@ class TestQueryDb(unittest.TestCase):
             temp_file_path = temp_file.name
 
         client = QdrantClient(":memory:")
-        points = markdown_upload([temp_file_path], client=client)
+        points = markdown_upload(
+            [temp_file_path], client=client, logger=logger
+        )
+        if logger.count_logs() > 0:
+            print("\n".join(logger.get_logs()))
+            logger.clear_logs()
+        self.assertTrue(client.collection_exists("chunks"))
+        self.assertTrue(client.collection_exists("documents"))
         self.assertTrue(points)
-        print(points)
-        from lmm_education.stores.vector_store_qdrant_utils import (
-            database_info,
+
+        # verify we have the data in the documents collection
+        from lmm_education.stores.vector_store_qdrant import (
+            query,
+            QdrantEmbeddingModel,
         )
 
-        print(database_info(client))
+        data = query(
+            client,
+            "documents",
+            QdrantEmbeddingModel.UUID,
+            {},
+            points[0][1],
+            logger=logger,
+        )
+        if logger.count_logs() > 0:
+            print("\n".join(logger.get_logs()))
+        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(len(data), 1)
+        logger.clear_logs()
 
-        logger = LoglistLogger()
+        # now the query with querydb
         try:
             result = querydb(
                 "What is logistic regression?",
@@ -96,7 +120,8 @@ class TestQueryDb(unittest.TestCase):
         finally:
             client.close()
 
-        print(logger.get_logs())
+        if logger.count_logs() > 0:
+            print(logger.get_logs())
         self.assertIn("This is logistic regression.", result)
 
         # Clean up the temporary file
