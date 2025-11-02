@@ -468,7 +468,7 @@ def initialize_collection(
 
     Args:
         client: QdrantClient object encapsulating the conn to the db
-        collection_name: the collection
+        collection_name: the collection.
         qdrant_model: the qdrant embedding model
         embedding_settings: the embedding settings
 
@@ -478,7 +478,8 @@ def initialize_collection(
 
     Note:
         the embedding_settings are required to create an embedding to
-            obtain the dense embedding vector length.
+            obtain the dense embedding vector length, and record in
+            the schema their dimension.
     """
 
     from requests.exceptions import ConnectionError
@@ -654,18 +655,24 @@ def initialize_collection(
 
 def initialize_collection_from_config(
     client: QdrantClient,
-    collection_name: str,
+    collection_name: str | None = None,
     opts: ConfigSettings | None = None,
     *,
     logger: LoggerBase = default_logger,
 ) -> bool:
-    """See initialize_collection"""
+    """
+    See initialize_collection. If collection_name is provided, it
+    will override the collection_name in the config settings object.
+    """
     opts = opts or load_settings(logger=logger)
     if opts is None:
         logger.error(
             "Could not initialize client due to invalid " "settings."
         )
         return False
+    if not collection_name:
+        collection_name = opts.database.collection_name
+
     return initialize_collection(
         client,
         collection_name,
@@ -700,7 +707,8 @@ async def ainitialize_collection(
 
     Note:
         the embedding_settings are required to create an embedding to
-            obtain the dense embedding vector length.
+            obtain the dense embedding vector length, and record the
+            embedding vector length in the schema.
     """
 
     from requests.exceptions import ConnectionError
@@ -871,7 +879,7 @@ async def ainitialize_collection(
 
 async def ainitialize_collection_from_config(
     client: AsyncQdrantClient,
-    collection_name: str,
+    collection_name: str | None = None,
     opts: ConfigSettings | None = None,
     *,
     logger: LoggerBase = default_logger,
@@ -883,6 +891,9 @@ async def ainitialize_collection_from_config(
             "Could not initialize client due to invalid " "settings."
         )
         return False
+    if not collection_name:
+        collection_name = opts.database.collection_name
+
     return await ainitialize_collection(
         client,
         collection_name,
