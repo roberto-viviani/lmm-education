@@ -35,7 +35,7 @@ from qdrant_client.models import PointStruct
 from .test_vector_store_qdrant import blocks, text, text2
 
 
-class TestInitializationContext(unittest.TestCase):
+class TestInitializationContext(unittest.IsolatedAsyncioTestCase):
 
     async def test_init_context(self):
         from lmm_education.config.config import ConfigSettings
@@ -48,7 +48,7 @@ class TestInitializationContext(unittest.TestCase):
             encoding_model
         )
         opts = ConfigSettings(storage=":memory:")
-        with async_qdrant_client_context(opts) as client:
+        async with async_qdrant_client_context(opts) as client:
             result = await ainitialize_collection(
                 client,
                 "Main34788",
@@ -72,7 +72,7 @@ class TestInitializationContext(unittest.TestCase):
             encoding_model
         )
         opts: DatabaseSource = ":memory:"
-        with async_qdrant_client_context(opts) as client:
+        async with async_qdrant_client_context(opts) as client:
             result = await ainitialize_collection(
                 client,
                 "Main34789",
