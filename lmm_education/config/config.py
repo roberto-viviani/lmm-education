@@ -238,7 +238,8 @@ class ConfigSettings(LMMSettings):
 
     Attributes:
         server: the server specification for the web chat
-        vectorDatabase: vector database settings
+        storage: where the database is located
+        database: database settings
         RAG: generation of properties such as questions, summaries
         textSplitter: the text plitter to use to form chunks
 
