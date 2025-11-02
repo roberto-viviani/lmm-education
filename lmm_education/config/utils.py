@@ -142,7 +142,7 @@ def format_difference_report(
         elif value_a is None and value_b is not None:
             # Missing in Current (Field missing in dict_a but present in reference)
             report_lines.append(
-                f"Missing Field: The setting '{key}' is missing in the current settings, but the reference databased contains '{value_b}'."
+                f"Missing Field: The setting '{key}' is missing in the database, but was given as '{value_b}'."
             )
 
     report_lines.append("------------------------------------------")

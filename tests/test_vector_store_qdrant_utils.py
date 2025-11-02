@@ -10,6 +10,7 @@ from lmm_education.config.config import (
 from lmm_education.stores.vector_store_qdrant import (
     client_from_config,
     encoding_to_qdrantembedding_model,
+    QdrantEmbeddingModel,
 )
 from lmm_education.stores.vector_store_qdrant_utils import (
     check_schema,
@@ -114,7 +115,7 @@ class TestQdrantSchema(unittest.TestCase):
         )
         self.assertTrue(flag)
 
-        # check with wring encoding
+        # check with wrong encoding
         flag = check_schema(
             client,
             COLLECTION,
@@ -151,7 +152,7 @@ class TestQdrantSchema(unittest.TestCase):
         )
         self.assertTrue(flag)
 
-        # check with wring encoding
+        # check with wrong encoding
         flag = check_schema(
             client,
             COLLECTION,
@@ -171,6 +172,66 @@ class TestQdrantSchema(unittest.TestCase):
         self.assertIn(
             "Value Change for 'embeddings.dense_model", logs[-1]
         )
+
+    def test_uuid_encoding(self):
+        from lmm_education.stores.vector_store_qdrant import (
+            initialize_collection,
+            EmbeddingSettings,
+        )
+
+        logger = LoglistLogger()
+
+        client = client_from_config(None, logger)
+
+        COLLECTION: str = "UUIDCollection"
+        initialize_collection(
+            client,
+            COLLECTION,
+            QdrantEmbeddingModel.UUID,
+            EmbeddingSettings(),
+        )
+
+        # create schema
+        settings = ConfigSettings()
+        flag = check_schema(
+            client,
+            COLLECTION,
+            QdrantEmbeddingModel.UUID,
+            settings.embeddings,
+            logger=logger,
+        )
+        self.assertTrue(flag)
+        client.close()
+
+    def test_uuid_encoding2(self):
+        from lmm_education.stores.vector_store_qdrant import (
+            initialize_collection,
+            EmbeddingSettings,
+        )
+
+        logger = LoglistLogger()
+
+        client = client_from_config(None, logger)
+
+        COLLECTION: str = "UUIDCollection2"
+        initialize_collection(
+            client,
+            COLLECTION,
+            QdrantEmbeddingModel.DENSE,
+            EmbeddingSettings(),
+        )
+
+        # create schema
+        settings = ConfigSettings()
+        flag = check_schema(
+            client,
+            COLLECTION,
+            QdrantEmbeddingModel.UUID,
+            settings.embeddings,
+            logger=logger,
+        )
+        self.assertFalse(flag)
+        client.close()
 
 
 if __name__ == "__main__":

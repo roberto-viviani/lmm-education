@@ -96,7 +96,11 @@ def check_schema(
     uuid: str = generate_uuid(collection_name)
     payload = {
         'qdrant_embedding_model': qdrant_model.value,
-        'embeddings': embedding_settings.model_dump(mode="json"),
+        'embeddings': (
+            {}
+            if qdrant_model.value == "UUID"
+            else embedding_settings.model_dump(mode="json")
+        ),
     }
 
     records: list[Record] = client.retrieve(
@@ -106,6 +110,13 @@ def check_schema(
     )
 
     if not records:
+        if not client.collection_exists(collection_name):
+            logger.error(
+                f"The collection {collection_name} is "
+                "not present in the database"
+            )
+            return False
+
         pt = Point(id=uuid, vector={}, payload=payload)
         result: UpdateResult = client.upsert(
             SCHEMA_COLLECTION_NAME, [pt]
@@ -236,7 +247,7 @@ def get_schema(
     collection_name: str,
     *,
     logger: LoggerBase = default_logger,
-) -> dict[str, Any] | None:
+) -> dict[str, object] | None:
     """
     Retrieves the schema for a collection.
 
@@ -372,66 +383,76 @@ async def aget_schema(
 
 def database_info(
     client: QdrantClient | None = None,
-) -> dict[str, str]:
-    from lmm_education.config.config import ConfigSettings
+) -> dict[str, object]:
+    from lmm_education.config.config import (
+        ConfigSettings,
+        LocalStorage,
+        RemoteSource,
+    )
 
     create_flag: bool = False
-    if client is None:
-        from lmm_education.stores.vector_store_qdrant import (
-            client_from_config,
-        )
-
-        client = client_from_config()
-        if client is None:
-            return {}
-        else:
-            create_flag = True
-
     try:
         config = ConfigSettings()
+
+        if client is None:
+            match config.storage:
+                case ":memory:":
+                    client = QdrantClient(":memory:")
+                case LocalStorage(folder=folder):
+                    client = QdrantClient(path=folder)
+                case RemoteSource(url=url, port=port):
+                    client = QdrantClient(url=str(url), port=port)
+            create_flag = True
+
         main_collection: str = config.database.collection_name
         comp_collection: str | None = (
             config.database.companion_collection
         )
+        inits = client.init_options
+
+        def _coll_info(collection: str) -> str | dict[str, object]:
+            if not collection:
+                return "not in config"
+            if client.collection_exists(collection):
+                schema = get_schema(client, collection)
+                return {
+                    collection: (schema if schema else "no schema")
+                }
+
+            else:
+                return "not present"
+
+        info: dict[str, object]
         if client.collection_exists(SCHEMA_COLLECTION_NAME):
-            return {
+            info = {
+                'storage': inits['location']
+                or inits['path']
+                or (inits['url'] + ":" + inits['port']),
                 'schema_collection': "present",
-                'main_collection': main_collection
-                + " || "
-                + str(get_schema(client, main_collection)),
-                'companion_collection': (
-                    comp_collection
-                    + " || "
-                    + str(get_schema(client, comp_collection))
-                    if comp_collection
-                    else "none"
-                ),
+                'main_collection': _coll_info(main_collection),
             }
         else:
-            return {
+            info = {
+                'storage': inits['location']
+                or inits['path']
+                or (inits['url'] + ":" + inits['port']),
                 'schema_collection': "none",
-                'main_collection': (
-                    "present"
-                    if client.collection_exists(main_collection)
-                    else "none"
-                ),
-                'companion_collection': (
-                    "present"
-                    if comp_collection
-                    and client.collection_exists(comp_collection)
-                    else "none"
-                ),
+                'main_collection': _coll_info(main_collection),
             }
+        if comp_collection:
+            info['companion_collection'] = _coll_info(comp_collection)
+
+        return info
     except Exception as e:
         return {'ERROR': str(e)}
     finally:
-        if create_flag:
+        if create_flag and client:
             client.close()
 
 
 async def adatabase_info(
     client: AsyncQdrantClient | None = None,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """
     Utility to extract information on the database. The utility looks
     in config.toml to figure out what collections should be present,
@@ -444,59 +465,77 @@ async def adatabase_info(
     Returns:
         a dictionary with information on the
     """
-    from lmm_education.config.config import ConfigSettings
+    from lmm_education.config.config import (
+        ConfigSettings,
+        LocalStorage,
+        RemoteSource,
+    )
 
     create_flag: bool = False
-    if client is None:
-        from lmm_education.stores.vector_store_qdrant import (
-            async_client_from_config,
-        )
-
-        client = async_client_from_config()
-        if client is None:
-            return {}
-        else:
-            create_flag = True
-
     try:
         config = ConfigSettings()
+
+        if client is None:
+            match config.storage:
+                case ":memory:":
+                    client = AsyncQdrantClient(":memory:")
+                case LocalStorage(folder=folder):
+                    client = AsyncQdrantClient(path=folder)
+                case RemoteSource(url=url, port=port):
+                    client = AsyncQdrantClient(
+                        url=str(url), port=port
+                    )
+            create_flag = True
+
         main_collection: str = config.database.collection_name
         comp_collection: str | None = (
             config.database.companion_collection
         )
+        inits = client.init_options
+
+        async def _coll_info(
+            collection: str,
+        ) -> str | dict[str, object]:
+            if not collection:
+                return "not in config"
+            if await client.collection_exists(collection):
+                schema = await aget_schema(client, collection)
+                return {
+                    collection: (schema if schema else "no schema")
+                }
+
+            else:
+                return "not present"
+
+        info: dict[str, object]
         if await client.collection_exists(SCHEMA_COLLECTION_NAME):
-            return {
+            info = {
+                'storage': inits['location']
+                or inits['path']
+                or (inits['url'] + ":" + inits['port']),
                 'schema_collection': "present",
-                'main_collection': main_collection
-                + " || "
-                + str(await aget_schema(client, main_collection)),
-                'companion_collection': (
-                    comp_collection
-                    + " || "
-                    + str(await aget_schema(client, comp_collection))
-                    if comp_collection
-                    else "none"
-                ),
+                'main_collection': await _coll_info(main_collection),
             }
         else:
-            return {
+            info = {
+                'storage': inits['location']
+                or inits['path']
+                or (inits['url'] + ":" + inits['port']),
                 'schema_collection': "none",
-                'main_collection': (
-                    "present"
-                    if await client.collection_exists(main_collection)
-                    else "none"
-                ),
-                'companion_collection': (
-                    "present"
-                    if comp_collection
-                    and await client.collection_exists(
-                        comp_collection
-                    )
-                    else "none"
-                ),
+                'main_collection': await _coll_info(main_collection),
             }
+        if comp_collection:
+            info['companion_collection'] = await _coll_info(
+                comp_collection
+            )
+
+        return info
     except Exception as e:
         return {'ERROR': str(e)}
     finally:
-        if create_flag:
+        if create_flag and client:
             await client.close()
+
+
+if __name__ == "__main__":
+    print(database_info())
