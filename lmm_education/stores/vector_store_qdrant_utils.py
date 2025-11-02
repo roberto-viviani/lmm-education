@@ -276,8 +276,9 @@ def get_schema(
             logger.error(
                 "System error. The internal schema"
                 f" for collection {collection_name}"
-                " is corrupted. Repeat call to recreate"
-                " schema with current settings."
+                " is corrupted or missing. Call initialize_collection"
+                f" on {collection_name} to restore schema with current"
+                " settings."
             )
             return None
     except ConnectionError:
@@ -367,3 +368,123 @@ async def aget_schema(
         return None
 
     return records[0].payload
+
+
+def database_info(
+    client: QdrantClient | None = None,
+) -> dict[str, str]:
+    from lmm_education.config.config import ConfigSettings
+
+    create_flag: bool = False
+    if client is None:
+        from lmm_education.stores.vector_store_qdrant import (
+            client_from_config,
+        )
+
+        client = client_from_config()
+        if client is None:
+            return {}
+        else:
+            create_flag = True
+
+    try:
+        config = ConfigSettings()
+        main_collection: str = config.database.collection_name
+        comp_collection: str | None = (
+            config.database.companion_collection
+        )
+        if client.collection_exists(SCHEMA_COLLECTION_NAME):
+            return {
+                'schema_collection': "present",
+                'main_collection': main_collection
+                + " || "
+                + str(get_schema(client, main_collection)),
+                'companion_collection': (
+                    comp_collection
+                    + " || "
+                    + str(get_schema(client, comp_collection))
+                    if comp_collection
+                    else "none"
+                ),
+            }
+        else:
+            return {
+                'schema_collection': "none",
+                'main_collection': (
+                    "present"
+                    if client.collection_exists(main_collection)
+                    else "none"
+                ),
+                'companion_collection': (
+                    "present"
+                    if comp_collection
+                    and client.collection_exists(comp_collection)
+                    else "none"
+                ),
+            }
+    except Exception as e:
+        return {'ERROR': str(e)}
+    finally:
+        if create_flag:
+            client.close()
+
+
+async def adatabase_info(
+    client: AsyncQdrantClient | None = None,
+) -> dict[str, str]:
+    from lmm_education.config.config import ConfigSettings
+
+    create_flag: bool = False
+    if client is None:
+        from lmm_education.stores.vector_store_qdrant import (
+            async_client_from_config,
+        )
+
+        client = await async_client_from_config()
+        if client is None:
+            return {}
+        else:
+            create_flag = True
+
+    try:
+        config = ConfigSettings()
+        main_collection: str = config.database.collection_name
+        comp_collection: str | None = (
+            config.database.companion_collection
+        )
+        if await client.collection_exists(SCHEMA_COLLECTION_NAME):
+            return {
+                'schema_collection': "present",
+                'main_collection': main_collection
+                + " || "
+                + str(await aget_schema(client, main_collection)),
+                'companion_collection': (
+                    comp_collection
+                    + " || "
+                    + str(await aget_schema(client, comp_collection))
+                    if comp_collection
+                    else "none"
+                ),
+            }
+        else:
+            return {
+                'schema_collection': "none",
+                'main_collection': (
+                    "present"
+                    if await client.collection_exists(main_collection)
+                    else "none"
+                ),
+                'companion_collection': (
+                    "present"
+                    if comp_collection
+                    and await client.collection_exists(
+                        comp_collection
+                    )
+                    else "none"
+                ),
+            }
+    except Exception as e:
+        return {'ERROR': str(e)}
+    finally:
+        if create_flag:
+            await client.close()
