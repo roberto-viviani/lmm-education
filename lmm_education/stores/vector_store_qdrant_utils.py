@@ -373,18 +373,6 @@ async def aget_schema(
 def database_info(
     client: QdrantClient | None = None,
 ) -> dict[str, str]:
-    """
-    Utility to extract information on the database. The utility looks
-    in config.toml to figure out what collections should be present,
-    and displays information on their existence and their schema.
-
-    Args:
-        client: a qdrant client, or None to instantiate one with the
-            settings from config.toml
-
-    Returns:
-        a dictionary with information on the collections.
-    """
     from lmm_education.config.config import ConfigSettings
 
     create_flag: bool = False
@@ -454,7 +442,7 @@ async def adatabase_info(
             settings from config.toml
 
     Returns:
-        a dictionary with information on the collections.
+        a dictionary with information on the
     """
     from lmm_education.config.config import ConfigSettings
 
@@ -464,7 +452,7 @@ async def adatabase_info(
             async_client_from_config,
         )
 
-        client = await async_client_from_config()
+        client = async_client_from_config()
         if client is None:
             return {}
         else:

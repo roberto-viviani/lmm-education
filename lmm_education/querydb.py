@@ -36,6 +36,7 @@ python -m lmm_education.querydb 'what is logistic regression?'
 """
 
 from pydantic import validate_call
+from qdrant_client import QdrantClient
 from qdrant_client.models import ScoredPoint
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm_education.stores.vector_store_qdrant import (
@@ -51,7 +52,10 @@ from lmm_education.config.config import load_settings
 
 @validate_call(config={'arbitrary_types_allowed': True})
 def querydb(
-    query_text: str, logger: LoggerBase = ConsoleLogger()
+    query_text: str,
+    *,
+    client: QdrantClient | None = None,
+    logger: LoggerBase = ConsoleLogger(),
 ) -> str:
     """
     Execute a query on the database using the settings in
@@ -75,10 +79,14 @@ def querydb(
     if not settings:
         return ""
 
-    client = client_from_config(settings)
+    create_flag: bool = False
     if client is None:
-        logger.error("Failed to initialize qdrant client")
-        return ""
+        client = client_from_config(settings)
+        if client is None:
+            logger.error("Failed to initialize qdrant client")
+            return ""
+        else:
+            create_flag = True
 
     points: list[ScoredPoint] = []
     if settings.database.companion_collection:
@@ -91,6 +99,7 @@ def querydb(
             ),
             settings.embeddings,
             query_text,
+            logger=logger,
         )
         points = groups_to_points(results)
     else:
@@ -102,8 +111,10 @@ def querydb(
             ),
             settings.embeddings,
             query_text,
+            logger=logger,
         )
-    client.close()
+    if create_flag:
+        client.close()
 
     if not points:
         return "No results, please check connection/database."

@@ -351,7 +351,7 @@ def client_from_config(
     return client
 
 
-async def async_client_from_config(
+def async_client_from_config(
     opts: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> AsyncQdrantClient | None:
@@ -440,7 +440,7 @@ async def async_qdrant_client_context(
 ) -> AsyncGenerator[AsyncQdrantClient]:
     client = None
     try:
-        client = await async_client_from_config(config, logger)
+        client = async_client_from_config(config, logger)
         if client is None:
             logger.error("Failed to create Qdrant client")
             raise ConnectionError("Failed to create Qdrant client")
