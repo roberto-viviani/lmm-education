@@ -482,3 +482,8 @@ def load_settings(
     except Exception as e:
         logger.error(f"Could not load config settings:\n{e}")
         return None
+
+
+# Create a default config.toml file, if there is none.
+if not Path(DEFAULT_CONFIG_FILE).exists():
+    create_default_config_file()
