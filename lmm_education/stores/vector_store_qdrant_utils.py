@@ -16,6 +16,7 @@ and of the embedding settings. Schemas are collection-specific.
 
 from enum import Enum
 from typing import Any
+from pathlib import Path
 
 # qdrant
 from qdrant_client import QdrantClient
@@ -399,6 +400,11 @@ def database_info(
                 case ":memory:":
                     client = QdrantClient(":memory:")
                 case LocalStorage(folder=folder):
+                    path = Path(folder)
+                    if not path.exists():
+                        return {
+                            'storage': f"the configured database {folder} does not exist yet."
+                        }
                     client = QdrantClient(path=folder)
                 case RemoteSource(url=url, port=port):
                     client = QdrantClient(url=str(url), port=port)
@@ -480,6 +486,11 @@ async def adatabase_info(
                 case ":memory:":
                     client = AsyncQdrantClient(":memory:")
                 case LocalStorage(folder=folder):
+                    path = Path(folder)
+                    if not path.exists():
+                        return {
+                            'storage': f"the configured database {folder} does not exist yet."
+                        }
                     client = AsyncQdrantClient(path=folder)
                 case RemoteSource(url=url, port=port):
                     client = AsyncQdrantClient(
