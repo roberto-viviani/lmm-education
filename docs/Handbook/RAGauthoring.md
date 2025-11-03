@@ -31,9 +31,9 @@ Here, part of the message that is sent to the language model is "evaluate the te
 To send the message to the model, open a Python REPL, and send the following command:
 
 ```python
-from lmm.scan.scan_messages import markdown_messages
+from lmm_education import scan_messages
 
-markdown_messages("Lecture01.md")
+scan_messages("Lecture01.md")
 ```
 
 where Lecture01.md is the markdown file in questions. The response of the language model appears in the editor under the property `~chat`:
@@ -113,9 +113,9 @@ python -m lmm.scan.scan_rag.markdown_rag("Lecture01.md")
 or from the Python REPL:
 
 ```python
-from lmm_scan_scan_rag import markdown_rag
+from lmm_education import scan_rag
 
-markdown_rag("Lecture01.md")
+scan_rag("Lecture01.md")
 ```
 
 After this, any modern editor that has Lecture01.md open will display the annotations added by the langauge model:
@@ -265,10 +265,10 @@ python -m lmm_education.querydb("What is the reason to add a family parameter to
 or from the Python REPL:
 
 ```python
-from lmm_education.ingest import markdown_upload
-from lmm_education.query  import querydb
+from lmm_education import ingest
+from lmm_education import querydb
 
-markdown_upload("AddedMaterial.md")
+ingest("AddedMaterial.md")
 response = querydb("What is the reason to add a family parameter to a glm call?")
 print(response)
 ```
