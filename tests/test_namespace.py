@@ -12,7 +12,7 @@ assert hasattr(lme, 'create_default_config_file')
 assert hasattr(lme, 'scan')
 assert hasattr(lme, 'scan_messages')
 assert hasattr(lme, 'scan_remove_messages')
-assert hasattr(lme, 'markdown_rag')
+assert hasattr(lme, 'scan_rag')
 
 # Database operations
 assert hasattr(lme, 'ingest')

@@ -38,7 +38,6 @@ from lmm.scan.scan_messages import (
     markdown_messages as scan_messages,
     markdown_remove_messages as scan_remove_messages,
 )
-from lmm.scan.scan_rag import markdown_rag
 
 # Import from local lmm_education package (core functionality)
 from lmm_education.ingest import markdown_upload as ingest
@@ -47,6 +46,7 @@ from lmm_education.query import query
 from lmm_education.stores.vector_store_qdrant_utils import (
     database_info,
 )
+from lmm_education.scan_rag import scan_rag
 
 # Define public API
 __all__ = [
@@ -56,7 +56,7 @@ __all__ = [
     "scan",
     "scan_messages",
     "scan_remove_messages",
-    "markdown_rag",
+    "scan_rag",
     # Database operations
     "ingest",
     "querydb",
