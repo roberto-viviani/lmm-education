@@ -30,7 +30,7 @@ Example
 """
 
 # Import configuration first to ensure proper initialization
-from lmm_education.config.config import create_default_config_file
+from .config.config import create_default_config_file
 
 # Import from external lmm package (scanning and preprocessing)
 from lmm.scan.scan import markdown_scan as scan
@@ -40,13 +40,13 @@ from lmm.scan.scan_messages import (
 )
 
 # Import from local lmm_education package (core functionality)
-from lmm_education.ingest import markdown_upload as ingest
-from lmm_education.querydb import querydb
-from lmm_education.query import query
-from lmm_education.stores.vector_store_qdrant_utils import (
+from .ingest import markdown_upload as ingest
+from .querydb import querydb
+from .query import query
+from .stores.vector_store_qdrant_utils import (
     database_info,
 )
-from lmm_education.scan_rag import scan_rag
+from .scan_rag import scan_rag
 
 # Define public API
 __all__ = [
