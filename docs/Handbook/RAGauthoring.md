@@ -136,9 +136,49 @@ When we look at the significance of the association between predictors and outco
 
 To edit or add questions, just add them in the metadata block in the `questions` property.
 
-### Embeddings
+### Manual annotations
 
-Vector databases retrieve data based on embeddings. These are vectors (ordered sets of numbers) with the properties that vectors with similar numbers represent similar meanings.
+The properties `questions` and `keywords` are special, because LM markdown for education uses language models to fill them. However, you can also add you own property. For example, you might want to add a property `concepts` or `topic`, where you manually insert the values of the property in the metadata block:
+
+```markdown
+---
+~txthash: 7JdFs+GLpXTfvmONOnyc5g
+titles: Chapter 1 - What are linear models? - Observational studies
+source: Ch1
+questions: What are observational studies? - How does confounding affect the interpretation of associations in observational studies?
+concepts: observational studies - confounders - confounding
+---
+Text follows...
+```
+
+To tell LM markdown that these metadata properties are meant for annotations, include them in the `RAG.annotation_model` section of config.toml:
+
+```toml
+[RAG.annotation_model]
+inherited_properties = []
+own_properties = [concepts]
+```
+
+There are two entries here. The entry `inherited_property` means that an annotation of a heading will be propagated to all subheadings. This does not happen if the annotation is listed in `own_properties`.
+
+You can list more than one property as an annotation. In this case, separate the properties with a comma: `own_propertes = [concepts, topics]`.
+
+It is not necessary that a manual annotation, when listed in config.toml, is present in all headings of the markdown. However, if the encoding model uses annotations to compute the semantic represntation of text (see next section), then some annotation must be present. Annotations are added to each other when computing the semantic representation. In the example above, the annotations used for this computations are `titles`, `questions`, and `concepts`, after adding this latter to the annotation model in config.toml. So, if `concepts` is missing, the other two annotations are still available to compute the semantic of the text.
+
+If a property is added to a header without listing it in config.toml, then it is not used to encode the semantics of the text. For example, you could add a `comments` property, or a `TODO` property for your own use.
+
+
+### Structuring the markdown text
+
+LM markdown allows for inserting manual annotations for every text block differentially, while automatic annotations are created on a per-heading basis. Keep this in mind when structuring the text. As a rule of thumb, it is better to insert sub-headings to cluster text that goes together and put the related annotation in the metadata of the subheading, rather than inserting metadata blocks for individual text blocks. However, this latter strategy allows for differentiating retrieval of individual blocks. It is not necessary to create manual annotations for that - one could insert a `questions` property in a metadata block before a text block. However, keep in mind that this annotation completely replaces the annotation of the heading.
+
+When responding to a query, the vector database retrieves parts of text (called *chunks*). How text is chunked depends on the *text splitter* used to prepare chunks (see the section on text splitting below). Therefore, the structuring of the text in text blocks and headings should be made keeping in mind what the language model may obtain when formulating a response to the question of the student. This encourages text organization styles that group content into relatively well contained blocks or headings.
+
+In LM markdown for education, you can direct the software to retrieve the whole text of a subheading where the chunk is located, instead of the chunk. This decouples the chunking of text for the purposes of establishing its semantics and relevance for the query, and the coherence of the material the language model can use to formulate the response. In this case, keep in mind that the retrieved text is that of the subheading.
+
+### Encoding models and embeddings
+
+Vector databases retrieve data based on embeddings. These are vectors (ordered sets of numbers) with the properties that vectors with similar numbers represent similar meanings. Therefore, vector databases are queried by providing some text (for example, the question of the user). The embedding of the query text is computed, and the chunks of text in the database are retrieved with the most similar meaning, according to the representation afforded by the embedding.
 
 Without annotations, embeddings are created from the text that is stored in the database. With annotations, there are a number of ways to create embeddings that better represent the content of the text.
 
@@ -152,9 +192,9 @@ Without annotations, embeddings are created from the text that is stored in the 
 | sparse_multivector | annotations are embedded as keywords, separate vector embed annotations and text |
 | content | the case when there are no annotations (only text embedded as vector) |
 
-These options trade off accurate encoding of annotations on the one hand and cost on the other. In the *merge* encoding option, there is little increase in cost but more accurate representation of annotation semantics in the embeddings. The *multivector* and *sparse_content* encoding options provide separate encoding of annotations, so that they automatically receive more weight when the text is large. However, two encodings are computed and store per datapoint. the *sparse_multivector* is the most expensive and the option that puts most weight to the annotations relative to the text.
+These options trade off accurate encoding of annotations on the one hand and cost on the other. In the *merged* encoding option, there is little increase in cost but more accurate representation of annotation semantics in the embeddings. The *multivector* and *sparse_content* encoding options provide separate encoding of annotations, so that they automatically receive more weight when the text is large. However, two encodings are computed and stored for each datapoint. the *sparse_multivector* is the most expensive and the option that puts most weight to the annotations relative to the text.
 
-You can customize the annotation model by entering the option in config.toml in the RAG section:
+You can customize the encoding model by entering the option in config.toml in the RAG section:
 
 ```
 [RAG]
@@ -162,6 +202,13 @@ encoding_model=sparse_merged
 ```
 
 Remember that the same encoding model must be used in all interactions with the database.
+
+The following table summarizes the models used in RAG.
+
+| model | explanation |
+| --- | --- |
+| annotation model | what properties of metadata, if any, are used to compute the encoding |
+| encoding model | how to combine annotations and main text to create embeddings (a technical question about how to structure the database) |
 
 ### Skipping parts of the markdown
 
@@ -190,7 +237,6 @@ skip: True
 
 Everything that lies under this heading is not included in the database.
 ---
-
 
 
 ## Step 3: test retrieval
