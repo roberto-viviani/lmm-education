@@ -82,9 +82,9 @@ Annotations are concatenated for sparse or dense embeddings, depending on the en
 LM markdown for education is designed to allow the RAG author to review all annotations manually prior to ingesting the documents. In the python REPL,
 
 ```python
-from lmm_education.ingest import markdown_upload
+from lmm_education import ingest
 
-markdown_upload("MyMarkdown.md", save_files=True, ingest=False)
+ingest("MyMarkdown.md", save_files=True, ingest=False)
 ```
 
 This will prepare the markdown for ingestion without ingesting it, and save it instead to disk for review and editing.
