@@ -174,11 +174,11 @@ LM markdown allows for inserting manual annotations for every text block differe
 
 When responding to a query, the vector database retrieves parts of text (called *chunks*). How text is chunked depends on the *text splitter* used to prepare chunks (see the section on text splitting below). Therefore, the structuring of the text in text blocks and headings should be made keeping in mind what the language model may obtain when formulating a response to the question of the student. This encourages text organization styles that group content into relatively well contained blocks or headings.
 
-In LM markdown for education, you can direct the software to retrieve the whole text of a subheading where the chunk is located, instead of the chunk. This decouples the chunking of text for the purposes of establishing its semantics and relevance for the query, and the coherence of the material the language model can use to formulate the response. In this case, keep in mind that the retrieved text is that of the subheading.
+In LM markdown for education, you can direct the software to retrieve the whole text of a subheading where the chunk is located, instead of the chunk. This decouples the chunking of text for the purposes of establishing its semantics and relevance for the query, and the coherence of the material the language model can use to formulate the response. In this case, keep in mind that the retrieved text is that of the subheading. Text blocks can be annotated liberally as this will increase the precision of their semantic encoding, without having an impact on the retrieval of background text.
 
 ### Encoding models and embeddings
 
-Vector databases retrieve data based on embeddings. These are vectors (ordered sets of numbers) with the properties that vectors with similar numbers represent similar meanings. Therefore, vector databases are queried by providing some text (for example, the question of the user). The embedding of the query text is computed, and the chunks of text in the database are retrieved with the most similar meaning, according to the representation afforded by the embedding.
+Vector databases retrieve data based on embeddings. These are vectors (ordered sets of numbers) with the property that vectors with similar numbers represent similar meanings. Therefore, vector databases are queried by providing some text (for example, the question of the user). The embedding of the query text is computed, and the chunks of text in the database are retrieved with the most similar meaning, according to the representation afforded by the embedding.
 
 Without annotations, embeddings are created from the text that is stored in the database. With annotations, there are a number of ways to create embeddings that better represent the content of the text.
 
@@ -202,6 +202,15 @@ encoding_model=sparse_merged
 ```
 
 Remember that the same encoding model must be used in all interactions with the database.
+
+The encoding model influences how the text is encoded, but the retrieved text is not necessarily the same as the one from which the encoding was computed. This is because the retrieved text must contain context for its use in generating a response well. LM markdown for education can be directed to retrieve the whole text of the subheading where the chunk is located. This directive is in the `database` section:
+
+```
+[database]
+collection_name = "chunks"
+companion_collection = "documents"
+```
+If `companion_collection` is not empty, then the retrieved text is the one of the subheading.
 
 The following table summarizes the models used in RAG.
 
