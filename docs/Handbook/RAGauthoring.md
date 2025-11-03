@@ -1,6 +1,6 @@
 # RAG authoring
 
-When creating a vector database for RAG, it is not necessary to curate the content: LM markdown for education will ingest all markdown documents in the input directory and add the relevant information automatically. However, it is also possible to curate this document. Here, we detail how this may be done in an interative interactive process.
+When creating a vector database for RAG, it is not necessary to curate the content: LM markdown for education will ingest all markdown documents in the input directory and add the relevant information automatically. However, it is also possible to curate this document. Here, we detail how this may be done in an interactive interactive process.
 
 ## Step 1: preparing content
 
@@ -10,7 +10,7 @@ The language model may assist the RAG author in the creation of content. You can
 
 The interaction with the model takes place through metadata blocks. You insert the property `query:` in the block, and send the markdown to the language model for response. For example, in the following markdown, a query property was manually added to the markdown text:
 
-```markdown
+``` markdown
 ---
 query: evaluate the text for clarity and conciseness.
 ---
@@ -30,7 +30,7 @@ Here, part of the message that is sent to the language model is "evaluate the te
 
 To send the message to the model, open a Python REPL, and send the following command:
 
-```python
+``` python
 from lmm.scan.scan_messages import markdown_messages
 
 markdown_messages("Lecture01.md")
@@ -38,7 +38,7 @@ markdown_messages("Lecture01.md")
 
 where Lecture01.md is the markdown file in questions. The response of the language model appears in the editor under the property `~chat`:
 
-```markdown
+``` markdown
 ---
 query: evaluate the text for clarity and conciseness.
 ---
@@ -54,13 +54,15 @@ Linear models capture the association between a set of variables, the *predictor
 Linear models can be generalized to cover situations where the outcome is not continuous, and therefore linearity cannot apply. Further text omitted...
 ```
 
-You can use the interaction with the language model to have it criticize your text, and adopt the improvements that the model suggests if they do improve the quality of your writing. If you ask the model to criticise text or suggest improvements, it will always find something to criticize and improve. Hence, you can keep improving until you think that the suggestions of the language model are superfluous.
+You can use the interaction with the language model to have it criticize your text, and adopt the improvements that the model suggests if they do improve the quality of your writing. If you ask the model to criticize text or suggest improvements, it will always find something to criticize and improve. Hence, you can keep improving until you think that the suggestions of the language model are superfluous.
+
+A common approach to interact with the language model is to create provisional sub-sections to stake our the parts of the text that the language model should work on. After the interaction is completed, the sub-sections and the chat content is deleted.
 
 ## Step 2: generation of annotations
 
 Annotations are metadata properties that facilitate the retrieval of text from the vector database. Consider the following text.
 
-```markdown
+``` markdown
 ### Observational studies
 
 These are studies with models that contain predictors that were observed in the field, and could not or were not the result of an experimental manipulation of the predictor value. For example, a model of depressive symptoms in adults as predicted by childhood trauma would be such a model.
@@ -70,7 +72,7 @@ Here, the text that is sent to the vector database never contains the word "obse
 
 Furthermore, other text in the database may contain the term "observational model" even if it does not explain at all what observational models are. Consider the following example.
 
-```markdown
+``` markdown
 ### Somewhere in text
 
 When we look at the significance of the association between predictors and outcomes, it is important to distinguish between two different settings. In the first, we have variables that we have observed in the field. For example, early traumas may exert an influence on the predisposition to psychopathology in adult age. We do not have any way to change the occurrence of traumas in the past with an experiment, so we look at their consequences in a sample from the population. Studies of this type are called *observational*.
@@ -84,35 +86,34 @@ Here, questions on "observational studies" may retrieve the second chunk, even i
 
 One think to keep in mind is that the performance of sentence embeddings to capture semantic similarity varies across providers and embeddings size. Hence, the efficiency of retrieval may improve by adopting better sentence embeddings. However, a downside of this approach is that one embedding type must be used for the whole database, so it is not possible to improve the embedding selectively for parts of text that do not perform. To update the embedding, the whole vector database must be re-ingested anew.
 
-Annotations are the best mechanism to improve the capacity of the vector database to retrieve the right parts of text, because they more precisely enhence the capacity to represent specific content. Annotations constiatute additional information that is used in the embedding. Annotations that may improve embedding performace are:
+Annotations are the best mechanism to improve the capacity of the vector database to retrieve the right parts of text, because they more precisely enhence the capacity to represent specific content. Annotations constitute additional information that is used in the embedding. Annotations that may improve embedding performance are:
 
-- the title or the concatentated title of the heading over the text
-- questions that the text answers
-- keywords (forthcoming)
+-   the title or the concatenated title of the heading over the text
+-   questions that the text answers
+-   keywords (forthcoming)
 
-LM markdown for education uses the language model to compute the annotations, but they can always be integrated or edited in an interactive loop. What annotations should be generated is spcified in the "RAG" section of config.toml:
+LM markdown for education uses the language model to compute the annotations, but they can always be integrated or edited in an interactive loop. What annotations should be generated is specified in the "RAG" section of config.toml:
 
-```
+```         
 [RAG]
 questions=true
 titles=true
 keywords=false
 ```
 
-'true' and 'false' switch the automatic generation of annotations on and off. 
+'true' and 'false' switch the automatic generation of annotations on and off.
 
-Note:
-    it is strongly recommended to use the same annotation model in the whole project.
+Note: it is strongly recommended to use the same annotation model in the whole project.
 
 To have LM markdown to generate the annotations without ingesting the document, use Python from the console:
 
-```bash
+``` bash
 python -m lmm.scan.scan_rag.markdown_rag("Lecture01.md")
 ```
 
 or from the Python REPL:
 
-```python
+``` python
 from lmm_scan_scan_rag import markdown_rag
 
 markdown_rag("Lecture01.md")
@@ -120,7 +121,7 @@ markdown_rag("Lecture01.md")
 
 After this, any modern editor that has Lecture01.md open will display the annotations added by the langauge model:
 
-```markdown
+``` markdown
 ---
 ~txthash: 7JdFs+GLpXTfvmONOnyc5g
 titles: Chapter 1 - What are linear models? - Observational studies
@@ -140,7 +141,7 @@ To edit or add questions, just add them in the metadata block in the `questions`
 
 The properties `questions` and `keywords` are special, because LM markdown for education uses language models to fill them. However, you can also add you own property. For example, you might want to add a property `concepts` or `topic`, where you manually insert the values of the property in the metadata block:
 
-```markdown
+``` markdown
 ---
 ~txthash: 7JdFs+GLpXTfvmONOnyc5g
 titles: Chapter 1 - What are linear models? - Observational studies
@@ -153,7 +154,7 @@ Text follows...
 
 To tell LM markdown that these metadata properties are meant for annotations, include them in the `RAG.annotation_model` section of config.toml:
 
-```toml
+``` toml
 [RAG.annotation_model]
 inherited_properties = []
 own_properties = [concepts]
@@ -163,18 +164,17 @@ There are two entries here. The entry `inherited_property` means that an annotat
 
 You can list more than one property as an annotation. In this case, separate the properties with a comma: `own_propertes = [concepts, topics]`.
 
-It is not necessary that a manual annotation, when listed in config.toml, is present in all headings of the markdown. However, if the encoding model uses annotations to compute the semantic represntation of text (see next section), then some annotation must be present. Annotations are added to each other when computing the semantic representation. In the example above, the annotations used for this computations are `titles`, `questions`, and `concepts`, after adding this latter to the annotation model in config.toml. So, if `concepts` is missing, the other two annotations are still available to compute the semantic of the text.
+It is not necessary that a manual annotation, when listed in config.toml, is present in all headings of the markdown. However, if the encoding model uses annotations to compute the semantic representation of text (see next section), then some annotation must be present. Annotations are added to each other when computing the semantic representation. In the example above, the annotations used for this computations are `titles`, `questions`, and `concepts`, after adding this latter to the annotation model in config.toml. So, if `concepts` is missing, the other two annotations are still available to compute the semantic of the text.
 
 If a property is added to a header without listing it in config.toml, then it is not used to encode the semantics of the text. For example, you could add a `comments` property, or a `TODO` property for your own use.
 
-
 ### Structuring the markdown text
 
-LM markdown allows for inserting manual annotations for every text block differentially, while automatic annotations are created on a per-heading basis. Keep this in mind when structuring the text. As a rule of thumb, it is better to insert sub-headings to cluster text that goes together and put the related annotation in the metadata of the subheading, rather than inserting metadata blocks for individual text blocks. However, this latter strategy allows for differentiating retrieval of individual blocks. It is not necessary to create manual annotations for that - one could insert a `questions` property in a metadata block before a text block. However, keep in mind that this annotation completely replaces the annotation of the heading.
+LM markdown allows for inserting manual annotations for each text block individually, while automatic annotations are created on a per-heading basis. Keep this in mind when structuring the text. As a rule of thumb, it is better to insert sub-headings to cluster text that goes together and put the related annotation in the metadata of the subheading, rather than inserting metadata blocks for individual text blocks. However, this latter strategy allows for differentiating retrieval of individual blocks. It is not necessary to create manual annotations for that - one could insert a `questions` property in a metadata block before a text block. However, keep in mind that this annotation completely replaces the annotation of the heading.
 
-When responding to a query, the vector database retrieves parts of text (called *chunks*). How text is chunked depends on the *text splitter* used to prepare chunks (see the section on text splitting below). Therefore, the structuring of the text in text blocks and headings should be made keeping in mind what the language model may obtain when formulating a response to the question of the student. This encourages text organization styles that group content into relatively well contained blocks or headings.
+When responding to a query, the vector database retrieves parts of text (called *chunks*). How text is split into chunks depends on the *text splitter* used to prepare chunks (see the section on text splitting below). Therefore, the structuring of the text in text blocks and headings should be made keeping in mind what the language model may obtain when formulating a response to the question of the student. This encourages text organization styles that group content into relatively well contained blocks or headings.
 
-In LM markdown for education, you can direct the software to retrieve the whole text of a subheading where the chunk is located, instead of the chunk. This decouples the chunking of text for the purposes of establishing its semantics and relevance for the query, and the coherence of the material the language model can use to formulate the response. In this case, keep in mind that the retrieved text is that of the subheading. Text blocks can be annotated liberally as this will increase the precision of their semantic encoding, without having an impact on the retrieval of background text.
+In LM markdown for education, you can direct the software to retrieve the whole text of a subheading where the chunk is located, instead of the chunk. This decouples the splitting of text for the purposes of establishing its semantics and relevance for the query, and the coherence of the material the language model can use to formulate the response. In this case, keep in mind that the retrieved text is that of the subheading. Text blocks can be annotated liberally as this will increase the precision of their semantic encoding, without having an impact on the retrieval of background text.
 
 ### Encoding models and embeddings
 
@@ -183,20 +183,20 @@ Vector databases retrieve data based on embeddings. These are vectors (ordered s
 Without annotations, embeddings are created from the text that is stored in the database. With annotations, there are a number of ways to create embeddings that better represent the content of the text.
 
 | encoding type | description |
-| --- | --- |
+|------------------------------------|------------------------------------|
 | merged | the content of the annotations and the content of text are concatenated prior to forming the embedding |
 | multivector | two separate vectors are used as embeddings, one from the annotations and one from the text |
 | sparse | annotations are treated as keywords (as in web search) and are the only ones that are encoded |
 | sparse_content | annotations are embedded as keywords, and text through a vector |
-| sparse_merged | annotations are both embedded as keywords and concatenated to text prior to create the vector emebddings |
+| sparse_merged | annotations are both embedded as keywords and concatenated to text prior to create the vector embeddings |
 | sparse_multivector | annotations are embedded as keywords, separate vector embed annotations and text |
 | content | the case when there are no annotations (only text embedded as vector) |
 
-These options trade off accurate encoding of annotations on the one hand and cost on the other. In the *merged* encoding option, there is little increase in cost but more accurate representation of annotation semantics in the embeddings. The *multivector* and *sparse_content* encoding options provide separate encoding of annotations, so that they automatically receive more weight when the text is large. However, two encodings are computed and stored for each datapoint. the *sparse_multivector* is the most expensive and the option that puts most weight to the annotations relative to the text.
+These options trade off accurate encoding of annotations on the one hand and cost on the other. In the *merged* encoding option, there is little increase in cost but more accurate representation of annotation semantics in the embeddings. The *multivector* and *sparse_content* encoding options provide separate encoding of annotations, so that they automatically receive more weight when the text is large. However, two encodings are computed and stored for each data point. the *sparse_multivector* is the most expensive and the option that puts most weight to the annotations relative to the text.
 
 You can customize the encoding model by entering the option in config.toml in the RAG section:
 
-```
+```         
 [RAG]
 encoding_model=sparse_merged
 ```
@@ -205,17 +205,18 @@ Remember that the same encoding model must be used in all interactions with the 
 
 The encoding model influences how the text is encoded, but the retrieved text is not necessarily the same as the one from which the encoding was computed. This is because the retrieved text must contain context for its use in generating a response well. LM markdown for education can be directed to retrieve the whole text of the subheading where the chunk is located. This directive is in the `database` section:
 
-```
+```         
 [database]
 collection_name = "chunks"
 companion_collection = "documents"
 ```
+
 If `companion_collection` is not empty, then the retrieved text is the one of the subheading.
 
 The following table summarizes the models used in RAG.
 
 | model | explanation |
-| --- | --- |
+|------------------------------------|------------------------------------|
 | annotation model | what properties of metadata, if any, are used to compute the encoding |
 | encoding model | how to combine annotations and main text to create embeddings (a technical question about how to structure the database) |
 
@@ -223,7 +224,7 @@ The following table summarizes the models used in RAG.
 
 You can annotate text blocks or entire headings and their underlying material such as to exclude them from the RAG. To this end, use the annotation `skip: True`:
 
-```markdown
+``` markdown
 ---
 title: chapter 1
 ---
@@ -246,7 +247,7 @@ skip: True
 
 Everything that lies under this heading is not included in the database.
 ---
-
+```
 
 ## Step 3: test retrieval
 
@@ -256,7 +257,7 @@ When doing this, you may want to be sure that the original question or similar q
 
 You start with ingesting the document with Python, and then you test that the material is retrieved when you ask the question:
 
-```bash
+``` bash
 python -m lmm_education.ingest("AddedMaterial.md")
 
 python -m lmm_education.querydb("What is the reason to add a family parameter to glm call?")
@@ -264,7 +265,7 @@ python -m lmm_education.querydb("What is the reason to add a family parameter to
 
 or from the Python REPL:
 
-```python
+``` python
 from lmm_education.ingest import markdown_upload
 from lmm_education.query  import querydb
 
@@ -277,13 +278,13 @@ If the material is not retrieved as you expected, go back to the document and ch
 
 After you are satisfied with the way the material is being retrieved from the database in response to your queries, you can test the response from the language model with the `query` function:
 
-```bash
+``` bash
 python -m lmm_education.query "What are observational studies?"
 ```
 
 Using the Python REPL:
 
-```python
+``` python
 from lmm_education import query
 
 response = query("What are observational studies?")
@@ -292,13 +293,13 @@ print(response)
 
 The configuration file contains three model specifications: `major`, `minor`, and `aux`. By default, the end-user interactions with the language model use the major model. You can experiment with other models by specifying them as a second argument to the query:
 
-```bash
+``` bash
 python -m lmm_education.query "What are observational studies?" minor
 ```
 
 When using the Python REPL or from code, you can specify a model to which you have access directly using the following syntax.
 
-```python
+``` python
 from lmm_education import query
 
 response = query("What are observational studies?", {'model': "OpenAI/gpt-4-mini", 'temperature': 0.3})
