@@ -8,7 +8,7 @@ Markdown may be seen to contain three general types of material: metadata, headi
 
 Metadata are very commonly used in markdown tools to create a header with information such as title, author, date, etc. This is how this may look like:
 
-```markdown
+``` markdown
 ---
 title: Working with markdown
 author: John Sammelwater
@@ -22,11 +22,11 @@ In LM markdown, a rule is that the header should contain a title property. If yo
 
 LM markdown also differs from other markdown systems in that it uses metadata throughout the whole document. Metadata are marked at the beginning and at the end by three dashes starting at the start of the line,
 
-```
+```         
 ---
 ```
 
-These dashes delimit _metadata blocks_. In LM markdown, metadata blocks are interpreted as referring to whatever follows them. Thus, metadata blocks immediately preceding a heading refer to the heading and all content within it; metadata blocks preceding a text block refer and therefor annotate the text block that follows.
+These dashes delimit *metadata blocks*. In LM markdown, metadata blocks are interpreted as referring to whatever follows them. Thus, metadata blocks immediately preceding a heading refer to the heading and all content within it; metadata blocks preceding a text block refer and therefor annotate the text block that follows.
 
 ## Headings
 
@@ -38,11 +38,11 @@ Metadata preceding a text block only refer and annotate the text block that imme
 
 ## Text blocks
 
-For our purposes, text blocks is everything else. Text blocks may contain text, of course, but other common content is code, equations, links to images. All these elements are subtypes of text blocks, and form blocks whenever they are separated by blank lines. As noted, whenever you form a block by delimiting it with blank lines, you can also annotate it with a metadata block if you wish. Equation blocks start and end with `$$`. Code blocks start and end with `\`\`\``, optionally followed by the language in which the code is written.
+For our purposes, text blocks is everything else. Text blocks may contain text, of course, but other common content is code, equations, links to images. All these elements are subtypes of text blocks, and form blocks whenever they are separated by blank lines. As noted, whenever you form a block by delimiting it with blank lines, you can also annotate it with a metadata block if you wish. Equation blocks start and end with `$$`. Code blocks start and end with `\`\`\`\`, optionally followed by the language in which the code is written.
 
 Here is an example of parts of a markdown. It starts with a header, has a heading, and two blocks of text under the heading, one being an equation.
 
-```markdown
+``` markdown
 ---
 title: Working with markdown
 author: John Sammelwater
@@ -63,7 +63,6 @@ note: the following is an example of an equation, and this is the meatadata bloc
 ---
 
 $$ y ~ \mu + x + \epsilon $$
-
 ```
 
 ## Identification of content in vector database
@@ -74,13 +73,14 @@ Because the material may be changed and updated, the question arises as to how n
 
 In the header, the property `docid` is created automatically by LM markdown to identify a document, and initialized to a random string. You can, however, initialize to an intelligible string, as long as it remains unique across documents:
 
-```markdown
+``` markdown
 ---
 title: Working with markdown
 author: John Sammelwater
 date: 23.10.2025
 docid: workmd
 ---
+```
 
 Based on this property, LM markdown adds a `textid` property to all text blocks in the document. The texdid property has the format {docid}.{sequential_number}, where docid is the value of the docid property in the header, and the second element is a sequential number.
 
@@ -90,3 +90,62 @@ If there are parts of the document that have changed, or new parts, they replace
 
 For legibility, it is a good idea to set the docid property in the header before ingesting a document, and never change it after that. If docid is changed, LM markdown will consider the document a new separate document and will ingest duplicate material in the database.
 
+## The syntax used in markdown
+
+### Headers and metadata blocks
+
+The header is an example of what markdown defines as a *metadata block*. Most markdown editors use metadata blocks only for the header, so that these two concepts may appear interchangeable. They are not, however. The header is a metadata block that appears first thing in a markdown document. LM markdown uses metadata blocks throughout the document.
+
+Metadata blocks contain entries in *YAML*, a specification for encoding data in text. YAML is a very complex and rich specification, and care is needed when using it within markdown, as not all its features may be handled in the same way by the markdown editors. It is therefore a good idea to keep the syntax of your metadata blocks simple.
+
+Each entry in the block defines a property. It is constituted by a *key* and a *value* pair, separated by a colon `:` . You can use lists of values by including the values in square brackets and separating them with commas:
+
+``` markdown
+keywords: [logistic regression, binary outcome variable]
+```
+
+Simple entries are contained in one line. However, it is also possible to define lists of entries or elements on multiple lines. In this case, the lines defining the elements of the list are indented and start with `-` .
+
+``` markdown
+# list of entries
+entry list:
+    - first entry: 1
+    - second entry: 2
+```
+
+Values can also be put on multiple lines, but this makes no difference to the previous syntax.
+
+``` markdown
+# list of values
+value list:
+    - 1
+    - 2
+```
+
+This is the same as `value list: [1, 2]`.
+
+### Equations
+
+Equations are coded in the LateX language for equations and, when within text, are enclosed by `$`:
+
+``` markdown
+The model equation in a call to `lm` is defined like this: $y ~ x_1 + x_2$
+```
+
+Put an equation on its own line, enclosed by `$$`, to create a stand-alone equation in the middle of the page.
+
+### Code
+
+When within text, code elements are enclosed by a backspace (see the example of lm in the previous section.
+
+Whole text blocks are delimited by text lines containing three backstops:
+
+```` markdown
+```r
+fit <- lm(y ~ x1 + x2, data = mydata)
+```
+````
+
+Optionally, after the first three backstops the language of the code may be given.
+
+LM markdown considers equations and code like text blocks, but a markdown editor like R Studio can evaluate the code blocks and produce the results in the markdown.
