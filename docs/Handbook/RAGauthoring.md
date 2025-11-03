@@ -28,7 +28,7 @@ Linear models can be generalized to cover situations where the outcome is not co
 
 Here, part of the message that is sent to the language model is "evaluate the text for clarity and conciseness". This message part is integrated with the text to which the metadata refer, which is here the text under "What are linear models?", but not the text under "The generalization of linear models". If there had been subheadings after "What are linear models", the text of the subheadings would also be sent to the language model. The term 'text' here is key: the language model knows that your question refers to the parts of the markdown that are sent over, because these are qualified as "text" in the message.
 
-To send the message to the model, open a Python REPL, and send the following command:
+To send the message to the model, first make sure to have saved the file with the query. Then open a Python REPL, and send the following command:
 
 ```python
 from lmm_education import scan_messages
@@ -36,11 +36,20 @@ from lmm_education import scan_messages
 scan_messages("Lecture01.md")
 ```
 
-where Lecture01.md is the markdown file in questions. The response of the language model appears in the editor under the property `~chat`:
+where Lecture01.md is the markdown file in questions. The response of the language model appears in the editor under the property `~chat`.
 
 ``` markdown
 ---
 query: evaluate the text for clarity and conciseness.
+~chat:
+- evaluate the text for clarity and conciseness.
+- The text is generally clear and informative, providing a good introduction to linear models and their practical application. However, it can be made more concise by reducing redundancy and simplifying some phrases without losing meaning. 
+
+Here is a revised version for improved clarity and conciseness:
+
+"Linear models and their generalizations make up most statistical models used in practice. This discussion focuses on applying linear models correctly and interpreting their output. Linear models describe the relationship between predictors (independent variables) and an outcome (dependent variable). In the simplest case, this relationship can be represented by a line relating a predictor to the outcome. More advanced linear models capture more complex associations."
+
+This version removes some repetitive wording and tightens the explanation while maintaining the original intent.
 ---
 
 ## What are linear models?
@@ -54,9 +63,23 @@ Linear models capture the association between a set of variables, the *predictor
 Linear models can be generalized to cover situations where the outcome is not continuous, and therefore linearity cannot apply. Further text omitted...
 ```
 
-You can use the interaction with the language model to have it criticize your text, and adopt the improvements that the model suggests if they do improve the quality of your writing. If you ask the model to criticize text or suggest improvements, it will always find something to criticize and improve. Hence, you can keep improving until you think that the suggestions of the language model are superfluous.
+You can use the interaction with the language model to have it criticize your text, and adopt the improvements that the model suggests if they do improve the quality of your writing. Try and change the prompt to obtain differnt responses from the model. For example, if you ask for comments, it may list its observation on the text without providing an alternative text; if you ask for a revision, it will provide a new text draft. 
 
-A common approach to interact with the language model is to create provisional sub-sections to stake our the parts of the text that the language model should work on. After the interaction is completed, the sub-sections and the chat content is deleted.
+If you ask the model to criticize text or suggest improvements, it will always find something to criticize and improve. Hence, you can keep improving until you think that the suggestions of the language model are superfluous.
+
+A common approach to interact with the language model is to create provisional sub-sections to stake out the parts of the text that the language model should work on. After the interaction is completed, the sub-sections and the chat content is deleted.
+
+You can ask new queries on the same text by editing the `query` properties, and run `scan_messages` again. Queries that have already been responded are not responded again. If you want the model to respond to the same message, delete the text of the query in the `~chat` property.
+
+When you are finished with interacting with the language model, you can remove the chat with the `scan_remove_messages` command:
+
+```python
+from lmm_education import scan_remove_messages
+
+scan_remove_messages("Lecture01.md")
+```
+
+Even if not removed explicitly, queries and chats are not used when ingesting the markdown in the vector database.
 
 ## Step 2: generation of annotations
 
