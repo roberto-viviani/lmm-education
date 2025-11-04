@@ -9,6 +9,7 @@ from lmm_education.config.config import (
 )
 from lmm_education.stores.vector_store_qdrant import (
     client_from_config,
+    initialize_collection_from_config,
     encoding_to_qdrantembedding_model,
     QdrantEmbeddingModel,
 )
@@ -44,8 +45,13 @@ class TestQdrantSchema(unittest.TestCase):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(logs)
+        self.assertIsNotNone(client)
 
-        # ask about non-existing collection, create schema
+        # ask about non-existing collection
         settings = ConfigSettings()
         flag = check_schema(
             client,
@@ -56,18 +62,35 @@ class TestQdrantSchema(unittest.TestCase):
             settings.embeddings,
             logger=logger,
         )
-        self.assertTrue(flag)
         logs = logger.get_logs()
-        self.assertIn("Schema added for NewCollection", logs[-1])
+        self.assertFalse(flag)
+        self.assertTrue(len(logs) > 0)
+        self.assertIn("is not present", logs[-1])
 
     def test_invalid_schema(self):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(logs)
+        self.assertIsNotNone(client)
+
         COLLECTION: str = "NovelCollection"
 
-        # create schema
+        # create collection
         settings = ConfigSettings()
+        flag = initialize_collection_from_config(
+            client, COLLECTION, settings, logger=logger
+        )
+        logs = logger.get_logs(level=1)
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(logs)
+        self.assertTrue(flag)
+
+        # check schhema
         flag = check_schema(
             client,
             COLLECTION,
@@ -92,17 +115,37 @@ class TestQdrantSchema(unittest.TestCase):
             settings.embeddings,
             logger=logger,
         )
-        self.assertFalse(flag)
         logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(flag)
         self.assertIn("System error.", logs[-1])
 
     def test_invalid_encoding(self):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+            logger.clear_logs()
+        self.assertFalse(logs)
+        self.assertIsNotNone(client)
+
         COLLECTION: str = "NovelCollection"
 
-        # create schema
+        # create collection
+        settings = ConfigSettings()
+        flag = initialize_collection_from_config(
+            client, COLLECTION, settings, logger=logger
+        )
+        logs = logger.get_logs(level=1)
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(logs)
+        self.assertTrue(flag)
+
+        # check schema
         settings = ConfigSettings()
         flag = check_schema(
             client,
@@ -125,7 +168,8 @@ class TestQdrantSchema(unittest.TestCase):
         )
         self.assertFalse(flag)
         logs = logger.get_logs()
-        # print("\n".join(logs))
+        if len(logs) > 0:
+            print("\n".join(logs))
         self.assertIn("Differences from Database Settings", logs[-1])
         self.assertIn(
             "Value Change for 'qdrant_embedding_model", logs[-1]
@@ -137,9 +181,27 @@ class TestQdrantSchema(unittest.TestCase):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+            logger.clear_logs()
+        self.assertFalse(logs)
+        self.assertIsNotNone(client)
+
         COLLECTION: str = "NovelCollection"
 
-        # create schema
+        # create collection
+        settings = ConfigSettings()
+        flag = initialize_collection_from_config(
+            client, COLLECTION, settings, logger=logger
+        )
+        logs = logger.get_logs(level=1)
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(logs)
+        self.assertTrue(flag)
+
+        # check schema
         settings = ConfigSettings()
         flag = check_schema(
             client,
@@ -166,8 +228,10 @@ class TestQdrantSchema(unittest.TestCase):
             ),
             logger=logger,
         )
-        self.assertFalse(flag)
         logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+        self.assertFalse(flag)
         self.assertIn("Differences from Database Settings", logs[-1])
         self.assertIn(
             "Value Change for 'embeddings.dense_model", logs[-1]
@@ -182,6 +246,12 @@ class TestQdrantSchema(unittest.TestCase):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
+            logger.clear_logs()
+        self.assertFalse(logs)
+        self.assertIsNotNone(client)
 
         COLLECTION: str = "UUIDCollection"
         initialize_collection(
@@ -191,7 +261,7 @@ class TestQdrantSchema(unittest.TestCase):
             EmbeddingSettings(),
         )
 
-        # create schema
+        # check schema
         settings = ConfigSettings()
         flag = check_schema(
             client,
@@ -200,6 +270,9 @@ class TestQdrantSchema(unittest.TestCase):
             settings.embeddings,
             logger=logger,
         )
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
         self.assertTrue(flag)
         client.close()
 
@@ -221,7 +294,7 @@ class TestQdrantSchema(unittest.TestCase):
             EmbeddingSettings(),
         )
 
-        # create schema
+        # check schema
         settings = ConfigSettings()
         flag = check_schema(
             client,
@@ -230,6 +303,9 @@ class TestQdrantSchema(unittest.TestCase):
             settings.embeddings,
             logger=logger,
         )
+        logs = logger.get_logs()
+        if len(logs) > 0:
+            print("\n".join(logs))
         self.assertFalse(flag)
         client.close()
 
