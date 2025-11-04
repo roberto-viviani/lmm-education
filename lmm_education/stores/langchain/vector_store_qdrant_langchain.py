@@ -99,6 +99,11 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     Langchain retriever interface to the Qdrant vector store.
     """
 
+    # Implementation note: the default QdrantClient is needed
+    # by the Pydantic constructor, and is closed immediately.
+    # The real client object is passed by the constructor.
+    # Do not close it in a destructor, as it is passed in.
+
     client: QdrantClient = Field(
         # Pydantic's BaseModel requires an object here
         default=QdrantClient(":memory:"),
@@ -114,6 +119,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
+    _create_flag: bool = False
 
     def __init__(
         self,
@@ -121,6 +127,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         collection_name: str,
         qdrant_embedding: QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
+        create_flag: bool = False,
     ):
         flag: bool = vsq.initialize_collection(
             client,
@@ -145,15 +152,15 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         self.collection_name = collection_name
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
+        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __del__(self):
-        """Destructor to close the Qdrant client connection."""
-        if hasattr(self, 'client'):
-            self.client.close()
-
     def close_client(self) -> None:
+        """Close client. Only to be called for objects
+        obtained from .from_config_settings"""
+        if not self._create_flag:
+            return
         if hasattr(self, 'client'):
             self.client.close()
 
@@ -199,6 +206,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 opts.RAG.encoding_model
             ),
             opts.embeddings,
+            True,
         )
 
     def _points_to_documents(
@@ -247,6 +255,12 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     vector store.
     """
 
+    # Implementation note: the default QdrantClient is needed
+    # by the Pydantic constructor, and is just left to garbage
+    # collection. It cannot be await-closed in init.
+    # The real client object is passed by the constructor.
+    # No need to close it in a destructor, as it is passed in.
+
     client: AsyncQdrantClient = Field(
         # Pydantic's BaseModel requires an object here
         default=AsyncQdrantClient(":memory:"),
@@ -262,6 +276,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
+    _create_flag: bool = False
 
     def __init__(
         self,
@@ -269,6 +284,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         collection_name: str,
         qdrant_embedding: QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
+        create_flag: bool = False,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -287,21 +303,15 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         self.collection_name = collection_name
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
+        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __del__(self):
-        """
-        Destructor for async Qdrant client.
-
-        Note: AsyncQdrantClient.close() is async and cannot be properly
-        called from __del__. Users should explicitly close the client
-        using 'await retriever.client_close()' or use it as an async
-        context manager.
-        """
-        pass
-
     async def close_client(self) -> None:
+        """Close client. Only to be called for objects
+        obtained from .from_config_settings"""
+        if not self._create_flag:
+            return
         if hasattr(self, 'client'):
             await self.client.close()
 
@@ -346,6 +356,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 opts.RAG.encoding_model
             ),
             embedding_settings=opts.embeddings,
+            create_flag=True,
         )
 
     def _points_to_documents(
@@ -431,6 +442,11 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     for grouped queries.
     """
 
+    # Implementation note: the default QdrantClient is needed
+    # by the Pydantic constructor, and is closed immediately.
+    # The real client object is passed by the constructor.
+    # Do not close it in a destructor, as it is passed in.
+
     client: QdrantClient = Field(
         # Pydantic's BaseModel requires an object here
         default=QdrantClient(":memory:"),
@@ -449,6 +465,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
+    _create_flag: bool = False
 
     def __init__(
         self,
@@ -459,6 +476,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         limitgroups: int,
         qdrant_embedding: QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
+        create_flag: bool = False,
     ):
         flag: bool = vsq.initialize_collection(
             client,
@@ -486,15 +504,15 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.limitgroups = limitgroups
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
+        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __del__(self):
-        """Destructor to close the Qdrant client connection."""
-        if hasattr(self, 'client'):
-            self.client.close()
-
     def close_client(self) -> None:
+        """Close client. Only to be called for objects
+        obtained from .from_config_settings"""
+        if not self._create_flag:
+            return
         if hasattr(self, 'client'):
             self.client.close()
 
@@ -544,6 +562,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 opts.RAG.encoding_model
             ),
             opts.embeddings,
+            create_flag=True,
         )
 
     def _results_to_documents(
@@ -596,6 +615,12 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     store for grouped queries.
     """
 
+    # Implementation note: the default QdrantClient is needed
+    # by the Pydantic constructor, and is just left to garbage
+    # collection. It cannot be await-closed in init.
+    # The real client object is passed by the constructor.
+    # No need to close it in a destructor, as it is passed in.
+
     client: AsyncQdrantClient = Field(
         # Pydantic's BaseModel requires an object here
         default=AsyncQdrantClient(":memory:"),
@@ -614,6 +639,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
+    _create_flag: bool = False
 
     def __init__(
         self,
@@ -624,6 +650,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         limitgroups: int,
         qdrant_embedding: vsq.QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
+        create_flag: bool = False,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -645,21 +672,15 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.limitgroups = limitgroups
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
+        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __del__(self):
-        """
-        Destructor for async Qdrant client.
-
-        Note: AsyncQdrantClient.close() is async and cannot be properly
-        called from __del__. Users should explicitly close the client
-        using 'await retriever.client_close()' or use it as an async
-        context manager.
-        """
-        pass
-
     async def close_client(self) -> None:
+        """Close client. Only to be called for objects
+        obtained from .from_config_settings"""
+        if not self._create_flag:
+            return
         if hasattr(self, 'client'):
             await self.client.close()
 
