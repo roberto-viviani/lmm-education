@@ -83,8 +83,8 @@ from pydantic import Field, ConfigDict
 from lmm.scan.scan_keys import GROUP_UUID_KEY
 from lmm.utils.logging import ExceptionConsoleLogger
 from lmm.config.config import EmbeddingSettings
-from lmm_education.config.config import ConfigSettings, load_settings
-from lmm_education.stores.vector_store_qdrant import (
+from ...config.config import ConfigSettings, load_settings
+from ..vector_store_qdrant import (
     client_from_config,
     async_client_from_config,
     encoding_to_qdrantembedding_model,

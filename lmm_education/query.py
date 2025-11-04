@@ -34,22 +34,24 @@ python -m lmm_education.query 'what is logistic regression?'
 
 import asyncio
 from pydantic import validate_call
+from collections.abc import AsyncIterator
 
+# Langchain
+from langchain_core.messages import BaseMessageChunk
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.language_models.chat_models import BaseChatModel
+
+# LM markdown
 from lmm.utils.logging import ConsoleLogger, LoggerBase
 from lmm.config.config import LanguageModelSettings
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
 
-from lmm_education.config.config import ConfigSettings
-
-from collections.abc import AsyncIterator
-from langchain_core.messages import BaseMessageChunk
-from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.language_models.chat_models import BaseChatModel
-
-from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+# LM markdown for education
+from .config.config import ConfigSettings
+from .stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
 

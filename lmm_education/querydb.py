@@ -36,10 +36,13 @@ python -m lmm_education.querydb 'what is logistic regression?'
 """
 
 from pydantic import validate_call
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import ScoredPoint
+
 from lmm.utils.logging import LoggerBase, ConsoleLogger
-from lmm_education.stores.vector_store_qdrant import (
+
+from .stores.vector_store_qdrant import (
     client_from_config,
     query,
     query_grouped,
@@ -47,7 +50,7 @@ from lmm_education.stores.vector_store_qdrant import (
     groups_to_points,
     points_to_text,
 )
-from lmm_education.config.config import load_settings
+from .config.config import load_settings
 
 
 @validate_call(config={'arbitrary_types_allowed': True})

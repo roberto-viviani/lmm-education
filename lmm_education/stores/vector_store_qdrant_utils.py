@@ -37,7 +37,7 @@ from lmm.utils.hash import generate_uuid
 
 
 # lmm markdown for education
-from lmm_education.config.utils import (
+from ..config.utils import (
     find_dictionary_differences,
     format_difference_report,
 )

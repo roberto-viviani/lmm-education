@@ -206,14 +206,14 @@ from lmm.markdown.parse_markdown import (
 )
 
 # lmm markdown for education
-from lmm_education.config.config import (
+from ..config.config import (
     DatabaseSource,
     ConfigSettings,
     load_settings,
 )
 
 # utils
-from lmm_education.stores.vector_store_qdrant_utils import (
+from .vector_store_qdrant_utils import (
     check_schema,
     acheck_schema,
 )

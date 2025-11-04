@@ -87,12 +87,15 @@ from lmm.scan.chunks import (
 )
 
 # LMM for education
-from lmm_education.config.config import (
+from .config.config import (
+    create_default_config_file,
+    load_settings,
+    ConfigSettings,
     LocalStorage,
     RemoteSource,
     EncodingModel,
 )
-from lmm_education.stores.vector_store_qdrant import (
+from .stores.vector_store_qdrant import (
     QdrantEmbeddingModel,
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
     client_from_config,
@@ -100,11 +103,6 @@ from lmm_education.stores.vector_store_qdrant import (
     initialize_collection,
     upload,
     chunks_to_points,
-)
-from lmm_education.config.config import (
-    create_default_config_file,
-    load_settings,
-    ConfigSettings,
 )
 
 # langchain, import text splitters from here
@@ -119,7 +117,7 @@ from lmm.utils.logging import LoggerBase
 
 
 # The configurations settings are contained in a config file.
-from lmm_education.config.config import DEFAULT_CONFIG_FILE
+from .config.config import DEFAULT_CONFIG_FILE
 
 # Create a default config.toml file, if there is none. This
 # file becomes the default location from where the configuration
