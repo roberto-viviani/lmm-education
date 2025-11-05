@@ -122,6 +122,7 @@ from lmm_education.query import (
     chat_function,
     chat_function_with_validation,
 )
+from lmm.scan.scanutils import preproc_for_markdown
 
 
 # Callback for Gradio to call when a chat message is sent.
@@ -138,13 +139,6 @@ async def fn(
     This version streams the content of the response using the refactored
     chat_function from lmm_education.query.
     """
-
-    def _preproc_for_markdown(response: str) -> str:
-        # replace square brackets containing the character '\' to one
-        # that is enclosed between '$$' for rendering in markdown
-        response = re.sub(r"\\\[|\\\]", "$$", response)
-        response = re.sub(r"\\\(|\\\)", "$", response)
-        return response
 
     # Get iterator from refactored chat_function
     buffer: str = ""
@@ -163,7 +157,7 @@ async def fn(
 
         # Stream and yield for Gradio
         async for item in response_iter:
-            buffer += _preproc_for_markdown(item.text())
+            buffer += preproc_for_markdown(item.text())
             yield buffer
 
     except Exception as e:
