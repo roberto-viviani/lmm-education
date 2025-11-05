@@ -487,3 +487,7 @@ def load_settings(
 # Create a default config.toml file, if there is none.
 if not Path(DEFAULT_CONFIG_FILE).exists():
     create_default_config_file()
+else:
+    # complement possible config.toml written by lmm
+    settings_ = ConfigSettings()
+    export_settings(settings_)
