@@ -440,9 +440,9 @@ class TestMarkdownQueries(unittest.TestCase):
         self.assertTrue(len(ids) > 0)
         self.assertTrue(len(output.getvalue()) > 0)
 
-        from lmm_education.stores import query
         from lmm_education.stores.vector_store_qdrant import (
             encoding_to_qdrantembedding_model,
+            query,
         )
 
         results = query(
@@ -584,12 +584,10 @@ class TestMarkdownQueries(unittest.TestCase):
         self.assertTrue(len(ids) > 0)
         self.assertTrue(len(output.getvalue()) > 0)
 
-        from lmm_education.stores import (
+        from lmm_education.stores.vector_store_qdrant import (
             query_grouped,
             groups_to_points,
             points_to_text,
-        )
-        from lmm_education.stores.vector_store_qdrant import (
             encoding_to_qdrantembedding_model,
             ScoredPoint,
         )
