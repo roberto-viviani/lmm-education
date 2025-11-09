@@ -46,7 +46,7 @@ from .query import query
 from .stores.vector_store_qdrant_utils import (
     database_info,
 )
-from .scan_rag import scan_rag
+from .scan_rag import rag as scan_rag
 
 # Define public API
 __all__ = [
