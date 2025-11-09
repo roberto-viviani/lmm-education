@@ -270,7 +270,7 @@ def markdown_upload(
     error_sources: dict[str, list[ErrorBlock]] = {}
     logger_level = logger.get_level()
     for source in sources:
-        blocks = markdown_scan(source, False, logger)
+        blocks = markdown_scan(source, False, logger=logger)
         if not bool(blocks):
             error_sources[str(source)] = [
                 ErrorBlock(
@@ -297,7 +297,7 @@ def markdown_upload(
         # Markdown documents are loaded from files with markdown_scan
         # beacause this function can initialize default properties
         # such as 'title' from the file name.
-        blocks = markdown_scan(source, False, logger)
+        blocks = markdown_scan(source, False, logger=logger)
         # Process the markdown documents prior to ingesting.
         chunks, comp_chunks = blocklist_encode(
             blocks, config_opts, logger
