@@ -169,9 +169,9 @@ rev a 26.10
 """
 
 from enum import Enum
-from typing import Callable, Any
+from typing import Any
 from contextlib import contextmanager, asynccontextmanager
-from typing import Generator, AsyncGenerator
+from collections.abc import Callable, Generator, AsyncGenerator
 
 # langchain
 from langchain_core.embeddings import Embeddings

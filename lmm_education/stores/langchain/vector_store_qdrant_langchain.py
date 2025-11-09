@@ -64,7 +64,8 @@ Examples:
     ```
 """
 
-from typing import Coroutine, Any
+from typing import Any
+from collections.abc import Coroutine
 from typing_extensions import override
 import asyncio
 

@@ -4,7 +4,7 @@ Entry point for the RAG model chat application.
 
 from datetime import datetime
 import re
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import gradio as gr
 

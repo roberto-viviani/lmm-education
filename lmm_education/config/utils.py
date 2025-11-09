@@ -7,16 +7,16 @@ and report them in a user-friendly message.
 # pyright: reportUnknownArgumentType=false
 
 import json
-from typing import Any, Dict, Union
+from typing import Any
 
 # Define a specific type for the output of the recursive function to
 # improve clarity
-DiffResult = Dict[str, Dict[str, Any]]
-ErrorResult = Dict[str, str]
+DiffResult = dict[str, dict[str, Any]]
+ErrorResult = dict[str, str]
 
 
 def _recursive_diff(
-    dict_a: Dict[str, Any], dict_b: Dict[str, Any], path: str = ""
+    dict_a: dict[str, Any], dict_b: dict[str, Any], path: str = ""
 ) -> DiffResult:
     """
     Recursively compares two dictionaries and finds differences.
@@ -72,8 +72,8 @@ def _recursive_diff(
 
 
 def find_dictionary_differences(
-    dict_a: Dict[str, Any], json_b: str | Dict[str, Any]
-) -> Union[DiffResult, ErrorResult]:
+    dict_a: dict[str, Any], json_b: str | dict[str, Any]
+) -> DiffResult | ErrorResult:
     """
     Compares two dictionaries (one provided as a dict, one as a JSON string)
     and returns a dictionary detailing the differences, including nested differences.
@@ -81,7 +81,7 @@ def find_dictionary_differences(
     # 1. Parse the JSON string into a dictionary (dict_b)
     if isinstance(json_b, str):
         try:
-            dict_b: Dict[str, Any] = json.loads(json_b)
+            dict_b: dict[str, Any] = json.loads(json_b)
         except json.JSONDecodeError as e:
             # Handle case where the JSON input is invalid
             return {
@@ -95,7 +95,7 @@ def find_dictionary_differences(
 
 
 def format_difference_report(
-    differences: Union[DiffResult, ErrorResult],
+    differences: DiffResult | ErrorResult,
     collection: str = "",
 ) -> str:
     """
@@ -166,7 +166,7 @@ def vector_store_settings(settings: ConfigSettings) -> dict[str, Any]:
 
 # --- Example Usage ---
 
-# # Dictionary A (Python Dict)
+# # Dictionary A (Python dict)
 # config_a = {
 #     "id": 100,
 #     "settings": {
