@@ -67,7 +67,7 @@ from lmm.scan.scan import (
 )
 from lmm.scan.scan_rag import (
     ScanOpts,
-    scan_rag,
+    blocklist_rag,
 )
 from lmm.scan.scan_keys import (
     UUID_KEY,
@@ -425,7 +425,7 @@ def blocklist_encode(
         UUID=bool(dbOpts.companion_collection),
         language_model_settings=opts,
     )
-    blocks: list[Block] = scan_rag(blocklist, scan_opts, logger)
+    blocks: list[Block] = blocklist_rag(blocklist, scan_opts, logger)
     if not blocks:
         return [], []
 

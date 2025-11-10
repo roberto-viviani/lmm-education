@@ -12,8 +12,10 @@ Configuration:
 Content Processing:
     scan: Scan and parse markdown content
     scan_messages: Extract messages from markdown
-    scan_remove_messages: Remove messages from markdown
-    markdown_rag: Apply RAG preprocessing to markdown
+    scan_clear_messages: Remove messages from markdown
+    scan_rag: Apply RAG preprocessing to markdown
+    markdown_rag: Apply RAG preprocessing to markdown, settings
+        from config.toml
 
 Database Operations:
     ingest: Upload markdown content to vector database
@@ -35,9 +37,10 @@ from .config.config import create_default_config_file
 # Import from external lmm package (scanning and preprocessing)
 from lmm.scan.scan import markdown_scan as scan
 from lmm.scan.scan_messages import (
-    markdown_messages as scan_messages,
-    markdown_remove_messages as scan_remove_messages,
+    scan_messages,
+    scan_clear_messages,
 )
+from lmm.scan.scan_rag import scan_rag
 
 # Import from local lmm_education package (core functionality)
 from .ingest import markdown_upload as ingest
@@ -46,7 +49,7 @@ from .query import query
 from .stores.vector_store_qdrant_utils import (
     database_info,
 )
-from .scan_rag import rag as scan_rag
+from .scan_rag import markdown_rag
 
 # Define public API
 __all__ = [
@@ -55,8 +58,9 @@ __all__ = [
     # Content processing
     "scan",
     "scan_messages",
-    "scan_remove_messages",
+    "scan_clear_messages",
     "scan_rag",
+    "markdown_rag",
     # Database operations
     "ingest",
     "querydb",

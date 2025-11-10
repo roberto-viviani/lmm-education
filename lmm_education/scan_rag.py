@@ -2,33 +2,17 @@
 
 from pathlib import Path
 
-from lmm.scan.scan_rag import markdown_rag, ScanOpts
+from lmm.scan.scan_rag import (
+    markdown_rag as scan_markdown_rag,
+    ScanOpts,
+)
 from lmm.utils.logging import ConsoleLogger, LoggerBase
 from .config.config import ConfigSettings
 
 logger = ConsoleLogger()
 
 
-def scan_rag(
-    sourcefile: str | Path,
-    *,
-    questions: bool = False,
-    titles: bool = False,
-    summaries: bool = False,
-    logger: LoggerBase = logger,
-) -> None:
-
-    markdown_rag(
-        sourcefile,
-        ScanOpts(
-            questions=questions, titles=titles, summaries=summaries
-        ),
-        save=True,
-        logger=logger,
-    )
-
-
-def rag(
+def markdown_rag(
     sourcefile: str | Path,
     *,
     config: ConfigSettings | None = None,
@@ -38,7 +22,7 @@ def rag(
     if config is None:
         config = ConfigSettings()
 
-    markdown_rag(
+    scan_markdown_rag(
         sourcefile,
         ScanOpts(
             titles=config.RAG.titles,
