@@ -226,6 +226,43 @@ def ingest(
 
 
 @app.command()
+def ingest_folder(
+    folder: str = typer.Argument(..., help="Folder to process"),
+    extensions: str = typer.Option(
+        ".md;.Rmd",
+        "--extensions",
+        "-e",
+        help="Extensions to process",
+    ),
+) -> None:
+    """
+    Ingests a folder into the vector database, after
+    processing them as required by the encoding model.
+    """
+    from lmm.utils.ioutils import list_files_with_extensions
+    from lmm_education.ingest import markdown_upload
+    from lmm_education.config.config import ConfigSettings
+
+    try:
+        settings = ConfigSettings()
+        save_files = True
+        skip_ingest = False
+        files: list[str] = list_files_with_extensions(
+            folder, extensions
+        )
+        markdown_upload(
+            files,
+            config_opts=settings,
+            save_files=save_files,
+            ingest=not skip_ingest,
+            logger=logger,
+        )
+    except Exception as e:
+        logger.error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command()
 def querydb(
     query_text: str = typer.Argument(..., help="Query text"),
 ) -> None:
@@ -302,7 +339,7 @@ def database_info() -> None:
 @app.command()
 def config_info() -> None:
     """
-    Returns information on the configuration.
+    Returns information on the active configuration.
     """
     from lmm_education.config.config import (
         load_settings,
