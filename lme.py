@@ -297,18 +297,14 @@ def query(
     from lmm_education.query import query
 
     try:
-        from rich import print
-    except Exception:
-        pass
-
-    try:
-        response: str = query(
+        # when console_print is true, query will stream the output
+        # to the console itself.
+        query(
             query_text,
             console_print=True,
             validate_content=validate_content,
             logger=logger,
         )
-        print(response)  # type: ignore
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
