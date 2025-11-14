@@ -30,7 +30,7 @@ build-backend = "poetry.core.masonry.api"
 include = ["lmm_education/py.typed"]
 
 [tool.poetry.scripts]
-lmme = "lmme:app"
+lmme = "lmm_education.lmme:app"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6.1"
