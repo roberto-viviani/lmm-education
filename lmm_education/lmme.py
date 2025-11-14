@@ -2,7 +2,10 @@
 
 import typer
 
+from pydantic import ValidationError
+
 from lmm.utils.logging import ConsoleLogger
+from lmm.config.config import format_pydantic_error_message
 
 logger = ConsoleLogger()
 app = typer.Typer()
@@ -287,6 +290,33 @@ def querydb(
 @app.command()
 def query(
     query_text: str = typer.Argument(..., help="Query text"),
+    model: str = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="Language model (major, minor, aux, or provider/modelname)",
+    ),
+    temperature: float = typer.Option(
+        None,
+        "--temperature",
+        "-t",
+        help="Controls randomness in model responses (0.0-2.0)",
+    ),
+    max_tokens: int = typer.Option(
+        None,
+        "--max_tokens",
+        "-mt",
+        help="Maximum number of tokens to generate",
+    ),
+    max_retries: int = typer.Option(
+        None,
+        "--max_retries",
+        "-mr",
+        help="Maximum number of retry attempts",
+    ),
+    timeout: float = typer.Option(
+        None, "--timeout", "-to", help="Request timeout in seconds"
+    ),
     validate_content: bool = typer.Option(
         False, "--validate-content", "-vc", help="Validate content"
     ),
@@ -295,6 +325,69 @@ def query(
     Carries out a RAG query with the language model.
     """
     from lmm_education.query import query
+    from lmm_education.config.config import ConfigSettings
+    from lmm.config.config import LanguageModelSettings
+
+    try:
+        settings = ConfigSettings()
+    except Exception as e:
+        logger.error(f"Could not load settings: {e}")
+        raise typer.Exit(1)
+
+    model_settings: LanguageModelSettings | None
+    opts: dict[str, str | float | int] = {}
+    if temperature is not None:  # type: ignore
+        opts['temperature'] = temperature
+    if max_tokens is not None:  # type: ignore
+        opts['max_tokens'] = max_tokens
+    if max_retries is not None:  # type: ignore
+        opts['max_retries'] = max_retries
+    if timeout is not None:  # type: ignore
+        opts['timeout'] = timeout
+
+    try:
+        if model is not None:  # type: ignore
+            match model:
+                case 'major':
+                    model_settings = (
+                        settings.major.from_instance(**opts)  # type: ignore
+                        if opts
+                        else settings.major
+                    )
+                case 'minor':
+                    model_settings = (
+                        settings.minor.from_instance(**opts)  # type: ignore
+                        if opts
+                        else settings.minor
+                    )
+                case 'aux':
+                    model_settings = (
+                        settings.aux.from_instance(**opts)  # type: ignore
+                        if opts
+                        else settings.aux
+                    )
+                case _:
+                    # try to parse, will give error if not supported
+                    opts['model'] = model
+                    model_settings = LanguageModelSettings(**opts)  # type: ignore
+
+        else:
+            if model is None and not opts:
+                model_settings = (
+                    None  # code reacheable, typer can give None
+                )
+            else:
+                model_settings = settings.major.from_instance(**opts)
+    except ValidationError as e:
+        errmsg: str = format_pydantic_error_message(str(e))
+        errmsg = errmsg.replace(
+            "LanguageModelSettings", "language model setting"
+        )
+        logger.error("Validation error: " + errmsg)
+        raise typer.Exit(1)
+    except Exception as e:
+        logger.error(f"Invalid model settings: {model}\n{e}")
+        raise typer.Exit(1)
 
     try:
         # when console_print is true, query will stream the output
@@ -302,6 +395,7 @@ def query(
         query(
             query_text,
             console_print=True,
+            settings=model_settings,
             validate_content=validate_content,
             logger=logger,
         )

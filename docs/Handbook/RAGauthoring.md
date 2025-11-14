@@ -28,7 +28,13 @@ Linear models can be generalized to cover situations where the outcome is not co
 
 Here, part of the message that is sent to the language model is "evaluate the text for clarity and conciseness". This message part is integrated with the text to which the metadata refer, which is here the text under "What are linear models?", but not the text under "The generalization of linear models". If there had been subheadings after "What are linear models", the text of the subheadings would also be sent to the language model. The term 'text' here is key: the language model knows that your question refers to the parts of the markdown that are sent over, because these are qualified as "text" in the message.
 
-To send the message to the model, first make sure to have saved the file with the query. Then open a Python REPL, and send the following command:
+To send the message to the model, first make sure to have saved the file with the query. Then open a command window, and use the following command:
+
+```bash
+lmme scan-messages Lecture01.md
+```
+
+Alternatively, in the Python REPL, your can use the following command:
 
 ```python
 from lmm_education import scan_messages
@@ -71,12 +77,18 @@ A common approach to interact with the language model is to create provisional s
 
 You can ask new queries on the same text by editing the `query` properties, and run `scan_messages` again. Queries that have already been responded are not responded again. If you want the model to respond to the same message, delete the text of the query in the `~chat` property.
 
-When you are finished with interacting with the language model, you can remove the chat with the `scan_remove_messages` command:
+When you are finished with interacting with the language model, you can remove the chat with the `scan-clear-messages` command:
+
+```bash
+lmme scan-clear-messages Lecture01.md
+```
+
+or, in the Python REPL,
 
 ```python
-from lmm_education import scan_remove_messages
+from lmm_education import scan_clear_messages
 
-scan_remove_messages("Lecture01.md")
+scan_clear_messages("Lecture01.md")
 ```
 
 Even if not removed explicitly, queries and chats are not used when ingesting the markdown in the vector database.
@@ -128,10 +140,10 @@ keywords=false
 
 Note: it is strongly recommended to use the same annotation model in the whole project.
 
-To have LM markdown to generate the annotations without ingesting the document, use Python from the console:
+To have LM markdown to generate the annotations without ingesting the document, use the console:
 
-``` bash
-python -m lmm.scan.scan_rag.markdown_rag("Lecture01.md")
+```bash
+lmme scan-rag Lecture01.md
 ```
 
 or from the Python REPL:
@@ -281,9 +293,8 @@ When doing this, you may want to be sure that the original question or similar q
 You start with ingesting the document with Python, and then you test that the material is retrieved when you ask the question:
 
 ``` bash
-python -m lmm_education.ingest("AddedMaterial.md")
-
-python -m lmm_education.querydb("What is the reason to add a family parameter to glm call?")
+lmme ingest AddedMaterial.md
+lmme querydb "What is the reason to add a family parameter to glm call?"
 ```
 
 or from the Python REPL:
@@ -302,7 +313,7 @@ If the material is not retrieved as you expected, go back to the document and ch
 After you are satisfied with the way the material is being retrieved from the database in response to your queries, you can test the response from the language model with the `query` function:
 
 ``` bash
-python -m lmm_education.query "What are observational studies?"
+lmme query "What are observational studies?"
 ```
 
 Using the Python REPL:
@@ -310,15 +321,23 @@ Using the Python REPL:
 ``` python
 from lmm_education import query
 
-response = query("What are observational studies?")
-print(response)
+query("What are observational studies?", console_print = True)
 ```
 
-The configuration file contains three model specifications: `major`, `minor`, and `aux`. By default, the end-user interactions with the language model use the major model. You can experiment with other models by specifying them as a second argument to the query:
+(the console_print argument streams the output to the console).
 
-``` bash
-python -m lmm_education.query "What are observational studies?" minor
+The configuration file contains three model specifications: `major`, `minor`, and `aux`. By default, the end-user interactions with the language model use the major model. You can experiment with other models by specifying them as an argument to the query, as shown below. You can also specify other arguments such as temperature:
+
+```bash
+lmme query "What are observational studies?" --model minor --temperature 0.2
 ```
+You can also specify a model directly, using the format modelprovider/modelname:
+
+```bash
+lmme query "What are observational studies?" --model OpenAI/gpt-4-mini
+```
+
+(`lmme query --help` will provide a list of all optional arguments).
 
 When using the Python REPL or from code, you can specify a model to which you have access directly using the following syntax.
 
