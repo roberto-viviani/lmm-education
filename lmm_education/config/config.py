@@ -229,6 +229,31 @@ class RAGSettings(BaseModel):
                 model.add_inherited_properties(QUESTIONS_KEY)
         return model
 
+    def from_instance(
+        self,
+        titles: bool | None = None,
+        questions: bool | None = None,
+        summaries: bool | None = None,
+        encoding_model: EncodingModel | None = None,
+        annotation_model: AnnotationModel | None = None,
+    ) -> 'RAGSettings':
+        """Create a new RAGSettings object with modified properties"""
+        return RAGSettings(
+            titles=titles if titles else self.titles,
+            questions=questions if questions else self.questions,
+            summaries=summaries if summaries else self.summaries,
+            encoding_model=(
+                encoding_model
+                if encoding_model is not None
+                else self.encoding_model
+            ),
+            annotation_model=(
+                annotation_model
+                if annotation_model is not None
+                else self.annotation_model
+            ),
+        )
+
 
 # By inheriting from LMMSettings, we add the functionality to read
 # these specifications from a config file.

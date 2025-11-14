@@ -158,21 +158,43 @@ def scan_rag(
     ingestion in the vector database.
     """
     from lmm.scan.scan_rag import ScanOpts, markdown_rag
+    from lmm_education.config.config import (
+        ConfigSettings,
+        RAGSettings,
+    )
 
-    config_dict: dict[str, bool | int | float] = {}
-    if titles is not None:  # type: ignore
-        config_dict['titles'] = titles
-    if questions is not None:  # type: ignore
-        config_dict['questions'] = questions
-    if questions_threshold is not None:  # type: ignore
-        config_dict['questions_threshold'] = questions_threshold
-    if summaries is not None:  # type: ignore
-        config_dict['summaries'] = summaries
-    if summary_threshold is not None:  # type: ignore
-        config_dict['summary_threshold'] = summary_threshold
-    if remove_messages is not None:  # type: ignore
-        config_dict['remove_messages'] = remove_messages
-    scan_opts = ScanOpts(**config_dict)  # type: ignore
+    # read existing settings from config.toml
+    try:
+        config = ConfigSettings()
+    except Exception as e:
+        logger.error(f"Could not load config: {e}")
+        raise typer.Exit(1)
+
+    # override RAG settings with those given
+    try:
+        rag_settings: RAGSettings = config.RAG.from_instance(
+            titles, questions, summaries
+        )
+        # override the rest
+        config_dict: dict[str, bool | int | float] = {}
+        config_dict['titles'] = rag_settings.titles
+        config_dict['questions'] = rag_settings.questions
+        if questions_threshold is not None:  # type: ignore
+            config_dict['questions_threshold'] = questions_threshold
+        config_dict['summaries'] = rag_settings.summaries
+        if summary_threshold is not None:  # type: ignore
+            config_dict['summary_threshold'] = summary_threshold
+        if remove_messages is not None:  # type: ignore
+            config_dict['remove_messages'] = remove_messages
+        scan_opts = ScanOpts(**config_dict)  # type: ignore
+    except ValidationError as e:
+        errmsg: str = format_pydantic_error_message(str(e))
+        errmsg = errmsg.replace("ScanOpts", "setting")
+        logger.error("Validation error: " + errmsg)
+        raise typer.Exit(1)
+    except Exception as e:
+        logger.error(f"Could not load config: {e}")
+        raise typer.Exit(1)
 
     try:
         SAVE_FILE = True
