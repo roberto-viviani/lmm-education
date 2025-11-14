@@ -326,13 +326,13 @@ def query(
     ),
     max_tokens: int = typer.Option(
         None,
-        "--max_tokens",
+        "--max-tokens",
         "-mt",
         help="Maximum number of tokens to generate",
     ),
     max_retries: int = typer.Option(
         None,
-        "--max_retries",
+        "--max-retries",
         "-mr",
         help="Maximum number of retry attempts",
     ),
