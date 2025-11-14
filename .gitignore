@@ -1,4 +1,5 @@
-site/ 
+site/
+dist/ 
 .vs/
 .venv/
 .idea/
