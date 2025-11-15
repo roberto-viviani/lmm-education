@@ -12,7 +12,7 @@ from lmm.markdown.parse_markdown import (
 )
 from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import GROUP_UUID_KEY, UUID_KEY
-from lmm.scan.scan_rag import ScanOpts, scan_rag
+from lmm.scan.scan_rag import ScanOpts, blocklist_rag
 from lmm.scan.scan_split import scan_split
 from lmm.scan.chunks import (
     Chunk,
@@ -266,7 +266,7 @@ class TestEncoding(unittest.TestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -302,7 +302,7 @@ class TestEncoding(unittest.TestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
         self.assertTrue(len(blocks) > 0)
@@ -419,7 +419,7 @@ class TestEncoding(unittest.TestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -456,7 +456,7 @@ class TestEncoding(unittest.TestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
         self.assertTrue(len(blocks) > 0)
@@ -590,7 +590,7 @@ class TestEncoding(unittest.TestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -630,7 +630,7 @@ class TestEncoding(unittest.TestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
 

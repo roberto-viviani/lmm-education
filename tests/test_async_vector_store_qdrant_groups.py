@@ -16,7 +16,7 @@ from lmm.markdown.parse_markdown import (
     blocklist_haserrors,
 )
 from lmm.config.config import Settings, export_settings
-from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.scan.scan_rag import blocklist_rag, ScanOpts
 from lmm.scan.scan_split import scan_split
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, TITLES_KEY
 from lmm.scan.chunks import blocks_to_chunks
@@ -122,7 +122,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -158,7 +158,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
 
@@ -277,7 +277,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -317,7 +317,7 @@ class TestEncoding(unittest.IsolatedAsyncioTestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
 

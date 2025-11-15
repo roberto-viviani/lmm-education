@@ -14,7 +14,7 @@ from lmm.markdown.parse_markdown import (
     blocklist_copy,
 )
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
-from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.scan.scan_rag import blocklist_rag, ScanOpts
 from lmm.config.config import (
     Settings,
     export_settings,
@@ -77,7 +77,7 @@ blocks: list[Block] = [
     heading2,
     text2,
 ]
-blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
+blocks = blocklist_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 
 class TestQuery(unittest.TestCase):
@@ -468,7 +468,7 @@ class TestQuery(unittest.TestCase):
 
     def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        blocklist = scan_rag(
+        blocklist = blocklist_rag(
             blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
         )
         chunks = blocks_to_chunks(blocklist, encoding_model)
@@ -777,7 +777,7 @@ class TestQueryGrouped(unittest.TestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -814,7 +814,7 @@ class TestQueryGrouped(unittest.TestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
 

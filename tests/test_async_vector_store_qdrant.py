@@ -15,7 +15,7 @@ from lmm.config.config import (
     EmbeddingSettings,
 )
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
-from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.scan.scan_rag import blocklist_rag, ScanOpts
 from lmm_education.config.config import (
     ConfigSettings,
 )
@@ -404,7 +404,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        blocklist = scan_rag(
+        blocklist = blocklist_rag(
             blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
         )
         chunks = blocks_to_chunks(blocklist, encoding_model)

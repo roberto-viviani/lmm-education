@@ -85,12 +85,12 @@ def tearDownModule():
 
 class TestScanRag(unittest.TestCase):
 
-    def test_scan_rag_and_save(self):
+    def test_blocklist_rag_and_save(self):
         from lmm.markdown.parse_markdown import (
             parse_markdown_text,
             blocklist_haserrors,
         )
-        from lmm.scan.scan_rag import scan_rag, ScanOpts
+        from lmm.scan.scan_rag import blocklist_rag, ScanOpts
         from lmm.utils.logging import LoglistLogger
 
         logger = LoglistLogger()
@@ -105,7 +105,7 @@ class TestScanRag(unittest.TestCase):
             titles=True,
             questions=True,
         )
-        blocks = scan_rag(blocks, opts, logger)
+        blocks = blocklist_rag(blocks, opts, logger)
         self.assertTrue(logger.count_logs(level=1) == 0)
 
         from lmm.markdown.parse_markdown import save_blocks
@@ -154,7 +154,7 @@ class TestChunkingAndIngestion(unittest.TestCase):
             parse_markdown_text,
             blocklist_haserrors,
         )
-        from lmm.scan.scan_rag import scan_rag, ScanOpts
+        from lmm.scan.scan_rag import blocklist_rag, ScanOpts
         from lmm.scan.scan_keys import TITLES_KEY
         from lmm.utils.logging import LoglistLogger
         from lmm_education.config.config import (
@@ -171,7 +171,7 @@ class TestChunkingAndIngestion(unittest.TestCase):
         self.assertFalse(blocklist_haserrors(blocks))
 
         # add metadata for annotations (here titles)
-        blocks = scan_rag(blocks, ScanOpts(titles=True), logger)
+        blocks = blocklist_rag(blocks, ScanOpts(titles=True), logger)
         self.assertTrue(logger.count_logs(level=1) == 0)
 
         # transform to chunks specifying titles for annotations

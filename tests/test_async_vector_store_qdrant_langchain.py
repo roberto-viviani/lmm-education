@@ -20,7 +20,7 @@ from lmm.markdown.parse_markdown import (
     Block,
 )
 from lmm.config.config import Settings, export_settings
-from lmm.scan.scan_rag import scan_rag, ScanOpts
+from lmm.scan.scan_rag import blocklist_rag, ScanOpts
 from lmm.scan.scan_split import scan_split
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, QUESTIONS_KEY
 from lmm_education.stores.vector_store_qdrant import (
@@ -74,7 +74,7 @@ blocks: list[Block] = [
     heading2,
     text2,
 ]
-blocks = scan_rag(blocks, ScanOpts(textid=True, UUID=True))
+blocks = blocklist_rag(blocks, ScanOpts(textid=True, UUID=True))
 
 
 def tearDownModule():
@@ -466,7 +466,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
-        blocklist = scan_rag(
+        blocklist = blocklist_rag(
             blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
         )
         chunks = blocks_to_chunks(blocklist, encoding_model)
@@ -719,7 +719,7 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
                 "Could not initialize companion collection"
             )
 
-        blocks: list[Block] = scan_rag(
+        blocks: list[Block] = blocklist_rag(
             blocklist,
             ScanOpts(titles=True, textid=True, UUID=True),
         )
@@ -756,7 +756,7 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
                 add_start_index=False,
             ),
         )
-        blocks = scan_rag(
+        blocks = blocklist_rag(
             blocks, ScanOpts(titles=True, textid=True, UUID=True)
         )
 
