@@ -52,3 +52,19 @@ host = "localhost"
 ```
 
 If you want to offer the server over the internet, change `local` into `remote`. You can also change the port to which the app is listening. The host parameter is not used at present.
+
+### Instructing the server to check the chat content
+
+You can instruct the language model to check that the chat is taking place within the topic of the course. LM Markdown for Education uses a secondary language model to classify the response of the model before releasing it to the chat. In the following, the chat is configured to be limited to statistics and software programming.
+
+```ini
+[check_response]
+check_response = true
+allowed_content = ['statistics', 'software programming']
+```
+
+Put your topics within the square brackets. For example, if you have only one topic, code `allowed_content = ['statistics']`.
+
+## Other settings
+
+If you have not used LM Markdown for Education before starting the app, it will also have written a second configuration file with default settings, config.toml. This file contains settings that are common to the app and the rest of LM Markdown for Education (for example, when interacting with it through the CLI). You may want to configure this file too (see [configuration](Configuration.md) for details).

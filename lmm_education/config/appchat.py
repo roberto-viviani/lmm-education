@@ -1,9 +1,27 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .config import ServerSettings
 
 CHAT_CONFIG_FILE: str = "appchat.toml"
+
+
+class CheckResponse(BaseSettings):
+    """
+    Settings to check appropriateness of chat.
+    """
+
+    check_response: bool = Field(default=False)
+    allowed_content: list[str] = Field(default=[])
+
+    @model_validator(mode='after')
+    def validate_allowed_content(self):
+        """Validate that allowed_content is not empty when check_response is True."""
+        if self.check_response and not self.allowed_content:
+            raise ValueError(
+                "allowed_content must not be empty when check_response is True"
+            )
+        return self
 
 
 class ChatSettings(BaseSettings):
@@ -17,6 +35,9 @@ Ask a question about the course, and the assistant will provide a
 response based on it. 
 Example: "How can I fit a model with kid_score as outcome and mom_iq as predictor?" 
 """
+    )
+    comment: str = Field(
+        default="Please leave a comment on the response of the chatbot here"
     )
 
     # messages
@@ -58,6 +79,12 @@ QUERY: "{query}"
 RESPONSE:
 
 """
+    )
+
+    # thematic control of interaction
+    check_response: CheckResponse = Field(
+        default_factory=CheckResponse,
+        description="Check thematic appropriateness of chat",
     )
 
     server: ServerSettings = Field(

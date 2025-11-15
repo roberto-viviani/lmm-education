@@ -284,16 +284,14 @@ with gr.Blocks() as app:
     chatbot.like(vote, None, None)
     chatbot.clear(clearchat)
     gr.ChatInterface(
-        fn_checked,
+        fn_checked if chat_settings.check_response else fn,
         type="messages",
         theme="default",
         api_name=False,
         show_api=False,
         chatbot=chatbot,
     )
-    gr.Markdown(
-        "Please leave a comment on the response of the chatbot here"
-    )
+    gr.Markdown(chat_settings.comment)
     comment = gr.Textbox(label="Comment:", submit_btn="Post comment")
     comment.submit(fn=postcomment, inputs=comment, outputs=comment)
 

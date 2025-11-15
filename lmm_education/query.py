@@ -33,6 +33,7 @@ python -m lmm_education.query 'what is logistic regression?'
 """
 
 import asyncio
+from lmm.language_models.langchain.runnables import RunnableType
 from pydantic import validate_call
 from collections.abc import AsyncIterator
 
@@ -80,7 +81,9 @@ RESPONSE:
 """
 
 from langchain_core.prompts import PromptTemplate # fmt: skip
-default_prompt = PromptTemplate.from_template(PROMPT_TEMPLATE)
+default_prompt: PromptTemplate = PromptTemplate.from_template(
+    PROMPT_TEMPLATE
+)
 
 
 # Helper function to create error message iterators
@@ -211,7 +214,9 @@ async def chat_function(
             await retriever.close_client()
 
     # Query language model
-    query = _prepare_messages(querytext, history, system_msg)
+    query: list[tuple[str, str]] = _prepare_messages(
+        querytext, history, system_msg
+    )
     return llm.astream(query)
 
 
@@ -259,20 +264,22 @@ async def chat_function_with_validation(
 
     # Initialize the validation model
     try:
-        query_model = create_runnable(validation_config)
+        query_model: RunnableType = create_runnable(validation_config)
     except Exception as e:
         logger.error(f"Could not initialize validation model: {e}")
         return _error_message_iterator(MSG_ERROR_QUERY)
 
     # Get the base chat iterator
-    base_iterator = await chat_function(
-        querytext=querytext,
-        history=history,
-        retriever=retriever,
-        llm=llm,
-        system_msg=system_msg,
-        prompt=prompt,
-        logger=logger,
+    base_iterator: AsyncIterator[BaseMessageChunk] = (
+        await chat_function(
+            querytext=querytext,
+            history=history,
+            retriever=retriever,
+            llm=llm,
+            system_msg=system_msg,
+            prompt=prompt,
+            logger=logger,
+        )
     )
 
     # Content validation function with retry logic
@@ -444,16 +451,18 @@ def query(
     # Get the iterator and consume it
     async def run_query():
         if validate_content:
-            iterator = await chat_function_with_validation(
-                querystr, [], llm=llm, logger=logger
+            iterator: AsyncIterator[BaseMessageChunk] = (
+                await chat_function_with_validation(
+                    querystr, [], llm=llm, logger=logger
+                )
             )
         else:
             iterator = await chat_function(
                 querystr, [], llm=llm, logger=logger
             )
-        result = ""
+        result: str = ""
         async for chunk in iterator:
-            content = chunk.text()
+            content: str = chunk.text()
             if console_print:
                 print(content, end="", flush=True)
             result += content
