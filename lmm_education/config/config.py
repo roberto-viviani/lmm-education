@@ -367,6 +367,7 @@ class ConfigSettings(LMMSettings):
 # If not, a config file is created with default values.
 def create_default_config_file(
     file_path: str | Path | None = None,
+    settings: BaseSettings = ConfigSettings(),
 ) -> None:
     """Create a default settings file.
 
@@ -397,8 +398,6 @@ def create_default_config_file(
     if file_path.exists():
         # otherwise, it will be read in
         file_path.unlink()
-
-    settings = ConfigSettings()
 
     export_settings(settings, file_path)
 

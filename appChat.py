@@ -4,49 +4,55 @@ Entry point for the RAG model chat application.
 
 from datetime import datetime
 import re
+import os
 from collections.abc import AsyncGenerator
 
 import gradio as gr
-
-# This is displayed on the chatbot. Change it as appropriate
-title = "VU720201 Study Assistant"
-description = """
-Study assistant chatbot for VU Specific Scientific Methods 
-in Psychology: Data analysis with linear models in R. 
-Ask a question about the course, and the assistant will provide a 
-response based on it. 
-Example: "How can I fit a model with kid_score as outcome and mom_iq as predictor?" 
-"""
-
-# internationalization
-MSG_EMPTY_QUERY = "Please ask a question about the course."
-MSG_WRONG_CONTENT = "I can only answer questions about the course."
-MSG_LONG_QUERY = (
-    "Your question is too long. Please ask a shorter question."
-)
-MSG_ERROR_QUERY = (
-    "I am sorry, I cannot answer this question. Please retry."
-)
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
 
 # settings. If config.toml does not exist, create it
 from lmm_education.config.config import (
+    ConfigSettings,
     load_settings,
     create_default_config_file,
+    DEFAULT_CONFIG_FILE,
 )
-import os # fmt: skip
-if not os.path.exists("config.toml"):
-    create_default_config_file("config.toml")
-    print("config.toml created in app folder, change as appropriate")
-
-# this reads the settings from config.toml
-settings = load_settings()
-if settings is None:
-    exit()
+from lmm_education.config.appchat import (
+    ChatSettings,
+    CHAT_CONFIG_FILE,
+)
 
 # logs
 from lmm.utils.logging import FileConsoleLogger # fmt: skip
-logger = FileConsoleLogger(title, "appChat.log")
+logger = FileConsoleLogger("LM Markdown for Education", "appChat.log")
 DATABASE_FILE = "messages.csv"
+
+if not os.path.exists(DEFAULT_CONFIG_FILE):
+    create_default_config_file(DEFAULT_CONFIG_FILE)
+    print(
+        f"{DEFAULT_CONFIG_FILE} created in app folder, change as appropriate"
+    )
+
+# this reads the settings from config.toml
+settings: ConfigSettings | None = load_settings()
+if settings is None:
+    exit()
+
+if not os.path.exists(CHAT_CONFIG_FILE):
+    create_default_config_file(CHAT_CONFIG_FILE, ChatSettings())
+    print(
+        f"{CHAT_CONFIG_FILE} created in app folder, change as appropriate"
+    )
+try:
+    chat_settings: ChatSettings = ChatSettings()
+except Exception as e:
+    logger.error("Could not load chat settings:\n" + str(e))
+    exit()
+
+# This is displayed on the chatbot. Change it as appropriate
+title: str = chat_settings.title
+description: str = chat_settings.description
 
 #  create retriever
 from langchain_core.retrievers import BaseRetriever
@@ -57,49 +63,26 @@ from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
 # will return grouped retriever if appropriate
 retriever: BaseRetriever = QdrantRetriever.from_config_settings()
 
-# Create chat engine. Modify system and user prompts as appropriate.
-SYSTEM_MESSAGE = """
-You are a university tutor teaching undergraduates in a statistics course 
-that uses R to fit models, explaining background and guiding understanding. 
-Please assist students by responding to their QUERY by using the provided CONTEXT.
-If the CONTEXT does not provide information for your answer, integrate the CONTEXT
-only for the use and syntax of R. Otherwise, reply that you do not have information 
-to answer the query.
-"""
-
-PROMPT_TEMPLATE = """
-Please answer my QUERY by using the provided CONTEXT. 
-Please answer in the language of the QUERY.
----
-CONTEXT: "{context}"
-
----
-QUERY: "{query}"
-
----
-RESPONSE:
-
-"""
-
+# Create chat engine.
 from langchain_core.prompts import PromptTemplate # fmt: skip
-prompt = PromptTemplate.from_template(PROMPT_TEMPLATE)
+prompt: PromptTemplate = PromptTemplate.from_template(
+    chat_settings.PROMPT_TEMPLATE
+)
 
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
 
-llm = create_model_from_settings(settings.major)
+llm: BaseChatModel = create_model_from_settings(settings.major)
 
 # An embedding engine object is created here just to load the engine.
 # This avoids the first query to take too long. The object is cached
 # internally, so we do not actually use the embedding object here.
-# This will also fail if there is no internet (SentenceTransformer
-# engines fail immediately).
 from lmm.language_models.langchain.runnables import create_embeddings
 from requests import ConnectionError
 
 try:
-    embedding = create_embeddings()
+    embedding: Embeddings = create_embeddings()
     if "SentenceTransformer" not in settings.embeddings.dense_model:
         embedding.embed_query("Test data")
 except ConnectionError as e:
@@ -149,7 +132,7 @@ async def fn(
                 history=history,
                 retriever=retriever,
                 llm=llm,
-                system_msg=SYSTEM_MESSAGE,
+                system_msg=chat_settings.SYSTEM_MESSAGE,
                 prompt=prompt,
                 logger=logger,
             )
@@ -167,7 +150,7 @@ async def fn(
             f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
         )
         buffer = str(e)
-        yield MSG_ERROR_QUERY
+        yield chat_settings.MSG_ERROR_QUERY
         return
 
     finally:  # Log
@@ -217,7 +200,7 @@ async def fn_checked(
                 history=history,
                 retriever=retriever,
                 llm=llm,
-                system_msg=SYSTEM_MESSAGE,
+                system_msg=chat_settings.SYSTEM_MESSAGE,
                 prompt=prompt,
                 validation_config="check_content",
                 initial_buffer_size=150,
@@ -238,7 +221,7 @@ async def fn_checked(
             f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
         )
         buffer = str(e)
-        yield MSG_ERROR_QUERY
+        yield chat_settings.MSG_ERROR_QUERY
         return
 
     finally:  # Log
@@ -272,7 +255,7 @@ def vote(data: gr.LikeData, request: gr.Request):
             )
 
 
-def clearchat():
+def clearchat() -> None:
     pass
 
 
@@ -285,7 +268,7 @@ def postcomment(comment: object, request: gr.Request):
 
 
 # create the app
-ldelims = [
+ldelims: list[dict[str, str | bool]] = [
     {"left": "$$", "right": "$$", "display": True},
     {"left": "$", "right": "$", "display": False},
 ]
@@ -318,11 +301,13 @@ with gr.Blocks() as app:
 if __name__ == "__main__":
     # run the app
 
-    config_settings = load_settings()
-    if config_settings is None:
+    try:
+        chat_settings = ChatSettings()
+    except Exception as e:
+        logger.error("Could not load chat settings:\n" + str(e))
         exit()
 
-    if config_settings.server.mode == "local":
+    if chat_settings.server.mode == "local":
         app.launch(
             show_api=False, auth=('accesstoken', 'hackerbrücke')
         )
@@ -330,7 +315,7 @@ if __name__ == "__main__":
         # allow public access on internet computer
         app.launch(
             # server_name='85.124.80.91',  # probably not necessary
-            server_port=config_settings.server.port,
+            server_port=chat_settings.server.port,
             show_api=False,
             auth=('accesstoken', 'hackerbrücke'),
         )
