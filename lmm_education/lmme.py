@@ -212,6 +212,35 @@ def scan_rag(
 
 
 @app.command()
+def scan_changed_titles(
+    sourcefile: str = typer.Argument(
+        ..., help="Markdown file to process"
+    ),
+) -> None:
+    """
+    List titles whose text has changed and would be processed at next scan.
+    """
+    from lmm.utils.logging import ConsoleLogger
+    from lmm.markdown.parse_markdown import blocklist_haserrors, Block
+    from lmm.scan.scan import markdown_scan
+    from lmm.scan.scan_rag import get_changed_titles
+
+    logger = ConsoleLogger()
+
+    blocks: list[Block] = markdown_scan(sourcefile, logger=logger)
+    if blocklist_haserrors(blocks):
+        print("Errors in markdown. Fix before continuing")
+        raise typer.Exit(0)
+
+    titles: list[str] = get_changed_titles(blocks, logger)
+    if not titles:
+        print("No text changes.")
+    else:
+        for title in titles:
+            print(title)
+
+
+@app.command()
 def ingest(
     sourcefile: str = typer.Argument(
         ..., help="Markdown file to process"

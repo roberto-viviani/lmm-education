@@ -172,6 +172,16 @@ When we look at the significance of the association between predictors and outco
 
 To edit or add questions, just add them in the metadata block in the `questions` property.
 
+The first time you call `scan_rag`, the text is scanned and a special code is added in a property `~txthash`. This property is used to check what annotations should be recomputed automatically. This happens whenever the text changes. Hence, if you change an annotation manually, it will not be recomputed the next time you call `scan_rag`. If you change the text under that heading, however, the annotation will be recomputed. To prevent this, add the property `frozen = true` to the metadata block.
+
+You can check which headings have changed and will be recomputed from the CLI,
+
+```bash
+lmme scan-changed-titles Lecture01.md
+```
+
+Frozen metadata will not be listed here, only the titles of the heading that will change at the next recompute.
+
 ### Manual annotations
 
 The properties `questions` and `keywords` are special, because LM markdown for education uses language models to fill them. However, you can also add you own property. For example, you might want to add a property `concepts` or `topic`, where you manually insert the values of the property in the metadata block:
