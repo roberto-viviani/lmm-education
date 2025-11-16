@@ -243,6 +243,18 @@ async def chat_function_with_validation(
         create_runnable,
     )
 
+    # Perform basic validation checks before calling chat_function
+    # This ensures error iterators are returned directly without wrapping
+    MAX_QUERY_LENGTH: int = 60
+
+    # Check for empty query
+    if not querytext:
+        return _error_message_iterator(chat_settings.MSG_EMPTY_QUERY)
+
+    # Check for overly long query
+    if len(querytext.split()) > MAX_QUERY_LENGTH:
+        return _error_message_iterator(chat_settings.MSG_LONG_QUERY)
+
     # Initialize the validation model
     try:
         query_model: RunnableType = create_runnable(
