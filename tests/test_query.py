@@ -6,6 +6,7 @@ from lmm_education.query import (
     chat_function_with_validation,
     consume_chat_stream,
     chat_function,
+    _error_message_iterator,
 )
 from lmm_education.config.config import (
     ConfigSettings,
@@ -43,7 +44,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         iterator = await chat_function("", [])
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
-        self.assertIn("Please ask a question", result)
+        self.assertIn("If you have questions", result)
         print("✓ Passed\n")
 
     async def test_long_query(self):
@@ -109,6 +110,50 @@ from lmm.utils.logging import (
 )
 
 
+class TestErrorMessageIterator(unittest.IsolatedAsyncioTestCase):
+    """Test the _error_message_iterator helper function."""
+
+    async def test_error_message_iterator(self):
+        """Test that _error_message_iterator creates an async iterator that streams the error message."""
+        print("Test: Error message iterator")
+
+        # Test message
+        test_message = "This is a test error message"
+
+        # Create the iterator by calling _error_message_iterator
+        iterator = _error_message_iterator(test_message)
+
+        # Consume the iterator
+        result = await consume_chat_stream(iterator)
+
+        # Verify that the streamed content matches the intended message
+        print(f"Expected: {test_message}")
+        print(f"Result: {result}")
+        self.assertEqual(result, test_message)
+        print("✓ Passed\n")
+
+    async def test_error_message_iterator_with_special_chars(self):
+        """Test that _error_message_iterator handles special characters correctly."""
+        print("Test: Error message iterator with special characters")
+
+        # Test message with special characters
+        test_message = (
+            "Error: Invalid input! Please try again.\n(Code: 400)"
+        )
+
+        # Create the iterator
+        iterator = _error_message_iterator(test_message)
+
+        # Consume the iterator
+        result = await consume_chat_stream(iterator)
+
+        # Verify the content
+        print(f"Expected: {repr(test_message)}")
+        print(f"Result: {repr(result)}")
+        self.assertEqual(result, test_message)
+        print("✓ Passed\n")
+
+
 class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
 
     async def test_validation_empty_query(self):
@@ -119,7 +164,7 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
-        self.assertIn("Please ask a question", result)
+        self.assertIn("If you have questions", result)
         print("✓ Passed\n")
 
     async def test_validation_long_query(self):

@@ -396,7 +396,7 @@ class ConfigSettings(LMMSettings):
         if not config_path.exists():
             print(
                 f"Configuration file not found: {config_path.absolute()}\n"
-                "Returning a default configuration object."
+                "Creating a default configuration object."
             )
         super().__init__(**data)
 

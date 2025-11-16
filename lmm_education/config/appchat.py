@@ -42,7 +42,11 @@ Example: "How can I fit a model with kid_score as outcome and mom_iq as predicto
 
     # messages
     MSG_EMPTY_QUERY: str = Field(
-        default="Please ask a question about the course."
+        default=(
+            "If you have questions related to "
+            "linear models, their interpretation, or how to "
+            "implement them in R, I am happy to help."
+        )
     )
     MSG_WRONG_CONTENT: str = Field(
         default=(
@@ -114,7 +118,7 @@ QUERY: "{query}"
         if not config_path.exists():
             print(
                 f"Configuration file not found: {config_path.absolute()}\n"
-                "Returning a default configuration object."
+                "Creating a default configuration object."
             )
         super().__init__(**data)
 
