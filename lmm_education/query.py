@@ -51,38 +51,17 @@ from lmm.language_models.langchain.models import (
 )
 
 # LM markdown for education
-from .config.config import ConfigSettings
+from .config.config import ConfigSettings, DEFAULT_CONFIG_FILE
 from .stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
+from .config.appchat import ChatSettings
 
-# messages
-MSG_EMPTY_QUERY = "Please ask a question about the course."
-MSG_WRONG_CONTENT = "I can only answer questions about the course."
-MSG_LONG_QUERY = (
-    "Your question is too long. Please ask a shorter question."
-)
-MSG_ERROR_QUERY = (
-    "I am sorry, I cannot answer this question. Please retry."
-)
-
-PROMPT_TEMPLATE = """
-Please answer my QUERY by using the provided CONTEXT. 
-Please answer in the language of the QUERY.
----
-CONTEXT: "{context}"
-
----
-QUERY: "{query}"
-
----
-RESPONSE:
-
-"""
+chat_settings = ChatSettings()
 
 from langchain_core.prompts import PromptTemplate # fmt: skip
 default_prompt: PromptTemplate = PromptTemplate.from_template(
-    PROMPT_TEMPLATE
+    chat_settings.PROMPT_TEMPLATE
 )
 
 
@@ -167,7 +146,6 @@ async def chat_function(
     """
 
     if llm is None:
-        from lmm_education.config.config import ConfigSettings # fmt: skip
         llm = create_model_from_settings(ConfigSettings().major)
 
     # the max allowed number of words in the user's query
@@ -175,10 +153,10 @@ async def chat_function(
 
     # checks
     if not querytext:
-        return _error_message_iterator(MSG_EMPTY_QUERY)
+        return _error_message_iterator(chat_settings.MSG_EMPTY_QUERY)
 
     if len(querytext.split()) > MAX_QUERY_LENGTH:
-        return _error_message_iterator(MSG_LONG_QUERY)
+        return _error_message_iterator(chat_settings.MSG_LONG_QUERY)
 
     querytext = querytext.replace(
         "the textbook", "the context provided"
@@ -203,7 +181,9 @@ async def chat_function(
             logger.error(
                 f"Error retrieving from vector database:\n{e}"
             )
-            return _error_message_iterator(MSG_ERROR_QUERY)
+            return _error_message_iterator(
+                chat_settings.MSG_ERROR_QUERY
+            )
         context: str = "\n\n".join(
             [d.page_content for d in documents]
         )
@@ -226,10 +206,10 @@ async def chat_function_with_validation(
     retriever: BaseRetriever | None = None,
     llm: BaseChatModel | None = None,
     *,
+    allowed_content: list[str],
     system_msg: str = "You are a helpful assistant",
     prompt: PromptTemplate = default_prompt,
     logger: LoggerBase = ConsoleLogger(),
-    validation_config: str = "check_content",
     initial_buffer_size: int = 180,
     max_retries: int = 2,
 ) -> AsyncIterator[BaseMessageChunk]:
@@ -264,10 +244,12 @@ async def chat_function_with_validation(
 
     # Initialize the validation model
     try:
-        query_model: RunnableType = create_runnable(validation_config)
+        query_model: RunnableType = create_runnable(
+            "check_content", allowed_content=allowed_content  # type: ignore
+        )
     except Exception as e:
         logger.error(f"Could not initialize validation model: {e}")
-        return _error_message_iterator(MSG_ERROR_QUERY)
+        return _error_message_iterator(chat_settings.MSG_ERROR_QUERY)
 
     # Get the base chat iterator
     base_iterator: AsyncIterator[BaseMessageChunk] = (
@@ -293,13 +275,11 @@ async def chat_function_with_validation(
                 check: str = await query_model.ainvoke(
                     {'text': response}
                 )
-                if (
-                    "statistics" in check
-                    or "human interaction" in check
-                ):
+                if check in allowed_content:
                     return True, ""
                 else:
-                    return False, MSG_WRONG_CONTENT
+                    print("Model gave it to be " + check)
+                    return False, chat_settings.MSG_WRONG_CONTENT
 
             except Exception as e:
                 logger.warning(
@@ -336,7 +316,7 @@ async def chat_function_with_validation(
         check_complete: bool = False
 
         async for chunk in base_iterator:
-            chunk_text = chunk.text()
+            chunk_text: str = chunk.text()
 
             # Buffering phase
             if not check_complete:
@@ -418,11 +398,24 @@ def query(
     *,
     console_print: bool = False,
     validate_content: bool = False,
+    allowed_content: list[str] = [],
     logger: LoggerBase = ConsoleLogger(),
 ) -> str:
 
     if not querystr:
         return ""
+
+    if validate_content and not allowed_content:
+        config = ConfigSettings()
+        allowed_content = config.check_response.allowed_content
+        if not allowed_content:
+            logger.error(
+                "A request to validate content was made, but there is"
+                " no allowed content value in the configuration file."
+                "\nAdd a list of allowed contents in the "
+                "[check_response] section of " + DEFAULT_CONFIG_FILE
+            )
+            return ""
 
     if len(querystr.split()) < 3:
         print("Please enter a complete query.")
@@ -446,14 +439,18 @@ def query(
             )
             return ""
 
-    llm = create_model_from_settings(settings)
+    llm: BaseChatModel = create_model_from_settings(settings)
 
     # Get the iterator and consume it
-    async def run_query():
+    async def run_query() -> str:
         if validate_content:
             iterator: AsyncIterator[BaseMessageChunk] = (
                 await chat_function_with_validation(
-                    querystr, [], llm=llm, logger=logger
+                    querystr,
+                    [],
+                    llm=llm,
+                    allowed_content=allowed_content,
+                    logger=logger,
                 )
             )
         else:

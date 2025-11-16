@@ -194,6 +194,8 @@ async def fn_checked(
     # Get validated iterator from refactored chat_function_with_validation
     buffer: str = ""
     try:
+        if settings is None:  # for the type checker
+            raise ValueError("Unreacheable code reached.")
         response_iter: AsyncIterator[BaseMessageChunk] = (
             await chat_function_with_validation(
                 querytext=querytext,
@@ -202,7 +204,7 @@ async def fn_checked(
                 llm=llm,
                 system_msg=chat_settings.SYSTEM_MESSAGE,
                 prompt=prompt,
-                validation_config="check_content",
+                allowed_content=settings.check_response.allowed_content,
                 initial_buffer_size=150,
                 max_retries=2,
                 logger=logger,
@@ -284,7 +286,7 @@ with gr.Blocks() as app:
     chatbot.like(vote, None, None)
     chatbot.clear(clearchat)
     gr.ChatInterface(
-        fn_checked if chat_settings.check_response else fn,
+        fn_checked if settings.check_response.check_response else fn,
         type="messages",
         theme="default",
         api_name=False,
@@ -307,7 +309,9 @@ if __name__ == "__main__":
 
     if chat_settings.server.mode == "local":
         app.launch(
-            show_api=False, auth=('accesstoken', 'hackerbrücke')
+            server_port=chat_settings.server.port,
+            show_api=False,
+            auth=('accesstoken', 'hackerbrücke'),
         )
     else:
         # allow public access on internet computer

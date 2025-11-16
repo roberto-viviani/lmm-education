@@ -47,6 +47,7 @@ object.
 
 """
 
+from typing import Any
 from pathlib import Path
 from pydantic import (
     BaseModel,
@@ -255,6 +256,28 @@ class RAGSettings(BaseModel):
         )
 
 
+class CheckResponse(BaseModel):
+    """
+    Settings to check appropriateness of chat.
+    """
+
+    check_response: bool = Field(default=False)
+    allowed_content: list[str] = Field(default=[])
+
+    @model_validator(mode='after')
+    def validate_allowed_content(self) -> Self:
+        """Validate that allowed_content is not empty when check_response is True."""
+        if self.check_response and not self.allowed_content:
+            raise ValueError(
+                "allowed_content must not be empty when check_response is True"
+            )
+        if "general knowledge" in self.allowed_content:
+            raise ValueError(
+                "'general knowledge' cannot be included in allowed content"
+            )
+        return self
+
+
 # By inheriting from LMMSettings, we add the functionality to read
 # these specifications from a config file.
 class ConfigSettings(LMMSettings):
@@ -296,6 +319,12 @@ class ConfigSettings(LMMSettings):
     RAG: RAGSettings = Field(
         default_factory=RAGSettings,
         description="RAG settings",
+    )
+
+    # thematic control of interaction
+    check_response: CheckResponse = Field(
+        default_factory=CheckResponse,
+        description="Check thematic appropriateness of chat",
     )
 
     textSplitter: TextSplitters = Field(
@@ -362,12 +391,25 @@ class ConfigSettings(LMMSettings):
     def __str__(self) -> str:
         return serialize_settings(self)
 
+    def __init__(self, **data: Any) -> None:
+        """
+        Initialize Settings with file existence verification.
+        Prints a warning message on the console if the file does not exist.
+        """
+        config_path = Path(DEFAULT_CONFIG_FILE)
+        if not config_path.exists():
+            print(
+                f"Configuration file not found: {config_path.absolute()}\n"
+                "Returning a default configuration object."
+            )
+        super().__init__(**data)
+
 
 # The config settings are read from the config file, if it is present.
 # If not, a config file is created with default values.
 def create_default_config_file(
     file_path: str | Path | None = None,
-    settings: BaseSettings = ConfigSettings(),
+    settings: BaseSettings | None = None,
 ) -> None:
     """Create a default settings file.
 
@@ -397,8 +439,13 @@ def create_default_config_file(
 
     if file_path.exists():
         # otherwise, it will be read in
+        print("Deleting old configuration file...")
         file_path.unlink()
 
+    if settings is None:
+        settings = ConfigSettings()
+
+    print("Saving new config file: " + str(file_path))
     export_settings(settings, file_path)
 
 
@@ -470,12 +517,6 @@ def load_settings(
     try:
         # Create a temporary ConfigSettings class that uses the specified file
         class TempConfigSettings(ConfigSettings):
-            # Provide a default for the required field
-            storage: DatabaseSource = Field(
-                default=":memory:",
-                description="The vector database local or remote source",
-            )
-
             model_config = SettingsConfigDict(
                 toml_file=str(file_path),
                 env_prefix="LMMEDU_",

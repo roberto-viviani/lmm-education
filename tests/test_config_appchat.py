@@ -3,7 +3,7 @@
 import unittest
 from pydantic import ValidationError
 
-from lmm_education.config.appchat import CheckResponse
+from lmm_education.config.config import CheckResponse
 
 
 class TestCheckResponseValidator(unittest.TestCase):

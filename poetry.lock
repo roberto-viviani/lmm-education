@@ -1541,14 +1541,13 @@ langchain-huggingface = ">=0.3.1,<0.4.0"
 pydantic = ">=2.11.7,<3.0.0"
 pydantic-settings = ">=2.10.1,<3.0.0"
 pyyaml = ">=6.0.2,<7.0.0"
-sentence-transformers = ">=5.1.2,<6.0.0"
 tomlkit = ">=0.13.3,<0.14.0"
 
 [package.source]
 type = "git"
 url = "https://git.uibk.ac.at/c7201031/lmm.git"
 reference = "main"
-resolved_reference = "a2551df9f39ff1649f0169243587c2f35805b1cf"
+resolved_reference = "6ad0a0c16218c875ce9f0a31d81c76880b5d8f7d"
 
 [[package]]
 name = "loguru"

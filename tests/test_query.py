@@ -103,12 +103,20 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             ) from e
 
 
+from lmm.utils.logging import (
+    LoglistLogger,
+    LoggerBase,
+)
+
+
 class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
 
     async def test_validation_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query with validation")
-        iterator = await chat_function_with_validation("", [])
+        iterator = await chat_function_with_validation(
+            "", [], allowed_content=["statistics"]
+        )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("Please ask a question", result)
@@ -117,8 +125,17 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
     async def test_validation_long_query(self):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query with validation")
+        logger: LoggerBase = LoglistLogger()
         long_query = " ".join(["word"] * 100)
-        iterator = await chat_function_with_validation(long_query, [])
+        iterator = await chat_function_with_validation(
+            long_query,
+            [],
+            allowed_content=["statistics"],
+            logger=logger,
+        )
+        if logger.count_logs(level=1) > 0:
+            print("\n".join(logger.get_logs()))
+        self.assertEqual(logger.count_logs(level=1), 0)
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("too long", result)
@@ -132,6 +149,7 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                 "What is a linear model?",
                 [],
                 initial_buffer_size=50,  # Use smaller buffer for testing
+                allowed_content=["statistics"],
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")

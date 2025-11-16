@@ -5,6 +5,7 @@ dist/
 .idea/
 __pycache__/
 config.toml
+appchat.toml
 config_education.toml
 Chapter_1.Rmd
 appChat.log
