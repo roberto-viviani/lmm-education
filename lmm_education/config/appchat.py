@@ -8,6 +8,8 @@ from pydantic_settings import (
     TomlConfigSettingsSource,
 )
 
+from lmm.utils.logging import LoggerBase, ExceptionConsoleLogger
+
 from .config import ServerSettings
 
 CHAT_CONFIG_FILE: str = "appchat.toml"
@@ -113,7 +115,6 @@ QUERY: "{query}"
 
 def create_default_config_file(
     file_path: str | Path | None = None,
-    settings: BaseSettings | None = None,
 ) -> None:
     """Create a default settings file.
 
@@ -137,20 +138,80 @@ def create_default_config_file(
         create_default_config_file(file_path="custom_config.toml")
         ```
     """
-    from lmm.config.config import export_settings
+    from lmm.config.config import create_default_config_file as _cdcf
 
     if file_path is None:
         file_path = CHAT_CONFIG_FILE
 
     file_path = Path(file_path)
 
-    if file_path.exists():
-        # otherwise, it will be read in
-        print("Deleting old configuration file...")
-        file_path.unlink()
+    _cdcf(file_path, ChatSettings)
 
-    if settings is None:
-        settings = ChatSettings()
 
-    print("Saving new config file: " + str(file_path))
-    export_settings(settings, file_path)
+def load_settings(
+    *,
+    file_name: str | Path | None = None,
+    logger: LoggerBase = ExceptionConsoleLogger(),
+) -> ChatSettings | None:
+    """Load and return a ChatSettings object from the specified file.
+
+    Args:
+        file_name: Path to settings file (defaults to config.toml)
+        logger: logger to use. Defaults to a exception-raising logger.
+        This centralizes exception handling, instead of writing
+        the except clauses for each instantiation of ConfigSettings().
+
+    Returns:
+        ChatSettings: The loaded configuration settings object, or
+        None if exception raised.
+
+    Expected behaviour:
+        Exceptions handled through logger, but raises exceptions in
+        the default logger.
+
+    Example:
+        ```python
+        # Load settings from a custom config file
+        settings = load_settings("my_config.toml")
+
+        # Load settings using Path object
+        from pathlib import Path
+        settings = load_settings(Path("configs/custom.toml"))
+        ```
+
+    Note:
+        Use of an ExceptionConsoleLogger still requires to check that
+        return value is not None to satisfy a type checker.
+
+        ```python
+        logger = ExceptionConsoleLogger()
+        settings = load_settings(logger=logger)
+        if settings is None:
+            raise ValueError("Unreacheable code reached")
+        ```
+
+        Here, the type checker is told that settings is not None, but
+        the condition is always satisfied because load_settings will
+        raise an exception whenever it would be returning None.
+
+        Contrast with the following:
+
+        ```python
+        logger = ConsoleLogger()
+        settings = load_settings(logger=logger)
+        if settings is None:
+            raise ValueError("Could not read config.toml")
+        ```
+    """
+    from lmm.config.config import load_settings as _load_settings
+
+    if file_name is None:
+        file_name = CHAT_CONFIG_FILE
+
+    file_path = Path(file_name)
+
+    return _load_settings(
+        file_name=file_path,
+        logger=logger,
+        settings_class=ChatSettings,
+    )

@@ -20,6 +20,8 @@ from lmm_education.config.config import (
 )
 from lmm_education.config.appchat import (
     ChatSettings,
+    load_settings as load_chat_settings,
+    create_default_config_file as create_default_chat_config_file,
     CHAT_CONFIG_FILE,
 )
 
@@ -28,26 +30,25 @@ from lmm.utils.logging import FileConsoleLogger # fmt: skip
 logger = FileConsoleLogger("LM Markdown for Education", "appChat.log")
 DATABASE_FILE = "messages.csv"
 
+# Config files.
 if not os.path.exists(DEFAULT_CONFIG_FILE):
     create_default_config_file(DEFAULT_CONFIG_FILE)
     print(
         f"{DEFAULT_CONFIG_FILE} created in app folder, change as appropriate"
     )
 
-# this reads the settings from config.toml
 settings: ConfigSettings | None = load_settings()
 if settings is None:
     exit()
 
 if not os.path.exists(CHAT_CONFIG_FILE):
-    create_default_config_file(CHAT_CONFIG_FILE, ChatSettings())
+    create_default_chat_config_file(CHAT_CONFIG_FILE)
     print(
         f"{CHAT_CONFIG_FILE} created in app folder, change as appropriate"
     )
-try:
-    chat_settings: ChatSettings = ChatSettings()
-except Exception as e:
-    logger.error("Could not load chat settings:\n" + str(e))
+
+chat_settings: ChatSettings | None = load_chat_settings()
+if chat_settings is None:
     exit()
 
 # This is displayed on the chatbot. Change it as appropriate
@@ -125,6 +126,8 @@ async def fn(
 
     # Get iterator from refactored chat_function
     buffer: str = ""
+    if chat_settings is None:
+        raise ValueError("Unreachable code reached")
     try:
         response_iter: AsyncIterator[BaseMessageChunk] = (
             await chat_function(
@@ -193,6 +196,8 @@ async def fn_checked(
 
     # Get validated iterator from refactored chat_function_with_validation
     buffer: str = ""
+    if chat_settings is None:
+        raise ValueError("Unreachable code reached")
     try:
         if settings is None:  # for the type checker
             raise ValueError("Unreacheable code reached.")

@@ -55,7 +55,6 @@ from pydantic import (
     HttpUrl,
     model_validator,
     field_validator,
-    ValidationError,
 )
 from pydantic_settings import (
     BaseSettings,
@@ -71,13 +70,10 @@ from lmm.config.config import (
     Settings as LMMSettings,
     export_settings,
     serialize_settings,
-    format_pydantic_error_message,
 )
 from lmm.scan.chunks import EncodingModel, AnnotationModel
 from lmm.utils.logging import LoggerBase, ExceptionConsoleLogger
 from lmm.scan.scan_keys import QUESTIONS_KEY, TITLES_KEY
-
-from tomllib import TOMLDecodeError
 
 # Module-level constants
 DEFAULT_CONFIG_FILE = "config.toml"
@@ -409,7 +405,6 @@ class ConfigSettings(LMMSettings):
 # If not, a config file is created with default values.
 def create_default_config_file(
     file_path: str | Path | None = None,
-    settings: BaseSettings | None = None,
 ) -> None:
     """Create a default settings file.
 
@@ -432,21 +427,14 @@ def create_default_config_file(
         create_default_config_file(file_path="custom_config.toml")
         ```
     """
+    from lmm.config.config import create_default_config_file as _cdcf
+
     if file_path is None:
         file_path = DEFAULT_CONFIG_FILE
 
     file_path = Path(file_path)
 
-    if file_path.exists():
-        # otherwise, it will be read in
-        print("Deleting old configuration file...")
-        file_path.unlink()
-
-    if settings is None:
-        settings = ConfigSettings()
-
-    print("Saving new config file: " + str(file_path))
-    export_settings(settings, file_path)
+    _cdcf(file_path, ConfigSettings)
 
 
 def load_settings(
@@ -504,49 +492,18 @@ def load_settings(
             raise ValueError("Could not read config.toml")
         ```
     """
+    from lmm.config.config import load_settings as _load_settings
+
     if file_name is None:
         file_name = DEFAULT_CONFIG_FILE
 
     file_path = Path(file_name)
 
-    if not file_path.exists():
-        raise FileNotFoundError(
-            f"Configuration file not found: {file_path}"
-        )
-
-    try:
-        # Create a temporary ConfigSettings class that uses the specified file
-        class TempConfigSettings(ConfigSettings):
-            model_config = SettingsConfigDict(
-                toml_file=str(file_path),
-                env_prefix="LMMEDU_",
-                frozen=True,
-                validate_assignment=True,
-                extra='forbid',
-            )
-
-        # Load and return the settings from the specified file
-        return TempConfigSettings()
-
-    except TOMLDecodeError:
-        logger.error(
-            "An invalid value was found in the config file "
-            "(often, 'None').\nCheck that all values are numbers "
-            "or strings.\n"
-            "Express None as an empty string or as 'None'."
-        )
-        return None
-    except ValidationError as e:
-        logger.error(
-            format_pydantic_error_message(f"Invalid settings:\n{e}")
-        )
-        return None
-    except ValueError as e:
-        logger.error(f"Invalid settings:\n{e}")
-        return None
-    except Exception as e:
-        logger.error(f"Could not load config settings:\n{e}")
-        return None
+    return _load_settings(
+        file_name=file_path,
+        logger=logger,
+        settings_class=ConfigSettings,
+    )
 
 
 # Create a default config.toml file, if there is none.
