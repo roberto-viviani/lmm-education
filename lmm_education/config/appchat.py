@@ -45,7 +45,13 @@ Example: "How can I fit a model with kid_score as outcome and mom_iq as predicto
         default="Please ask a question about the course."
     )
     MSG_WRONG_CONTENT: str = Field(
-        default="I can only answer questions about the course."
+        default=(
+            "I do not have information to answer this query"
+            " as the course focuses on linear models and "
+            "their use in R. If you have questions related to "
+            "linear models, their interpretation, or how to "
+            "implement them in R, I would be happy to help!"
+        )
     )
     MSG_LONG_QUERY: str = Field(
         default="Your question is too long. Please ask a shorter question."

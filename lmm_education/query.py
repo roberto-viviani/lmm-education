@@ -45,6 +45,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 # LM markdown
 from lmm.utils.logging import ConsoleLogger, LoggerBase
+from lmm.utils.ioutils import check_allowed_content
 from lmm.config.config import LanguageModelSettings
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
@@ -275,10 +276,19 @@ async def chat_function_with_validation(
                 check: str = await query_model.ainvoke(
                     {'text': response}
                 )
-                if check in allowed_content:
+                logger.info(
+                    "Model content classification: "
+                    + check.replace("\n", " ")
+                    + "\n"
+                )
+
+                if check_allowed_content(
+                    check,
+                    allowed_content
+                    + ['apology', 'human interaction'],
+                ):
                     return True, ""
                 else:
-                    print("Model gave it to be " + check)
                     return False, chat_settings.MSG_WRONG_CONTENT
 
             except Exception as e:
