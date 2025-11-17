@@ -405,7 +405,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
         blocklist = blocklist_rag(
-            blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
+            blocklist_copy(blocks),
+            ScanOpts(textid=True, textUUID=True),
         )
         chunks = blocks_to_chunks(blocklist, encoding_model)
         embedding_model = encoding_to_qdrantembedding_model(

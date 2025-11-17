@@ -923,7 +923,7 @@ def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
     # is not most natural. Alas, to maintain compatibility with
     # langchain, we adopt its schema in the data saved into the
     # vector database. This function does precisely this: maps
-    # the content for saveing from the Chunk object into the
+    # the content for saving from the Chunk object into the
     # scheme recognised by langchain.
     # The exception is the GROUP_UUID_KEY for 'look_up' queries.
     if GROUP_UUID_KEY in x.metadata:
@@ -1197,6 +1197,7 @@ def upload(
     points: list[Point] = chunks_to_points(
         chunks, qdrant_model, embedding_settings, logger=logger
     )
+
     if not points:
         return []
 

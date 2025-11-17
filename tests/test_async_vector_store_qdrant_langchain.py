@@ -74,7 +74,7 @@ blocks: list[Block] = [
     heading2,
     text2,
 ]
-blocks = blocklist_rag(blocks, ScanOpts(textid=True, UUID=True))
+blocks = blocklist_rag(blocks, ScanOpts(textid=True, textUUID=True))
 
 
 def tearDownModule():
@@ -467,7 +467,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
         blocklist = blocklist_rag(
-            blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
+            blocklist_copy(blocks),
+            ScanOpts(textid=True, textUUID=True),
         )
         chunks = blocks_to_chunks(blocklist, encoding_model)
         embedding_model = encoding_to_qdrantembedding_model(
@@ -721,7 +722,7 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
 
         blocks: list[Block] = blocklist_rag(
             blocklist,
-            ScanOpts(titles=True, textid=True, UUID=True),
+            ScanOpts(titles=True, textid=True, textUUID=True),
         )
 
         # ingest text into companion collection
@@ -757,7 +758,7 @@ class TestQueryGrouped(unittest.IsolatedAsyncioTestCase):
             ),
         )
         blocks = blocklist_rag(
-            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+            blocks, ScanOpts(titles=True, textid=True, textUUID=True)
         )
 
         # ingest chunks of splitted text

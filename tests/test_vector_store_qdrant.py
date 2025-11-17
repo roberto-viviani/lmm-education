@@ -69,7 +69,7 @@ blocks: list[Block] = [
     heading3,
     text3,
 ]
-blocks = blocklist_rag(blocks, ScanOpts(textid=True, UUID=True))
+blocks = blocklist_rag(blocks, ScanOpts(textid=True, textUUID=True))
 
 am = AnnotationModel(inherited_properties=[TITLES_KEY, QUESTIONS_KEY])
 
@@ -1630,7 +1630,8 @@ class TestIngestionAndQuery(unittest.TestCase):
     def test_query_SPARSE_CONTENT3(self):
         encoding_model = EncodingModel.SPARSE_CONTENT
         blocklist = blocklist_rag(
-            blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
+            blocklist_copy(blocks),
+            ScanOpts(textid=True, textUUID=True),
         )
         chunks = blocks_to_chunks(blocklist, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(
@@ -2633,7 +2634,8 @@ class TestQueryLargeText(unittest.TestCase):
         blocks = self._get_blocks()
         encoding_model = EncodingModel.SPARSE_CONTENT
         blocklist = blocklist_rag(
-            blocklist_copy(blocks), ScanOpts(textid=True, UUID=True)
+            blocklist_copy(blocks),
+            ScanOpts(textid=True, textUUID=True),
         )
         chunks = blocks_to_chunks(blocklist, encoding_model, am)
         embedding_model = encoding_to_qdrantembedding_model(

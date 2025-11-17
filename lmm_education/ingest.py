@@ -35,6 +35,9 @@ Main functions:
         configuration settings from a default input folder.
 """
 
+# pyright: reportUnusedImport=false
+# flake8: noqa
+
 import io
 from pathlib import Path
 
@@ -43,23 +46,39 @@ from pydantic import validate_call
 # LM markdown
 from lmm.markdown.parse_markdown import (
     Block,
-    MetadataBlock,
     ErrorBlock,
+    HeaderBlock,
+    HeadingBlock,
+    MetadataBlock,
+    TextBlock,
     blocklist_haserrors,
     blocklist_errors,
     blocklist_copy,
+    save_blocks,
 )
 from lmm.markdown.blockutils import (
     merge_code_blocks,
     merge_equation_blocks,
     merge_textblocks,
-    unmerge_textblocks,
+    clear_metadata_properties,
+)
+from lmm.markdown.treeutils import (
+    inherit_metadata,
 )
 from lmm.markdown.tree import (
     blocks_to_tree,
     tree_to_blocks,
+    extract_content,
+    HeadingNode,
+    MarkdownTree,
+    MarkdownNode,
+    TextNode,
+    post_order_traversal,
 )
-from lmm.markdown.treeutils import propagate_property
+from lmm.markdown.treeutils import (
+    propagate_property,
+    bequeath_properties,
+)
 from lmm.markdown.ioutils import save_markdown, report_error_blocks
 from lmm.utils.ioutils import append_postfix_to_filename
 from lmm.scan.scan import (
@@ -73,6 +92,8 @@ from lmm.scan.scan_keys import (
     UUID_KEY,
     GROUP_UUID_KEY,
     SUMMARY_KEY,
+    TXTHASH_KEY,
+    CHAT_KEY,
 )
 from lmm.scan.scan_split import (
     NullTextSplitter,
@@ -85,6 +106,9 @@ from lmm.scan.chunks import (
     chunks_to_blocks,
     AnnotationModel,
 )
+from qdrant_client.http.models.models import PointStruct
+
+from lmm_education.config.config import DatabaseSettings
 
 # LMM for education
 from .config.config import (
@@ -106,7 +130,11 @@ from .stores.vector_store_qdrant import (
 )
 
 # langchain, import text splitters from here
-from langchain_text_splitters import TextSplitter
+from langchain_text_splitters import (
+    TextSplitter,
+    RecursiveCharacterTextSplitter,
+)
+
 
 # qdrant, vector database implementation
 from qdrant_client import QdrantClient
@@ -268,9 +296,11 @@ def markdown_upload(
     if isinstance(sources, str):
         sources = [sources]
     error_sources: dict[str, list[ErrorBlock]] = {}
-    logger_level = logger.get_level()
+    logger_level: int = logger.get_level()
     for source in sources:
-        blocks = markdown_scan(source, False, logger=logger)
+        blocks: list[Block] = markdown_scan(
+            source, False, logger=logger
+        )
         if not bool(blocks):
             error_sources[str(source)] = [
                 ErrorBlock(
@@ -338,7 +368,7 @@ def markdown_upload(
             chunk_blocks = chunks_to_blocks(chunks, '+++++')
             comp_blocks = chunks_to_blocks(comp_chunks, ".....")
             if isinstance(save_files, bool):
-                out_file = append_postfix_to_filename(
+                out_file: str = append_postfix_to_filename(
                     str(source), "_chunks"
                 )
                 save_markdown(out_file, chunk_blocks, logger)
@@ -402,55 +432,64 @@ def blocklist_encode(
         logger.error("Problems in markdown, fix before continuing")
         return [], []
 
-    # if we provide a companion collection, we merge textblocks
-    # under headings together prior to saving them in the documents
-    # collection
-    dbOpts = opts.database
-    if bool(dbOpts.companion_collection):
-        blocklist = merge_textblocks(blocklist)
+    # we get rid of all existing UUIDs preliminarly
+    blocklist = clear_metadata_properties(blocklist, [UUID_KEY])
+
+    # this contains the info if form a companion collection
+    dbOpts: DatabaseSettings = opts.database
 
     # preprocessing for RAG. You tell scan_rag what annotations
     # to make.
-    # * we always collect titles, as they cost little
-    # * we optionally collect questions answered by the text
+    # * titles and questions are used in annotations
     # * summaries are additional text blocks encoded on their own (see
     #       raptor paper)
+    # * headingUUID are required to form groupUUID's
     scan_opts = ScanOpts(
         titles=bool(opts.RAG.titles),
         questions=bool(opts.RAG.questions),
         summaries=bool(opts.RAG.summaries),
         # if computing a companion collection (group queries)
-        # we need the data to link records between collections
-        textid=bool(dbOpts.companion_collection),
-        UUID=bool(dbOpts.companion_collection),
+        # we need the id's to link records between collections
+        headingid=bool(dbOpts.companion_collection),
+        headingUUID=bool(dbOpts.companion_collection),
         language_model_settings=opts,
     )
     blocks: list[Block] = blocklist_rag(blocklist, scan_opts, logger)
     if not blocks:
         return [], []
 
-    # ingest here the whole portions of text under headings
+    # ingest here the whole text under headings in the companion coll.
     if dbOpts.companion_collection:
-        # create embeddings
+        coll_blocks: list[Block] = blocklist_copy(blocks)
+        # in the companion collection, we merge textblocks
+        # under headings together prior to saving them in the
+        # documents collection with the UUID of the headings
+        coll_blocks = merge_textblocks(coll_blocks)
+        coll_root: MarkdownNode | None = blocks_to_tree(coll_blocks)
+        if coll_root is None:
+            return [], []
+
+        # this will also inherit the UUID
+        coll_root = inherit_metadata(
+            coll_root,
+            exclude=[TXTHASH_KEY, CHAT_KEY, SUMMARY_KEY],
+            inherit=True,
+            include_header=True,
+        )
+        coll_blocks = tree_to_blocks(coll_root)
+
+        # collect text and annotations into chunk objects
         coll_chunks: list[Chunk] = blocks_to_chunks(
-            blocks,
+            coll_blocks,
             encoding_model=EncodingModel.NONE,
             annotation_model=AnnotationModel(),  # no annotations here
             logger=logger,
         )
         if not coll_chunks:
             return [], []
-        blocks = unmerge_textblocks(blocks)
+
     else:
         coll_chunks = []
-
-    # before chunking, copy the UUID in the metadata to a group_UUID
-    # key in the metadata of the chunks to allow qdrant GROUP_BY
-    # queries. The uuid has been set in the previous scan_rag call.
-    for b in blocks:
-        if isinstance(b, MetadataBlock):
-            if UUID_KEY in b.content.keys():
-                b.content[GROUP_UUID_KEY] = b.content.pop(UUID_KEY)
 
     # chunking
     splitter: TextSplitter = defaultSplitter
@@ -458,7 +497,11 @@ def blocklist_encode(
         case 'none':
             splitter = NullTextSplitter()
         case 'default':
-            pass
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=500,
+                chunk_overlap=200,
+                add_start_index=False,
+            )
         case _:
             raise ValueError(
                 f"Invalid splitter: {opts.textSplitter.splitter}"
@@ -466,15 +509,27 @@ def blocklist_encode(
 
     splits: list[Block] = scan_split(blocks, splitter)
 
+    # now copy the UUID in the heading into the metadata of the
+    # splits under the name GROUP_UUID_KEY
+    root: MarkdownTree = blocks_to_tree(splits)
+    if not root:
+        return [], []
+
+    root = bequeath_properties(root, [UUID_KEY], [GROUP_UUID_KEY])
+    splits = tree_to_blocks(root)
+
     # we avoid chunks that isolate or split equations or code to keep
     # those together with textual context to improve the embedding
-    splits = merge_code_blocks(splits)
-    splits = merge_equation_blocks(splits)
+    # TODO: handle text overlap
+    # splits = merge_code_blocks(splits)
+    # splits = merge_equation_blocks(splits)
 
     # summaries. To add summaries as additional chunks, we transform
     # the summary property into a child text block of the heading node
     def _propagate_summaries(blocks: list[Block]) -> list[Block]:
-        root = blocks_to_tree(blocklist_copy(blocks), logger)
+        root: MarkdownTree = blocks_to_tree(
+            blocklist_copy(blocks), logger
+        )
         if not root:
             return []
 
@@ -484,7 +539,7 @@ def blocklist_encode(
         # have a metadata property marking its content type as summary
         add_type_property: bool = True
         root = propagate_property(
-            root, SUMMARY_KEY, add_type_property
+            root, SUMMARY_KEY, add_key_info=add_type_property
         )
         return tree_to_blocks(root)
 
@@ -492,8 +547,8 @@ def blocklist_encode(
         splits = _propagate_summaries(splits)
 
     # the blocks_to_chunks function transforms the chunks into the
-    # format recognized by qdrant for ingestion, also adding the
-    # embedding specified by the encoding model.
+    # format recognized by qdrant for ingestion, also collecting the
+    # annotations specified by the encoding model.
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
         encoding_model=opts.RAG.encoding_model,
@@ -508,11 +563,10 @@ def blocklist_encode(
 
 
 # This is the internal function doing the job of uploading the
-# chunks of text into the database. It implements the encoding
-# strategy specified in the ConfigSettings object, adding annotations
-# using a language model if the strategy requires it. It is the
-# key point where an encoding specification and strategies to
-# extract further information from mere text is coded.
+# chunks of text into the database. It is the point where
+# annotations and text are used to compute an embedding, dense
+# or sparse, or both, prior to sending the chunks to the
+# database.
 def blocklist_upload(
     client: QdrantClient,
     chunks: list[Chunk],
@@ -543,12 +597,13 @@ def blocklist_upload(
     """
 
     # ingestion of the chunks
-    dbOpts = opts.database
+    dbOpts: DatabaseSettings = opts.database
     model: QdrantEmbeddingModel = encoding_to_embedding_model(
         opts.RAG.encoding_model
     )
+
     if ingest:
-        points = upload(
+        points: list[PointStruct] = upload(
             client,
             collection_name=dbOpts.collection_name,
             qdrant_model=model,
@@ -562,9 +617,10 @@ def blocklist_upload(
         logger.error("Could not upload documents")
         return []
     else:
-        logger.info(
-            f"Ingested {len(points)} chunks in main collection."
-        )
+        if ingest:
+            logger.info(
+                f"Ingested {len(points)} chunks in main collection."
+            )
 
     # ingestion of the document collection (if specified)
     if bool(dbOpts.companion_collection):
@@ -574,12 +630,12 @@ def blocklist_upload(
                 + "document chunks generated."
             )
             return []
-        logger.info(
-            f"Ingesting companion collection ({len(companion_chunks)} chunks.)"
-        )
         doc_coll: str = dbOpts.companion_collection
         if ingest:
-            docpoints = upload(
+            logger.info(
+                f"Ingesting companion collection ({len(companion_chunks)} chunks.)"
+            )
+            docpoints: list[PointStruct] = upload(
                 client,
                 collection_name=doc_coll,
                 qdrant_model=QdrantEmbeddingModel.UUID,
@@ -596,7 +652,15 @@ def blocklist_upload(
             return []
 
         return [
-            (str(p.id), str(d.id)) for p, d in zip(points, docpoints)
+            (
+                str(p.id),
+                (
+                    p.payload.get(GROUP_UUID_KEY, "")
+                    if p.payload
+                    else ""
+                ),
+            )
+            for p in points
         ]
 
     else:
@@ -657,7 +721,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1:
         try:
-            filenames = _list_files_by_extension(
+            filenames: list[str] = _list_files_by_extension(
                 sys.argv[1], ["md", "Rmd"]
             )
         except Exception as e:
@@ -671,18 +735,19 @@ if __name__ == "__main__":
         print(
             "       third command line argument is save files? (default False)"
         )
-        filenames = ""
         exit()
 
-    ingest: bool = bool(sys.argv[2]) if len(sys.argv) > 2 else True
+    ingest: bool = (
+        bool(eval(sys.argv[2])) if len(sys.argv) > 2 else True
+    )
     save_files: bool = (
-        bool(sys.argv[3]) if len(sys.argv) > 3 else False
+        bool(eval(sys.argv[3])) if len(sys.argv) > 3 else False
     )
 
     # error logged to console, and exit if required
     logger = ConsoleLogger()
     if filenames:
-        opts = load_settings(logger=logger)
+        opts: ConfigSettings | None = load_settings(logger=logger)
         if opts is None:
             exit()
 

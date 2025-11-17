@@ -268,7 +268,7 @@ class TestEncoding(unittest.TestCase):
 
         blocks: list[Block] = blocklist_rag(
             blocklist,
-            ScanOpts(titles=True, textid=True, UUID=True),
+            ScanOpts(titles=True, textid=True, textUUID=True),
         )
 
         # ingest text into companion collection
@@ -303,7 +303,7 @@ class TestEncoding(unittest.TestCase):
             ),
         )
         blocks = blocklist_rag(
-            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+            blocks, ScanOpts(titles=True, textid=True, textUUID=True)
         )
         self.assertTrue(len(blocks) > 0)
 
@@ -421,7 +421,7 @@ class TestEncoding(unittest.TestCase):
 
         blocks: list[Block] = blocklist_rag(
             blocklist,
-            ScanOpts(titles=True, textid=True, UUID=True),
+            ScanOpts(titles=True, textid=True, textUUID=True),
         )
         self.assertTrue(len(blocks) > 0)
 
@@ -457,7 +457,7 @@ class TestEncoding(unittest.TestCase):
             ),
         )
         blocks = blocklist_rag(
-            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+            blocks, ScanOpts(titles=True, textid=True, textUUID=True)
         )
         self.assertTrue(len(blocks) > 0)
 
@@ -592,7 +592,7 @@ class TestEncoding(unittest.TestCase):
 
         blocks: list[Block] = blocklist_rag(
             blocklist,
-            ScanOpts(titles=True, textid=True, UUID=True),
+            ScanOpts(titles=True, textid=True, textUUID=True),
         )
         self.assertTrue(len(blocks) > 0)
 
@@ -631,7 +631,7 @@ class TestEncoding(unittest.TestCase):
             ),
         )
         blocks = blocklist_rag(
-            blocks, ScanOpts(titles=True, textid=True, UUID=True)
+            blocks, ScanOpts(titles=True, textid=True, textUUID=True)
         )
 
         # ingest chunks of splitted text

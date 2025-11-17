@@ -52,7 +52,7 @@ blocks: list[Block] = [
     heading2,
     text2,
 ]
-blocks = blocklist_rag(blocks, ScanOpts(textid=True, UUID=True))
+blocks = blocklist_rag(blocks, ScanOpts(textid=True, textUUID=True))
 
 
 class TestInitialization(unittest.TestCase):
