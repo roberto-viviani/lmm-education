@@ -87,29 +87,24 @@ def _prepare_messages(
 ) -> list[tuple[str, str]]:
     """
     Customized message history for stateless interaction. The first
-    element is always the system message. There follow the first
-    request and its response (the first request contains the context),
-    and the last query and response.
+    element is always the system message. We append to this the last
+    four interactions (i.e. user and assistant messages).
     """
+    # Note that the context is not contained in the history. The
+    # Gradio chat app keeps a list of what the user typed in the web
+    # app as a query, and what the app displayed as a response. In
+    # this system, the first message if modified by code to include
+    # context, but the following messages are not.
 
     messages: list[tuple[str, str]] = []
     if system_message:
         messages.append(('system', system_message))
 
-    # first two messages are user's and assistant's
-    if len(history) > 1:
-        for m in history[:2]:
+    if history:
+        for m in history[-4:]:
+            if m['role'] == "developer":
+                continue
             messages.append((m['role'], m['content']))
-
-    # let us resend the last two messages' exchange
-    if len(history) > 3:
-        for m in history[len(history) - 2 :]:
-            messages.append((m['role'], m['content']))
-    elif len(history) > 2:  # not clear when this would occur
-        for m in history[-1:]:
-            messages.append((m['role'], m['content']))
-    else:
-        pass
 
     messages.append(('user', query))
 
@@ -145,6 +140,9 @@ async def chat_function(
     Returns:
         AsyncIterator[BaseMessageChunk]: Iterator yielding response chunks
     """
+
+    # note: history is a copy of the history. It cannot modified here
+    # to persist information to the next call.
 
     if llm is None:
         llm = create_model_from_settings(ConfigSettings().major)
