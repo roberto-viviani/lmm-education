@@ -210,7 +210,7 @@ async def fn_checked(
                 system_msg=chat_settings.SYSTEM_MESSAGE,
                 prompt=prompt,
                 allowed_content=settings.check_response.allowed_content,
-                initial_buffer_size=150,
+                initial_buffer_size=settings.check_response.initial_buffer_size,
                 max_retries=2,
                 logger=logger,
             )

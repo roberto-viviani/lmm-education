@@ -58,3 +58,24 @@ The annotation model is specified as a list of keys under `inherited_properties`
 The specification `filters` in the annotation model is reserved for future use. Setting this specification has no effect on the working of the program at present.
 
 ## Encoding models
+
+## Content validation
+
+Content validation can be implemented at two levels. The first is the prompt, instructing the language model only to reply to queries about a certain content, or that are represented in the retrieved context. The second is to send query and the first part of the response to a LMM to classify the content.
+
+The default chat prompt includes text for the first level of validation. To switch on the second, you set the `check_response` property in config.toml to true:
+
+```ini
+[check_response]
+check_response = true
+allowed_content = ["statistics", "R programming"]
+initial_buffer_size = 320
+```
+
+If you do that, you must also provide one or more allowed contents in the `allowed_content` list. The `initial_buffer_size` controls how much of the initial response of the model is sent for content classification (in characters). If the chatbot is replying that it cannot respond to legitimate queries due to misclassification, try and increase the buffer size. This is a tredeoff between the accuracy of content assessment and the latency with which the response starts streaming in the chatbot.
+
+It is important to bear in mind that the instructions about the content of the interaction that are put in the prompt at the time in which the context is retrieved become progressively irrelevant during a chat exchange. Therefore, any strategy to control content cannot be based on verifying that the question is consistent with material retireved from the vector database. There are two ways to control the content of prolonged chats:
+
+* introduce a content limitation in the system prompt, instead of leaving to something generic like "You are a helpful assistant". The system prompt is present in all chat interactions, irrespective of how prolonged.
+* switch on content validation, which checks each response of the language model.
+

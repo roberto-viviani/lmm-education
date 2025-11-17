@@ -259,6 +259,12 @@ class CheckResponse(BaseModel):
 
     check_response: bool = Field(default=False)
     allowed_content: list[str] = Field(default=[])
+    initial_buffer_size: int = Field(
+        default=320,
+        ge=120,
+        le=12000,
+        description="buffer size to send to model to check content",
+    )
 
     @model_validator(mode='after')
     def validate_allowed_content(self) -> Self:

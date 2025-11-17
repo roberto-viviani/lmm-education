@@ -209,7 +209,7 @@ async def chat_function_with_validation(
     system_msg: str = "You are a helpful assistant",
     prompt: PromptTemplate = default_prompt,
     logger: LoggerBase = ConsoleLogger(),
-    initial_buffer_size: int = 180,
+    initial_buffer_size: int = 320,
     max_retries: int = 2,
 ) -> AsyncIterator[BaseMessageChunk]:
     """
@@ -346,7 +346,7 @@ async def chat_function_with_validation(
                 # Check if we've buffered enough
                 if len(buffer_text) >= initial_buffer_size:
                     flag, error_message = await _check_content(
-                        buffer_text + "..."
+                        querytext + "\n\n" + buffer_text + "..."
                     )
 
                     if not flag:
