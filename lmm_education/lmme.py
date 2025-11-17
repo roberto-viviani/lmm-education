@@ -11,16 +11,66 @@ logger = ConsoleLogger()
 app = typer.Typer()
 
 
+def _init_config_files() -> bool:
+    # settings. If config.toml/appchat.toml do not exist, create them
+    import os
+    from lmm_education.config.config import (
+        ConfigSettings,
+        load_settings,
+        create_default_config_file,
+        DEFAULT_CONFIG_FILE,
+    )
+    from lmm_education.config.appchat import (
+        ChatSettings,
+        load_settings as load_chat_settings,
+        create_default_config_file as create_default_chat_config_file,
+        CHAT_CONFIG_FILE,
+    )
+
+    if not os.path.exists(DEFAULT_CONFIG_FILE):
+        create_default_config_file(DEFAULT_CONFIG_FILE)
+        print(
+            f"{DEFAULT_CONFIG_FILE} created in app folder, change as appropriate"
+        )
+
+        settings: ConfigSettings | None = load_settings()
+        if settings is None:
+            return False
+
+        if not os.path.exists(CHAT_CONFIG_FILE):
+            create_default_chat_config_file(CHAT_CONFIG_FILE)
+            print(
+                f"{CHAT_CONFIG_FILE} created in app folder, change as appropriate"
+            )
+
+        chat_settings: ChatSettings | None = load_chat_settings()
+        if chat_settings is None:
+            return False
+
+    return True
+
+
+if not _init_config_files():
+    print("Config files cannot be loaded or read.")
+    exit()
+
+
 @app.command()
 def create_default_config_file() -> None:
     """
-    Create a default configuration file, or reset the configuration
-    file to default values.
+    Create default configuration files, or reset the configuration
+    files to default values.
     """
-    from lmm_education.config.config import create_default_config_file
+    from lmm_education.config.config import (
+        create_default_config_file as create_config_file,
+    )
+    from lmm_education.config.appchat import (
+        create_default_config_file as create_appchat_file,
+    )
 
     try:
-        create_default_config_file()
+        create_config_file()
+        create_appchat_file()
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
