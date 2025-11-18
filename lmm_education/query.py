@@ -188,6 +188,11 @@ async def chat_function(
         context: str = "\n-----\n".join(
             [d.page_content for d in documents]
         )
+        from lmm.markdown.ioutils import (
+            convert_dollar_latex_delimiters,
+        )
+
+        context = convert_dollar_latex_delimiters(context)
         if context_print:
             logger.info(
                 "CONTEXT:\n" + context + "\nEND CONTEXT------\n\n"
