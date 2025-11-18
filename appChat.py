@@ -106,7 +106,18 @@ from lmm_education.query import (
     chat_function,
     chat_function_with_validation,
 )
-from lmm.scan.scanutils import preproc_for_markdown
+
+# from lmm.scan.scanutils import preproc_for_markdown
+
+
+def _preproc_for_markdown(response: str) -> str:
+    # a no-op at present
+    return response
+    # replace square brackets containing the character '\' to one
+    # that is enclosed between '$$' for rendering in markdown
+    response = re.sub(r"\\\[|\\\]", "$$", response)
+    response = re.sub(r"\\\(|\\\)", "$", response)
+    return response
 
 
 # Callback for Gradio to call when a chat message is sent.
@@ -143,7 +154,7 @@ async def fn(
 
         # Stream and yield for Gradio
         async for item in response_iter:
-            buffer += preproc_for_markdown(item.text())
+            buffer += _preproc_for_markdown(item.text())
             yield buffer
 
     except Exception as e:
@@ -186,13 +197,6 @@ async def fn_checked(
     This version checks the content of the stream before releasing it
     using the refactored chat_function_with_validation from lmm_education.query.
     """
-
-    def _preproc_for_markdown(response: str) -> str:
-        # replace square brackets containing the character '\' to one
-        # that is enclosed between '$$' for rendering in markdown
-        response = re.sub(r"\\\[|\\\]", "$$", response)
-        response = re.sub(r"\\\(|\\\)", "$", response)
-        return response
 
     # Get validated iterator from refactored chat_function_with_validation
     buffer: str = ""
@@ -278,6 +282,8 @@ def postcomment(comment: object, request: gr.Request):
 ldelims: list[dict[str, str | bool]] = [
     {"left": "$$", "right": "$$", "display": True},
     {"left": "$", "right": "$", "display": False},
+    {"left": r"\[", "right": r"\]", "display": True},
+    {"left": r"\(", "right": r"\)", "display": False},
 ]
 with gr.Blocks() as app:
     gr.Markdown("# " + title)

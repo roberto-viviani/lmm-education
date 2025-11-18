@@ -61,17 +61,21 @@ Example: "How can I fit a model with kid_score as outcome and mom_iq as predicto
         default="Your question is too long. Please ask a shorter question."
     )
     MSG_ERROR_QUERY: str = Field(
-        default="I am sorry, due to an error I cannot answer this question. Please report the error."
+        default=(
+            "I am sorry, due to an error I cannot answer "
+            "this question. Please report the error."
+        )
     )
 
     SYSTEM_MESSAGE: str = Field(
-        default="""
-You are a university tutor teaching undergraduates in a statistics course 
-that uses R to fit models, explaining background and guiding understanding.
-Limit your responses in the chat to the field of statistics and the use and 
-syntax of R. If the user expresses discouragement with the material, respond
-that this happens commonly but can be overcome with the time.
-"""
+        default=(
+            "SYSTEM_MESSAGE = You are a university tutor teaching "
+            "undergraduates in a statistics course that uses R"
+            " to fit models, explaining background and guiding "
+            "understanding. Limit your responses in the chat to "
+            "the field of statistics and the syntax and use of "
+            "the R programming language."
+        )
     )
 
     PROMPT_TEMPLATE: str = Field(
