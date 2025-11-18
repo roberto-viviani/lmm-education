@@ -119,6 +119,7 @@ async def chat_function(
     *,
     system_msg: str = "You are a helpful assistant",
     prompt: PromptTemplate = default_prompt,
+    context_print: bool = False,
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncIterator[BaseMessageChunk]:
     """
@@ -135,7 +136,8 @@ async def chat_function(
         llm: Optional language model to use
         system_msg: System message for the conversation
         prompt: Prompt template for formatting context and query
-        logger: Logger instance for error reporting
+        context_print: Prints the results of the query to the logger
+        logger: Logger instance for info and error reporting
 
     Returns:
         AsyncIterator[BaseMessageChunk]: Iterator yielding response chunks
@@ -183,9 +185,13 @@ async def chat_function(
             return _error_message_iterator(
                 chat_settings.MSG_ERROR_QUERY
             )
-        context: str = "\n\n".join(
+        context: str = "\n-----\n".join(
             [d.page_content for d in documents]
         )
+        if context_print:
+            logger.info(
+                "CONTEXT:\n" + context + "\nEND CONTEXT------\n\n"
+            )
         querytext = prompt.format(context=context, query=querytext)
 
         if create_flag:
@@ -208,6 +214,7 @@ async def chat_function_with_validation(
     allowed_content: list[str],
     system_msg: str = "You are a helpful assistant",
     prompt: PromptTemplate = default_prompt,
+    context_print: bool = False,
     logger: LoggerBase = ConsoleLogger(),
     initial_buffer_size: int = 320,
     max_retries: int = 2,
@@ -229,6 +236,7 @@ async def chat_function_with_validation(
         llm: Optional language model to use
         system_msg: System message for the conversation
         prompt: Prompt template for formatting context and query
+        context_print: Prints to logger the results of the query
         logger: Logger instance for error reporting
         validation_config: Config name for the validation runnable
         initial_buffer_size: Number of characters to buffer before validation
@@ -270,6 +278,7 @@ async def chat_function_with_validation(
             retriever=retriever,
             llm=llm,
             system_msg=system_msg,
+            context_print=context_print,
             prompt=prompt,
             logger=logger,
         )
@@ -417,6 +426,7 @@ def query(
     settings: LanguageModelSettings | str | None = None,
     *,
     console_print: bool = False,
+    context_print: bool = False,
     validate_content: bool = False,
     allowed_content: list[str] = [],
     logger: LoggerBase = ConsoleLogger(),
@@ -470,12 +480,17 @@ def query(
                     [],
                     llm=llm,
                     allowed_content=allowed_content,
+                    context_print=context_print,
                     logger=logger,
                 )
             )
         else:
             iterator = await chat_function(
-                querystr, [], llm=llm, logger=logger
+                querystr,
+                [],
+                llm=llm,
+                context_print=context_print,
+                logger=logger,
             )
         result: str = ""
         async for chunk in iterator:

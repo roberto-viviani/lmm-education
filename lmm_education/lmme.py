@@ -377,6 +377,12 @@ def query(
     validate_content: bool = typer.Option(
         False, "--validate-content", "-vc", help="Validate content"
     ),
+    print_context: bool = typer.Option(
+        False,
+        "--print-context",
+        "-pc",
+        help="Print context given to model",
+    ),
 ) -> None:
     """
     Carries out a RAG query with the language model.
@@ -454,6 +460,7 @@ def query(
             console_print=True,
             settings=model_settings,
             validate_content=validate_content,
+            context_print=print_context,
             logger=logger,
         )
     except Exception as e:
