@@ -3,7 +3,6 @@ Entry point for the RAG model chat application.
 """
 
 from datetime import datetime
-import re
 import os
 from collections.abc import AsyncGenerator
 
@@ -111,13 +110,9 @@ from lmm_education.query import (
 
 
 def _preproc_for_markdown(response: str) -> str:
-    # a no-op at present
-    return response
-    # replace square brackets containing the character '\' to one
-    # that is enclosed between '$$' for rendering in markdown
-    response = re.sub(r"\\\[|\\\]", "$$", response)
-    response = re.sub(r"\\\(|\\\)", "$", response)
-    return response
+    from lmm.markdown.ioutils import convert_dollar_latex_delimiters
+
+    return convert_dollar_latex_delimiters(response)
 
 
 # Callback for Gradio to call when a chat message is sent.
