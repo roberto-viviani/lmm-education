@@ -44,7 +44,7 @@ CONTEXT_DATABASE_FILE = "queries.csv"
 if not os.path.exists(DATABASE_FILE):
     with open(DATABASE_FILE, "w", encoding='utf-8') as f:
         f.write(
-            "record_id,client_host,session_hash,timestamp,history_length,model_name,query,response\n"
+            "record_id,client_host,session_hash,timestamp,history_length,model_name,interaction_type,query,response\n"
         )
 
 if not os.path.exists(CONTEXT_DATABASE_FILE):
@@ -130,37 +130,51 @@ from lmm_education.query import (
 )
 
 
-# Non-blocking async logging function
-async def async_log_interaction(
+def _fmat(text: str) -> str:
+    """
+    Format text for CSV storage by escaping quotes and newlines.
+    """
+    # Replace double quotation marks with single quotation marks
+    modified_text = text.replace('"', "'")
+    # Replace newline characters with " | "
+    modified_text = modified_text.replace('\n', ' | ')
+    return modified_text
+
+
+# Unified non-blocking async logging function
+async def async_log_unified(
     record_id: str,
-    query: str,
-    response: str,
-    history: list[dict[str, str]],
     client_host: str,
     session_hash: str,
     timestamp: datetime,
-    model_name: str,
+    interaction_type: str,
+    history: list[dict[str, str]],
+    query: str = "",
+    response: str = "",
+    model_name: str = "",
 ) -> None:
     """
-    Non-blocking logging function for query-response interactions.
+    Unified non-blocking logging function for all interaction types.
     Logs to CSV files without blocking the main async flow.
+
+    Args:
+        record_id: Unique identifier for this record
+        client_host: Client IP address
+        session_hash: Session identifier
+        timestamp: Timestamp of the interaction
+        interaction_type: Type of interaction ("MESSAGE", "USER REACTION", "USER COMMENT")
+        query: Query text (or action for reactions, comment for comments)
+        response: Response text (empty for reactions and comments)
+        history: conversation history (empty for reactions and comments)
+        model_name: Name of the model used (empty for reactions and comments)
     """
-
-    def _fmat(text: str) -> str:
-        # Replace double quotation marks with single quotation marks
-        modified_text = text.replace('"', "'")
-
-        # 2. Replace newline characters with " | "
-        modified_text = modified_text.replace('\n', ' | ')
-        return modified_text
-
     try:
         # Log main interaction to messages.csv
         with open(DATABASE_FILE, "a", encoding='utf-8') as f:
             f.write(
                 f'{record_id},{client_host},{session_hash},'
                 f'{timestamp},{len(history)},'
-                f'{model_name},"{_fmat(query)}","{_fmat(response)}"\n'
+                f'{model_name},{interaction_type},"{_fmat(query)}","{_fmat(response)}"\n'
             )
 
         # Log context if available (from developer role in history)
@@ -244,15 +258,16 @@ async def fn(
         record_id = generate_random_string(8)
         model_name = getattr(llm, 'model_name', 'unknown')
         asyncio.create_task(
-            async_log_interaction(
-                record_id,
-                querytext,
-                buffer,
-                history,
-                request.client.host,  # type: ignore
-                request.session_hash or 'unknown',
-                datetime.now(),
-                model_name,
+            async_log_unified(
+                record_id=record_id,
+                client_host=request.client.host,  # type: ignore
+                session_hash=request.session_hash or 'unknown',
+                timestamp=datetime.now(),
+                interaction_type="MESSAGE",
+                history=history,
+                query=querytext,
+                response=buffer,
+                model_name=model_name,
             )
         )
 
@@ -313,15 +328,16 @@ async def fn_checked(
         record_id = generate_random_string(8)
         model_name = getattr(llm, 'model_name', 'unknown')
         asyncio.create_task(
-            async_log_interaction(
-                record_id,
-                querytext,
-                buffer,
-                history,
-                request.client.host,  # type: ignore
-                request.session_hash or 'unknown',
-                datetime.now(),
-                model_name,
+            async_log_unified(
+                record_id=record_id,
+                client_host=request.client.host,  # type: ignore
+                session_hash=request.session_hash or 'unknown',
+                timestamp=datetime.now(),
+                interaction_type="MESSAGE",
+                history=history,
+                query=querytext,
+                response=buffer,
+                model_name=model_name,
             )
         )
 
@@ -337,30 +353,51 @@ async def fn_checked(
     return
 
 
-def vote(data: gr.LikeData, request: gr.Request):
-    with open(DATABASE_FILE, "a", encoding='utf-8') as f:
-        if data.liked:
-            f.write(
-                f"USER REACTION,,{request.client.host},"  # type: ignore
-                + f"{request.session_hash},approved,\n"
-            )
-        else:
-            f.write(
-                f"USER REACTION,,{request.client.host},"  # type: ignore
-                + f"{request.session_hash},disapproved,\n"
-            )
+async def vote(data: gr.LikeData, request: gr.Request):
+    """
+    Async function to log user reactions (like/dislike) to messages.
+    """
+    record_id = generate_random_string(8)
+    reaction = "approved" if data.liked else "disapproved"
+
+    asyncio.create_task(
+        async_log_unified(
+            record_id=record_id,
+            client_host=request.client.host,  # type: ignore
+            session_hash=request.session_hash or 'unknown',
+            timestamp=datetime.now(),
+            interaction_type="USER REACTION",
+            history=[],
+            query=reaction,
+            response="",
+            model_name="",
+        )
+    )
 
 
 def clearchat() -> None:
     pass
 
 
-def postcomment(comment: object, request: gr.Request):
-    with open(DATABASE_FILE, "a", encoding="utf-8") as f:
-        f.write(
-            f'USER COMMENT,,{request.client.host},'  # type: ignore
-            + f'{request.session_hash},"{comment}",\n'
+async def postcomment(comment: object, request: gr.Request):
+    """
+    Async function to log user comments.
+    """
+    record_id = generate_random_string(8)
+
+    asyncio.create_task(
+        async_log_unified(
+            record_id=record_id,
+            client_host=request.client.host,  # type: ignore
+            session_hash=request.session_hash or 'unknown',
+            timestamp=datetime.now(),
+            interaction_type="USER COMMENT",
+            history=[],
+            query=str(comment),
+            response="",
+            model_name="",
         )
+    )
 
 
 # create the app
