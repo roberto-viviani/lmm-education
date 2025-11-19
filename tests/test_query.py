@@ -1,6 +1,7 @@
 """Test the refactored chat_function_with_validation."""
 
 import unittest
+import logging
 
 from lmm_education.query import (
     chat_function_with_validation,
@@ -178,9 +179,9 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
             allowed_content=["statistics"],
             logger=logger,
         )
-        if logger.count_logs(level=1) > 0:
+        if logger.count_logs(level=logging.WARNING) > 0:
             print("\n".join(logger.get_logs()))
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("too long", result)

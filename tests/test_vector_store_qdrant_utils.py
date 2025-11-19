@@ -1,5 +1,6 @@
 import unittest
 
+import logging
 from lmm.utils.logging import LoglistLogger
 from lmm.utils.hash import generate_uuid
 
@@ -84,7 +85,7 @@ class TestQdrantSchema(unittest.TestCase):
         flag = initialize_collection_from_config(
             client, COLLECTION, settings, logger=logger
         )
-        logs = logger.get_logs(level=1)
+        logs = logger.get_logs(level=logging.WARNING)
         if len(logs) > 0:
             print("\n".join(logs))
         self.assertFalse(logs)
@@ -139,7 +140,7 @@ class TestQdrantSchema(unittest.TestCase):
         flag = initialize_collection_from_config(
             client, COLLECTION, settings, logger=logger
         )
-        logs = logger.get_logs(level=1)
+        logs = logger.get_logs(level=logging.WARNING)
         if len(logs) > 0:
             print("\n".join(logs))
         self.assertFalse(logs)
@@ -195,7 +196,7 @@ class TestQdrantSchema(unittest.TestCase):
         flag = initialize_collection_from_config(
             client, COLLECTION, settings, logger=logger
         )
-        logs = logger.get_logs(level=1)
+        logs = logger.get_logs(level=logging.WARNING)
         if len(logs) > 0:
             print("\n".join(logs))
         self.assertFalse(logs)

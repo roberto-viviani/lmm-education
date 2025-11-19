@@ -1,6 +1,7 @@
 """Tests for grouped qdrant queries"""
 
 import unittest
+import logging
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -500,7 +501,7 @@ class TestEncoding(unittest.TestCase):
             payload=['page_content', GROUP_UUID_KEY],
             logger=listlogger,
         )
-        if listlogger.count_logs(level=1) > 0:
+        if listlogger.count_logs(level=logging.WARNING) > 0:
             print(listlogger.logs)
         else:
             print("logger ok")

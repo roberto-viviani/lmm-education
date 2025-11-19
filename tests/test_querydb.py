@@ -6,6 +6,7 @@ IMORTANT: A wokring database must be present for tests to function.
 """
 
 import unittest
+import logging
 
 from lmm.utils.logging import LoglistLogger
 from qdrant_client.fastembed_common import QueryResponse
@@ -126,7 +127,7 @@ class TestQueryDbSparse(unittest.TestCase):
         )
         if logger.count_logs() > 0:
             print("\n".join(logger.get_logs()))
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
         self.assertEqual(len(data), 1)
         logger.clear_logs()
         docID: str = data[0].id
@@ -261,7 +262,7 @@ class TestQueryDbMerged(unittest.TestCase):
         )
         if logger.count_logs() > 0:
             print("\n".join(logger.get_logs()))
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
         self.assertEqual(len(data), 1)
         logger.clear_logs()
         docID: str = data[0].id

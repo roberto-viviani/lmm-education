@@ -1,5 +1,6 @@
 import unittest
 import io
+import logging
 
 from qdrant_client import QdrantClient
 
@@ -249,7 +250,9 @@ class TestIngest(unittest.TestCase):
             # aux={'model': "OpenAI/gpt-4.1-nano"},
         )
         chunks = blocklist_encode(blocklist, opts, listlogger)
-        self.assertTrue(listlogger.count_logs(level=1) == 0)
+        self.assertTrue(
+            listlogger.count_logs(level=logging.WARNING) == 0
+        )
         self.assertTrue(len(chunks[0]) > 0)
         self.assertTrue(len(chunks[1]) == 0)
         counter: int = 0
@@ -319,7 +322,7 @@ class TestLoadMarkdown(unittest.TestCase):
             logger=logger,
         )
         print("\n".join(logger.get_logs()))
-        self.assertTrue(logger.count_logs(level=1) > 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) > 0)
         self.assertFalse(bool(ids))
 
     def test_load_markdown(self):
@@ -329,7 +332,7 @@ class TestLoadMarkdown(unittest.TestCase):
         if client is None:
             print("\n".join(logger.get_logs(level=0)))
             raise Exception("Could not initialize client")
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
@@ -339,7 +342,7 @@ class TestLoadMarkdown(unittest.TestCase):
             logger=logger,
         )
         print("\n".join(logger.get_logs(level=0)))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(ids) > 0)
 
         # check using qdrant API that records are there
@@ -372,7 +375,7 @@ class TestLoadMarkdown(unittest.TestCase):
         if client is None:
             print("\n".join(logger.get_logs(level=0)))
             raise Exception("Could not initialize client")
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
@@ -382,7 +385,7 @@ class TestLoadMarkdown(unittest.TestCase):
             logger=logger,
         )
         print("\n".join(logger.get_logs(level=0)))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(ids) > 0)
 
         # check using qdrant API that records are there
@@ -427,7 +430,7 @@ class TestMarkdownQueries(unittest.TestCase):
             print("\n".join(logger.get_logs(level=1)))
             Exception("Database could not be initialized.")
             return
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
@@ -436,7 +439,7 @@ class TestMarkdownQueries(unittest.TestCase):
             client=client,
             logger=logger,
         )
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(ids) > 0)
         self.assertTrue(len(output.getvalue()) > 0)
 
@@ -458,7 +461,7 @@ class TestMarkdownQueries(unittest.TestCase):
             logger=logger,
         )
         print("\n".join(logger.get_logs(level=0)))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(results) > 0)
 
     def test_ingest_markdown_langchain(self):
@@ -470,7 +473,7 @@ class TestMarkdownQueries(unittest.TestCase):
             print("\n".join(logger.get_logs(level=1)))
             Exception("Database could not be initialized.")
             return
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
@@ -479,7 +482,7 @@ class TestMarkdownQueries(unittest.TestCase):
             client=client,
             logger=logger,
         )
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(ids) > 0)
         self.assertTrue(len(output.getvalue()) > 0)
 
@@ -512,7 +515,7 @@ class TestMarkdownQueries(unittest.TestCase):
             "What are the main uses of linear models?"
         )
         print("\n".join(logger.get_logs(level=0)))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(results) > 0)
 
     def xtest_load_ingest_markdown_langchain2(self):
@@ -535,7 +538,7 @@ class TestMarkdownQueries(unittest.TestCase):
             print("\n".join(logger.get_logs(level=1)))
             Exception("Database could not be initialized.")
             return
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
@@ -544,7 +547,7 @@ class TestMarkdownQueries(unittest.TestCase):
             client=client,
             logger=logger,
         )
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(ids) > 0)
         self.assertTrue(len(output.getvalue()) > 0)
 
@@ -557,7 +560,7 @@ class TestMarkdownQueries(unittest.TestCase):
             "What are the main uses of linear models?"
         )
         print("\n".join(logger.get_logs(level=0)))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(results) > 0)
 
     def test_ingest_markdown_grouped(self):
@@ -571,7 +574,7 @@ class TestMarkdownQueries(unittest.TestCase):
             print("\n".join(logger.get_logs(level=1)))
             Exception("Database could not be initialized.")
             return
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
             "Chapter_1.Rmd",
             config_opts=opts,
@@ -580,7 +583,7 @@ class TestMarkdownQueries(unittest.TestCase):
             client=client,
             logger=logger,
         )
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(ids) > 0)
         self.assertTrue(len(output.getvalue()) > 0)
 
@@ -606,7 +609,7 @@ class TestMarkdownQueries(unittest.TestCase):
             logger=logger,
         )
         print("\n".join(logger.get_logs(level=0)))
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
 
         result_points: list[ScoredPoint] = groups_to_points(results)
         result_text: list[str] = points_to_text(result_points)

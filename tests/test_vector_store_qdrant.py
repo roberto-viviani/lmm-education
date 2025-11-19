@@ -6,6 +6,7 @@ NOTE: initialize collection tested in test_lmm_rag.py
 # flake8: noqa
 
 import unittest
+import logging
 
 from lmm.markdown.parse_markdown import *
 from lmm.scan.chunks import *
@@ -704,14 +705,14 @@ class TestInitializationLocal(unittest.TestCase):
 
         local_client = client_from_config(logger=logger)
         self.assertIsNotNone(local_client)
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
 
         result = initialize_collection_from_config(
             local_client, collection_name, logger=logger
         )
-        if logger.count_logs(level=1):
+        if logger.count_logs(level=logging.WARNING):
             print("\n".join(logger.get_logs()))
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
@@ -820,14 +821,14 @@ class TestInitializationMemory(unittest.TestCase):
 
         local_client = client_from_config(settings, logger=logger)
         self.assertIsNotNone(local_client)
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
 
         result = initialize_collection_from_config(
             local_client, collection_name, settings, logger=logger
         )
-        if logger.count_logs(level=1):
+        if logger.count_logs(level=logging.WARNING):
             print("\n".join(logger.get_logs()))
-        self.assertEqual(logger.count_logs(level=1), 0)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
         self.assertTrue(
             result,
             "init_collection should return True for encoding model",
@@ -923,7 +924,7 @@ class TestInitializationConfigError(unittest.TestCase):
 
         client = client_from_config(logger=logger)
         self.assertIsNone(client)
-        self.assertLess(0, logger.count_logs(level=1))
+        self.assertLess(0, logger.count_logs(level=logging.WARNING))
 
 
 class TestIngestionAndQuery(unittest.TestCase):
@@ -1887,7 +1888,7 @@ class TestIngestionMisspecified(unittest.TestCase):
             # no annotation model given
             logger=logger,
         )
-        self.assertEqual(logger.count_logs(level=1), 1)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 1)
 
     def test_query_MULTIVECTOR_logged(self):
         # use LoglistLogger to get exception otherwise printed
@@ -1903,7 +1904,7 @@ class TestIngestionMisspecified(unittest.TestCase):
             # no annotation model given
             logger=logger,
         )
-        self.assertEqual(logger.count_logs(level=1), 1)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 1)
         self.assertIn("WARNING", logger.get_logs(level=1)[0])
 
     def test_query_SPARSE_MERGED_logged(self):
@@ -1920,7 +1921,7 @@ class TestIngestionMisspecified(unittest.TestCase):
             # no annotation model given
             logger=logger,
         )
-        self.assertEqual(logger.count_logs(level=1), 1)
+        self.assertEqual(logger.count_logs(level=logging.WARNING), 1)
         self.assertIn("WARNING", logger.get_logs(level=1)[0])
 
 

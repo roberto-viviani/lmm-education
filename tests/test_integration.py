@@ -1,5 +1,6 @@
 import unittest
 
+import logging
 from qdrant_client import QdrantClient
 
 text_summarized = """
@@ -106,12 +107,12 @@ class TestScanRag(unittest.TestCase):
             questions=True,
         )
         blocks = blocklist_rag(blocks, opts, logger)
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
 
         from lmm.markdown.parse_markdown import save_blocks
 
         save_blocks("RaggedDocument.md", blocks, logger)
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
 
 
 class TestScanSplit(unittest.TestCase):
@@ -172,7 +173,7 @@ class TestChunkingAndIngestion(unittest.TestCase):
 
         # add metadata for annotations (here titles)
         blocks = blocklist_rag(blocks, ScanOpts(titles=True), logger)
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
 
         # transform to chunks specifying titles for annotations
         encoding_model = EncodingModel.SPARSE_CONTENT
@@ -184,7 +185,7 @@ class TestChunkingAndIngestion(unittest.TestCase):
             encoding_model=encoding_model,
             logger=logger,
         )
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
 
         # now chunks can be ingested
         from lmm_education.stores.vector_store_qdrant import (
@@ -215,7 +216,7 @@ class TestChunkingAndIngestion(unittest.TestCase):
             chunks=chunks,
             logger=logger,
         )
-        self.assertTrue(logger.count_logs(level=1) == 0)
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         self.assertTrue(len(points) > 0)
 
         # retrieve
