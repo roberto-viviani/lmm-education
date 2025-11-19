@@ -29,8 +29,14 @@ from lmm_education.config.appchat import (
 from lmm.utils.hash import generate_random_string
 
 # logs
+import logging
 from lmm.utils.logging import FileConsoleLogger # fmt: skip
-logger = FileConsoleLogger("LM Markdown for Education", "appChat.log")
+logger = FileConsoleLogger(
+    "LM Markdown for Education",
+    "appChat.log",
+    console_level=logging.INFO,
+    file_level=logging.ERROR,
+)
 DATABASE_FILE = "messages.csv"
 CONTEXT_DATABASE_FILE = "queries.csv"
 
