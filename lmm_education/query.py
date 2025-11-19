@@ -50,6 +50,7 @@ from lmm.config.config import LanguageModelSettings
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
+from lmm.markdown.ioutils import convert_backslash_latex_delimiters
 
 # LM markdown for education
 from .config.config import ConfigSettings, DEFAULT_CONFIG_FILE
@@ -188,11 +189,10 @@ async def chat_function(
         context: str = "\n-----\n".join(
             [d.page_content for d in documents]
         )
-        from lmm.markdown.ioutils import (
-            convert_dollar_latex_delimiters,
-        )
 
-        context = convert_dollar_latex_delimiters(context)
+        history.append({'role': 'developer', 'content': context})
+
+        context = convert_backslash_latex_delimiters(context)
         if context_print:
             logger.info(
                 "CONTEXT:\n" + context + "\nEND CONTEXT------\n\n"

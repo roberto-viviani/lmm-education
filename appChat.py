@@ -26,11 +26,24 @@ from lmm_education.config.appchat import (
     create_default_config_file as create_default_chat_config_file,
     CHAT_CONFIG_FILE,
 )
+from lmm.utils.hash import generate_random_string
 
 # logs
 from lmm.utils.logging import FileConsoleLogger # fmt: skip
 logger = FileConsoleLogger("LM Markdown for Education", "appChat.log")
 DATABASE_FILE = "messages.csv"
+CONTEXT_DATABASE_FILE = "queries.csv"
+
+# Initialize CSV files with headers if they don't exist
+if not os.path.exists(DATABASE_FILE):
+    with open(DATABASE_FILE, "w", encoding='utf-8') as f:
+        f.write(
+            "record_id,client_host,session_hash,timestamp,history_length,model_name,query,response\n"
+        )
+
+if not os.path.exists(CONTEXT_DATABASE_FILE):
+    with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
+        f.write("record_id,context\n")
 
 # Config files.
 if not os.path.exists(DEFAULT_CONFIG_FILE):
@@ -102,6 +115,7 @@ except Exception as e:
 
 from collections.abc import AsyncIterator
 from langchain_core.messages import BaseMessageChunk
+import asyncio
 
 # Import refactored chat functions
 from lmm_education.query import (
@@ -109,7 +123,54 @@ from lmm_education.query import (
     chat_function_with_validation,
 )
 
-LatexStyle = Literal["dollar", "backslash", "raw"]
+
+# Non-blocking async logging function
+async def async_log_interaction(
+    record_id: str,
+    query: str,
+    response: str,
+    history: list[dict[str, str]],
+    client_host: str,
+    session_hash: str,
+    timestamp: datetime,
+    model_name: str,
+) -> None:
+    """
+    Non-blocking logging function for query-response interactions.
+    Logs to CSV files without blocking the main async flow.
+    """
+
+    def _fmat(text: str) -> str:
+        # Replace double quotation marks with single quotation marks
+        modified_text = text.replace('"', "'")
+
+        # 2. Replace newline characters with " | "
+        modified_text = modified_text.replace('\n', ' | ')
+        return modified_text
+
+    try:
+        # Log main interaction to messages.csv
+        with open(DATABASE_FILE, "a", encoding='utf-8') as f:
+            f.write(
+                f'{record_id},{client_host},{session_hash},'
+                f'{timestamp},{len(history)},'
+                f'{model_name},"{_fmat(query)}","{_fmat(response)}"\n'
+            )
+
+        # Log context if available (from developer role in history)
+        if history and history[-1]['role'] == "developer":
+            with open(
+                CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
+            ) as f:
+                f.write(
+                    f'{record_id},"{_fmat(history[-1]['content'])}"\n'
+                )
+
+    except Exception as e:
+        logger.error(f"Background logging failed: {e}")
+
+
+LatexStyle = Literal["dollar", "backslash", "default", "raw"]
 
 
 def _get_latex_style() -> LatexStyle:
@@ -128,11 +189,11 @@ def _preproc_for_markdown(response: str) -> str:
     )
 
     match _get_latex_style():
-        case "dollar":
-            return convert_dollar_latex_delimiters(response)
         case "backslash":
+            return convert_dollar_latex_delimiters(response)
+        case "dollar":
             return convert_backslash_latex_delimiters(response)
-        case "raw":
+        case _:
             return response
 
 
@@ -173,8 +234,23 @@ async def fn(
             buffer += _preproc_for_markdown(item.text())
             yield buffer
 
+        # Non-blocking logging hook - fires after streaming completes
+        record_id = generate_random_string(8)
+        model_name = getattr(llm, 'model_name', 'unknown')
+        asyncio.create_task(
+            async_log_interaction(
+                record_id,
+                querytext,
+                buffer,
+                history,
+                request.client.host,  # type: ignore
+                request.session_hash or 'unknown',
+                datetime.now(),
+                model_name,
+            )
+        )
+
     except Exception as e:
-        now = datetime.now()
         logger.error(
             f"{request.client.host}: "  # type: ignore (dynamic properties)
             f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
@@ -182,20 +258,6 @@ async def fn(
         buffer = str(e)
         yield chat_settings.MSG_ERROR_QUERY
         return
-
-    finally:  # Log
-        now = datetime.now()
-        try:
-            with open(DATABASE_FILE, "a", encoding='utf-8') as f:
-                f.write(
-                    f'MESSAGES,{now},{request.client.host},'  # type:ignore
-                    + f'{request.session_hash},'
-                    + f'"{querytext}","RESPONSE: {buffer}"\n'
-                )
-        except Exception:
-            logger.error(
-                f"{now}: Could not write to database {DATABASE_FILE}"
-            )
 
     return
 
@@ -241,8 +303,23 @@ async def fn_checked(
             buffer += _preproc_for_markdown(item.text())
             yield buffer
 
+        # Non-blocking logging hook - fires after streaming completes
+        record_id = generate_random_string(8)
+        model_name = getattr(llm, 'model_name', 'unknown')
+        asyncio.create_task(
+            async_log_interaction(
+                record_id,
+                querytext,
+                buffer,
+                history,
+                request.client.host,  # type: ignore
+                request.session_hash or 'unknown',
+                datetime.now(),
+                model_name,
+            )
+        )
+
     except Exception as e:
-        now = datetime.now()
         logger.error(
             f"{request.client.host}: "  # type: ignore (dynamic properties)
             f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
@@ -250,20 +327,6 @@ async def fn_checked(
         buffer = str(e)
         yield chat_settings.MSG_ERROR_QUERY
         return
-
-    finally:  # Log
-        now = datetime.now()
-        try:
-            with open(DATABASE_FILE, "a", encoding='utf-8') as f:
-                f.write(
-                    f'MESSAGES,{now},{request.client.host},'  # type:ignore
-                    + f'{request.session_hash},'
-                    + f'"{querytext}","RESPONSE: {buffer}"\n'
-                )
-        except Exception:
-            logger.error(
-                f"{now}: Could not write to database {DATABASE_FILE}"
-            )
 
     return
 
@@ -309,13 +372,17 @@ ldelims: list[dict[str, str | bool]] = (
             {"left": "$$", "right": "$$", "display": True},
             {"left": "$", "right": "$", "display": False},
         ]
-        if _get_latex_style() == "backslash"
-        else [
-            {"left": "$$", "right": "$$", "display": True},
-            {"left": "$", "right": "$", "display": False},
-            {"left": r"\[", "right": r"\]", "display": True},
-            {"left": r"\(", "right": r"\)", "display": False},
-        ]
+        if _get_latex_style() == "dollar"
+        else (
+            []
+            if _get_latex_style() == "raw"
+            else [
+                {"left": "$$", "right": "$$", "display": True},
+                {"left": "$", "right": "$", "display": False},
+                {"left": r"\[", "right": r"\]", "display": True},
+                {"left": r"\(", "right": r"\)", "display": False},
+            ]
+        )
     )
 )
 with gr.Blocks() as app:
