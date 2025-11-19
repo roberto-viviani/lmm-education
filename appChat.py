@@ -2,8 +2,11 @@
 Entry point for the RAG model chat application.
 """
 
+# ruff: noqa: E402
+
 from datetime import datetime
 import os
+from typing import Literal
 from collections.abc import AsyncGenerator
 
 import gradio as gr
@@ -106,13 +109,31 @@ from lmm_education.query import (
     chat_function_with_validation,
 )
 
-# from lmm.scan.scanutils import preproc_for_markdown
+LatexStyle = Literal["dollar", "backslash", "raw"]
+
+
+def _get_latex_style() -> LatexStyle:
+    # centralize used latex style, perhaps depending
+    # on model. Now we just use the one in tendency in
+    # OpenAI, Mistral.
+    return "backslash"
 
 
 def _preproc_for_markdown(response: str) -> str:
-    from lmm.markdown.ioutils import convert_dollar_latex_delimiters
+    # This function allows centrailizing preprocessing
+    # of strings using a latex style.
+    from lmm.markdown.ioutils import (
+        convert_dollar_latex_delimiters,
+        convert_backslash_latex_delimiters,
+    )
 
-    return convert_dollar_latex_delimiters(response)
+    match _get_latex_style():
+        case "dollar":
+            return convert_dollar_latex_delimiters(response)
+        case "backslash":
+            return convert_backslash_latex_delimiters(response)
+        case "raw":
+            return response
 
 
 # Callback for Gradio to call when a chat message is sent.
@@ -274,12 +295,29 @@ def postcomment(comment: object, request: gr.Request):
 
 
 # create the app
-ldelims: list[dict[str, str | bool]] = [
-    {"left": "$$", "right": "$$", "display": True},
-    {"left": "$", "right": "$", "display": False},
-    {"left": r"\[", "right": r"\]", "display": True},
-    {"left": r"\(", "right": r"\)", "display": False},
-]
+ldelims: list[dict[str, str | bool]] = (
+    # latex delimeters for gradio. It seems that the last
+    # option should work regardless, but the exact behaviour
+    # is not specified in the docs.
+    [
+        {"left": r"\[", "right": r"\]", "display": True},
+        {"left": r"\(", "right": r"\)", "display": False},
+    ]
+    if _get_latex_style() == "backslash"
+    else (
+        [
+            {"left": "$$", "right": "$$", "display": True},
+            {"left": "$", "right": "$", "display": False},
+        ]
+        if _get_latex_style() == "backslash"
+        else [
+            {"left": "$$", "right": "$$", "display": True},
+            {"left": "$", "right": "$", "display": False},
+            {"left": r"\[", "right": r"\]", "display": True},
+            {"left": r"\(", "right": r"\)", "display": False},
+        ]
+    )
+)
 with gr.Blocks() as app:
     gr.Markdown("# " + title)
     gr.Markdown(description)
