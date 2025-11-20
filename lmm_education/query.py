@@ -269,7 +269,7 @@ async def chat_function_with_validation(
     # Initialize the validation model
     try:
         query_model: RunnableType = create_runnable(
-            "check_content", allowed_content=allowed_content  # type: ignore
+            "allowed_content_validator", allowed_content=allowed_content  # type: ignore
         )
     except Exception as e:
         logger.error(f"Could not initialize validation model: {e}")
