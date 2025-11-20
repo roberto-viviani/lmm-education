@@ -27,6 +27,10 @@ from lmm_education.config.appchat import (
     CHAT_CONFIG_FILE,
 )
 from lmm.utils.hash import generate_random_string
+from lmm.language_models.langchain.runnables import (
+    create_runnable,
+    RunnableType,
+)
 
 # logs
 import logging
@@ -49,7 +53,7 @@ if not os.path.exists(DATABASE_FILE):
 
 if not os.path.exists(CONTEXT_DATABASE_FILE):
     with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
-        f.write("record_id,context\n")
+        f.write("record_id,valid,context\n")
 
 # Config files.
 if not os.path.exists(DEFAULT_CONFIG_FILE):
@@ -142,7 +146,7 @@ def _fmat(text: str) -> str:
 
 
 # Unified non-blocking async logging function
-async def async_log_unified(
+async def async_log(
     record_id: str,
     client_host: str,
     session_hash: str,
@@ -177,13 +181,24 @@ async def async_log_unified(
                 f'{model_name},{interaction_type},"{_fmat(query)}","{_fmat(response)}"\n'
             )
 
-        # Log context if available (from developer role in history)
+        # Log context if available (from developer role in history). We also
+        # record relevance of context for further monitoring.
+        context: str = history[-1]['content']
+        lmm_validator: RunnableType = create_runnable(
+            'context_validator'
+        )
+        validation: str = lmm_validator.invoke(
+            {
+                'query': f"{query}. {response}",
+                'context': context,
+            }
+        ).upper()
         if history and history[-1]['role'] == "developer":
             with open(
                 CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
             ) as f:
                 f.write(
-                    f'{record_id},"{_fmat(history[-1]['content'])}"\n'
+                    f'{record_id},{validation},"{_fmat(context)}"\n'
                 )
 
     except Exception as e:
@@ -258,7 +273,7 @@ async def fn(
         record_id = generate_random_string(8)
         model_name = getattr(llm, 'model_name', 'unknown')
         asyncio.create_task(
-            async_log_unified(
+            async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
                 session_hash=request.session_hash or 'unknown',
@@ -328,7 +343,7 @@ async def fn_checked(
         record_id = generate_random_string(8)
         model_name = getattr(llm, 'model_name', 'unknown')
         asyncio.create_task(
-            async_log_unified(
+            async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
                 session_hash=request.session_hash or 'unknown',
@@ -361,7 +376,7 @@ async def vote(data: gr.LikeData, request: gr.Request):
     reaction = "approved" if data.liked else "disapproved"
 
     asyncio.create_task(
-        async_log_unified(
+        async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
             session_hash=request.session_hash or 'unknown',
@@ -386,7 +401,7 @@ async def postcomment(comment: object, request: gr.Request):
     record_id = generate_random_string(8)
 
     asyncio.create_task(
-        async_log_unified(
+        async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
             session_hash=request.session_hash or 'unknown',
