@@ -183,17 +183,17 @@ async def async_log(
 
         # Log context if available (from developer role in history). We also
         # record relevance of context for further monitoring.
-        context: str = history[-1]['content']
-        lmm_validator: RunnableType = create_runnable(
-            'context_validator'
-        )
-        validation: str = lmm_validator.invoke(
-            {
-                'query': f"{query}. {response}",
-                'context': context,
-            }
-        ).upper()
         if history and history[-1]['role'] == "developer":
+            context: str = history[-1]['content']
+            lmm_validator: RunnableType = create_runnable(
+                'context_validator'
+            )
+            validation: str = lmm_validator.invoke(
+                {
+                    'query': f"{query}. {response}",
+                    'context': context,
+                }
+            ).upper()
             with open(
                 CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
             ) as f:
