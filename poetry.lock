@@ -1545,9 +1545,9 @@ tomlkit = ">=0.13.3,<0.14.0"
 
 [package.source]
 type = "git"
-url = "https://git.uibk.ac.at/c7201031/lmm.git"
-reference = "main"
-resolved_reference = "27939a5fca7b4ab6f402fb71e292170576192d12"
+url = "https://c7201031:FZkqlscljWaqtQ_ZCT3lwm86MQp1OjNvMQk.01.0z0nnrty0@git.uibk.ac.at/c7201031/lmm.git"
+reference = "HEAD"
+resolved_reference = "29c2656042e646d020b9f233fad6fed9f60ba6c4"
 
 [[package]]
 name = "loguru"
@@ -4566,4 +4566,4 @@ cffi = ["cffi (>=1.17) ; python_version >= \"3.13\" and platform_python_implemen
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.0,<3.14.0"
-content-hash = "28198b9ef55b1eb36faeaaebe5103559999fc0ff28fb0f472f0f4360f4bd5b6a"
+content-hash = "f7c8590f461939e908dd3ad1709b85ba5ad94ad4c92d6c7b39cb191e95da69ef"
