@@ -343,8 +343,8 @@ async def fn_checked(
             yield buffer
 
         # Non-blocking logging hook - fires after streaming completes
-        record_id = generate_random_string(8)
-        model_name = getattr(llm, 'model_name', 'unknown')
+        record_id: str = generate_random_string(8)
+        model_name: str = settings.major.get_model_name()  # type: ignore
         asyncio.create_task(
             async_log(
                 record_id=record_id,
