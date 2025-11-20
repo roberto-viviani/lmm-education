@@ -419,33 +419,18 @@ async def postcomment(comment: object, request: gr.Request):
 
 
 # create the app
+# latex delimeters for gradio.
 ldelims: list[dict[str, str | bool]] = (
-    # latex delimeters for gradio. It seems that the last
-    # option should work regardless, but the exact behaviour
-    # is not specified in the docs.
-    [
+    []
+    if _get_latex_style() == "raw"
+    else [
+        {"left": "$$", "right": "$$", "display": True},
+        {"left": "$", "right": "$", "display": False},
         {"left": r"\[", "right": r"\]", "display": True},
         {"left": r"\(", "right": r"\)", "display": False},
     ]
-    if _get_latex_style() == "backslash"
-    else (
-        [
-            {"left": "$$", "right": "$$", "display": True},
-            {"left": "$", "right": "$", "display": False},
-        ]
-        if _get_latex_style() == "dollar"
-        else (
-            []
-            if _get_latex_style() == "raw"
-            else [
-                {"left": "$$", "right": "$$", "display": True},
-                {"left": "$", "right": "$", "display": False},
-                {"left": r"\[", "right": r"\]", "display": True},
-                {"left": r"\(", "right": r"\)", "display": False},
-            ]
-        )
-    )
 )
+
 with gr.Blocks() as app:
     gr.Markdown("# " + title)
     gr.Markdown(description)
