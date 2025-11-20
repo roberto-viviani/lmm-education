@@ -212,6 +212,9 @@ def _get_latex_style() -> LatexStyle:
     # centralize used latex style, perhaps depending
     # on model. Now we just use the one in tendency in
     # OpenAI, Mistral.
+    if settings.major.get_model_source() == "Mistral":  # type: ignore
+        return "dollar"
+
     return "backslash"
 
 
@@ -270,8 +273,8 @@ async def fn(
             yield buffer
 
         # Non-blocking logging hook - fires after streaming completes
-        record_id = generate_random_string(8)
-        model_name = getattr(llm, 'model_name', 'unknown')
+        record_id: str = generate_random_string(8)
+        model_name: str = settings.major.get_model_name()  # type: ignore
         asyncio.create_task(
             async_log(
                 record_id=record_id,
