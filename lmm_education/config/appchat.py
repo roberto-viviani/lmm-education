@@ -43,6 +43,7 @@ Example: "How can I fit a model with kid_score as outcome and mom_iq as predicto
     # messages
     MSG_EMPTY_QUERY: str = Field(
         default=(
+            "It seems you didn't type anything in the input box... "
             "If you have questions related to "
             "linear models, their interpretation, or how to "
             "implement them in R, I am happy to help."
@@ -58,18 +59,19 @@ Example: "How can I fit a model with kid_score as outcome and mom_iq as predicto
         )
     )
     MSG_LONG_QUERY: str = Field(
-        default="Your question is too long. Please ask a shorter question."
+        default="Hmm, your question is too long... Can you think"
+        " of a way to make it shorter?"
     )
     MSG_ERROR_QUERY: str = Field(
         default=(
             "I am sorry, due to an error I cannot answer "
-            "this question. Please report the error."
+            "this question. The failure is being recorded by the system."
         )
     )
 
     SYSTEM_MESSAGE: str = Field(
         default=(
-            "SYSTEM_MESSAGE = You are a university tutor teaching "
+            "You are a university tutor teaching "
             "undergraduates in a statistics course that uses R"
             " to fit models, explaining background and guiding "
             "understanding. Limit your responses in the chat to "
