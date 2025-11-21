@@ -174,7 +174,7 @@ async def async_log(
     """
     try:
         context: list[str] = [
-            b['content'] for b in history if b['role'] == "developer"
+            b['content'] for b in history if b['role'] == "context"
         ]
         message: list[str] = [
             b['content'] for b in history if b['role'] == "message"
@@ -196,7 +196,7 @@ async def async_log(
                 f'{model_name},{interaction_type},"{_fmat(query)}","{_fmat(response)}"\n'
             )
 
-        # Log context if available (from developer role in history). We also
+        # Log context if available (from context role in history). We also
         # record relevance of context for further monitoring.
         if context:
             # context: str = history[-1]['content']

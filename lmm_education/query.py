@@ -103,7 +103,7 @@ def _prepare_messages(
 
     if history:
         for m in history[-4:]:
-            if m['role'] in ("developer", "message", "rejection"):
+            if m['role'] in ("context", "message", "rejection"):
                 continue
             messages.append((m['role'], m['content']))
 
@@ -143,9 +143,12 @@ async def chat_function(
     Returns:
         AsyncIterator[BaseMessageChunk]: Iterator yielding response chunks
     """
-
-    # note: history is a copy of the history. It cannot modified here
-    # to persist information to the next call.
+    # Implementation note: history is passed by the gradio framework
+    # with the responses of the language model and what the user
+    # tipped into the interface -- it is not what the model got.
+    # Here history is used also to store the context that was sent
+    # to the model and information about other conditions. This
+    # is used upstream to log these interactions (subject to revision)
 
     if llm is None:
         llm = create_model_from_settings(ConfigSettings().major)
@@ -192,7 +195,7 @@ async def chat_function(
             [d.page_content for d in documents]
         )
 
-        history.append({'role': 'developer', 'content': context})
+        history.append({'role': 'context', 'content': context})
 
         context = convert_backslash_latex_delimiters(context)
         if context_print:
@@ -246,12 +249,21 @@ async def chat_function_with_validation(
         context_print: Prints to logger the results of the query
         logger: Logger instance for error reporting
         validation_config: Config name for the validation runnable
-        initial_buffer_size: Number of characters to buffer before validation
+        initial_buffer_size: Number of characters to buffer before
+            validation
         max_retries: Maximum number of validation retry attempts
 
     Returns:
-        AsyncIterator[BaseMessageChunk]: Iterator yielding validated response chunks
+        AsyncIterator[BaseMessageChunk]: Iterator yielding validated
+            response chunks
     """
+    # Implementation note: history is passed by the gradio framework
+    # with the responses of the language model and what the user
+    # tipped into the interface -- it is not what the model got.
+    # Here history is used also to store the context that was sent
+    # to the model and information about other conditions. This
+    # is used upstream to log these interactions (subject to revision)
+
     from lmm.language_models.langchain.runnables import (
         create_runnable,
     )
