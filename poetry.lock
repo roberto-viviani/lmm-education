@@ -77,7 +77,7 @@ description = "LTS Port of Python audioop"
 optional = false
 python-versions = ">=3.13"
 groups = ["main"]
-markers = "python_version >= \"3.13\""
+markers = "python_version == \"3.13\""
 files = [
     {file = "audioop_lts-0.2.2-cp313-abi3-macosx_10_13_universal2.whl", hash = "sha256:fd3d4602dc64914d462924a08c1a9816435a2155d74f325853c1f1ac3b2d9800"},
     {file = "audioop_lts-0.2.2-cp313-abi3-macosx_10_13_x86_64.whl", hash = "sha256:550c114a8df0aafe9a05442a1162dfc8fec37e9af1d625ae6060fed6e756f303"},
@@ -4565,5 +4565,5 @@ cffi = ["cffi (>=1.17) ; python_version >= \"3.13\" and platform_python_implemen
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.11.0,<3.14.0"
-content-hash = "f7c8590f461939e908dd3ad1709b85ba5ad94ad4c92d6c7b39cb191e95da69ef"
+python-versions = ">=3.11.0,<3.14"
+content-hash = "e4397325e516607c7ca5f54e6d2d33cd68708e9f4f3b341f4ec212904141c93b"
