@@ -103,7 +103,7 @@ def _prepare_messages(
 
     if history:
         for m in history[-4:]:
-            if m['role'] == "developer":
+            if m['role'] in ("developer", "message", "rejection"):
                 continue
             messages.append((m['role'], m['content']))
 
@@ -155,9 +155,11 @@ async def chat_function(
 
     # checks
     if not querytext:
+        history.append({'role': 'message', 'content': "EMPTYQUERY"})
         return _error_message_iterator(chat_settings.MSG_EMPTY_QUERY)
 
     if len(querytext.split()) > MAX_QUERY_LENGTH:
+        history.append({'role': 'message', 'content': "LONGQUERY"})
         return _error_message_iterator(chat_settings.MSG_LONG_QUERY)
 
     querytext = querytext.replace(
@@ -260,10 +262,12 @@ async def chat_function_with_validation(
 
     # Check for empty query
     if not querytext:
+        history.append({'role': 'message', 'content': "EMPTYQUERY"})
         return _error_message_iterator(chat_settings.MSG_EMPTY_QUERY)
 
     # Check for overly long query
     if len(querytext.split()) > MAX_QUERY_LENGTH:
+        history.append({'role': 'message', 'content': "LONGQUERY"})
         return _error_message_iterator(chat_settings.MSG_LONG_QUERY)
 
     # Initialize the validation model
@@ -313,6 +317,9 @@ async def chat_function_with_validation(
                 ):
                     return True, ""
                 else:
+                    history.append(
+                        {'role': 'rejection', 'content': check}
+                    )
                     return False, chat_settings.MSG_WRONG_CONTENT
 
             except Exception as e:

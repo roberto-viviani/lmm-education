@@ -173,7 +173,22 @@ async def async_log(
         model_name: Name of the model used (empty for reactions and comments)
     """
     try:
+        context: list[str] = [
+            b['content'] for b in history if b['role'] == "developer"
+        ]
+        message: list[str] = [
+            b['content'] for b in history if b['role'] == "message"
+        ]
+        rejection: list[str] = [
+            b['content'] for b in history if b['role'] == "rejection"
+        ]
+
         # Log main interaction to messages.csv
+        if message:
+            interaction_type = message[0]
+        if rejection:
+            interaction_type = "REJECTION"
+            response = rejection[0]
         with open(DATABASE_FILE, "a", encoding='utf-8') as f:
             f.write(
                 f'{record_id},{client_host},{session_hash},'
@@ -183,15 +198,15 @@ async def async_log(
 
         # Log context if available (from developer role in history). We also
         # record relevance of context for further monitoring.
-        if history and history[-1]['role'] == "developer":
-            context: str = history[-1]['content']
+        if context:
+            # context: str = history[-1]['content']
             lmm_validator: RunnableType = create_runnable(
                 'context_validator'  # this will be a dict lookup
             )
             validation: str = await lmm_validator.ainvoke(
                 {
                     'query': f"{query}. {response}",
-                    'context': context,
+                    'context': context[0],
                 }
             )
             validation = validation.upper()
@@ -199,7 +214,7 @@ async def async_log(
                 CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
             ) as f:
                 f.write(
-                    f'{record_id},{validation},"{_fmat(context)}"\n'
+                    f'{record_id},{validation},"{_fmat(context[0])}"\n'
                 )
 
     except Exception as e:
