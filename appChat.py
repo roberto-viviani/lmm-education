@@ -186,14 +186,15 @@ async def async_log(
         if history and history[-1]['role'] == "developer":
             context: str = history[-1]['content']
             lmm_validator: RunnableType = create_runnable(
-                'context_validator'
+                'context_validator'  # this will be a dict lookup
             )
-            validation: str = lmm_validator.invoke(
+            validation: str = await lmm_validator.ainvoke(
                 {
                     'query': f"{query}. {response}",
                     'context': context,
                 }
-            ).upper()
+            )
+            validation = validation.upper()
             with open(
                 CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
             ) as f:
