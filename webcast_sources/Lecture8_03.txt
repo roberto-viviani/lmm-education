@@ -1,0 +1,1 @@
+Now, let us see in practice how we may fit a logistic regression in R. Here, I have already loaded the data for the regression. The second line shows the syntax to be used to code the model. The first thing to notice is that we are now using the function _glm_ instead of _lm_ as in ordinary regression to obtain a logistic regression.

@@ -1,0 +1,1 @@
+A logistic regression has two components: a linear part, called the linear predictor, and a link function, which is a method to map the fitted propabilites to the linear predictor. All generalized linear models use some link function, and we saw that the _logit_ is the link function of logistic regression.

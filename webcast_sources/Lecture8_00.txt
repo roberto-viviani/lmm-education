@@ -1,0 +1,1 @@
+Hallo to everyone! Today we will continue on the topic of the logistic regression that we introduced last week. As we saw, Logistic regression is the type of regression that you would use when your outcome variable takes only two values, such as yes/no, or success/failure. 
