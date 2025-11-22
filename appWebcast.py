@@ -1,51 +1,58 @@
 # basic imports
+import os
+import io
+import time
+import json
+
+import whisper  # type: ignore (stub file not found)
+import soundfile as sf  # type: ignore (stub file etc.)
 import gradio as gr
 import numpy as np
 
 # configuration imports
-from lmm_education.config.appwebcast import SOURCE_DIR
+from lmm_education.config.appwebcast import (
+    SOURCE_DIR,
+    SLIDE_GAP,
+    OPENAI_VOICE,
+)
+
+# logs
+import logging
+from lmm.utils.logging import FileConsoleLogger # fmt: skip
+logger = FileConsoleLogger(
+    "LM Markdown for Education",
+    "appWebcast.log",
+    console_level=logging.INFO,
+    file_level=logging.ERROR,
+)
+
+# settings
+from lmm_education.config.appchat import ChatSettings, load_settings
+
+chat_settings: ChatSettings | None = load_settings(logger=logger)
+if chat_settings is None:
+    exit()
 
 # RAGS imports
 from openai import OpenAI
 
 aiclient = OpenAI()
-
-# Whisper imports
-import io
-import soundfile as sf
-
-import whisper
-
 model = whisper.load_model('tiny.en')
 SAMPLE_RATE = whisper.audio.SAMPLE_RATE
+AUDIO_FORMAT = "wav"  # "mp3" or "wav"
 
 
 # check if there is a file 'lecture_list.json' in the Sources directory. If not, exit.
-import os
-
 if not os.path.exists(f'{SOURCE_DIR}lecture_list.json'):
     print("lecture_list.json not found in Sources directory.")
     exit()
 
 # Load the lecture list from the json file defining the script
-import json
-
 with open(f"{SOURCE_DIR}lecture_list.json", "r") as file:
     lecture_list = json.load(file)
 
-import time
-from lmm_education.config.appwebcast import SLIDE_GAP
 
-
-def flog(eventType: str) -> str:
-    print(f"Event trggered: {eventType}")
-    return eventType
-
-
-AUDIO_FORMAT = "wav"  # "mp3" or "wav"
-
-
-def transcribe(audiodata: tuple[float, np.ndarray]) -> str:
+def transcribe(audiodata: tuple[float, np.ndarray] | None) -> str:
     if audiodata is None:
         print("No audio data received.")
         return ""
@@ -61,25 +68,20 @@ def transcribe(audiodata: tuple[float, np.ndarray]) -> str:
     # transform data, np.ndarray, to a file object
     audio_file = 'C:/temp/slidetext.' + AUDIO_FORMAT
     with io.FileIO(audio_file, 'wb') as f:
-        sf.write(f, data, sr, format=AUDIO_FORMAT)
+        sf.write(f, data, sr, format=AUDIO_FORMAT)  # type: ignore
 
-    transcription = model.transcribe(
+    transcription = model.transcribe(  # type: ignore
         audio_file, language='en', fp16=False
     )
-    return transcription['text']
-
-
-import tempfile
-import base64
-from openai import OpenAI
-
-client = OpenAI()
-from lmm_education.config.appwebcast import OPENAI_VOICE
+    return str(transcription['text'])  # type: ignore
 
 
 def chat_completion(text: str) -> tuple[str, str]:
     """Get chat completion from OpenAI API."""
-    completion = client.chat.completions.create(
+    import tempfile
+    import base64
+
+    completion = aiclient.chat.completions.create(
         model="gpt-4o-audio-preview",
         modalities=["text", "audio"],
         audio={"voice": OPENAI_VOICE, "format": "wav"},
@@ -89,56 +91,49 @@ def chat_completion(text: str) -> tuple[str, str]:
     # at present, with go through writing to a temp file
     # return (completion.choices[0].message.audio.data, completion.choices[0].message.audio.transcript)
     wav_bytes = base64.b64decode(
-        completion.choices[0].message.audio.data
+        completion.choices[0].message.audio.data  # type: ignore
     )
 
     # write to temp file
     f = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
     f.write(wav_bytes)
 
-    return (f.name, completion.choices[0].message.audio.transcript)
+    return (f.name, completion.choices[0].message.audio.transcript)  # type: ignore
 
 
-# imports to query index
-# import lm_llamaindex as lmlib
-import datetime
+# load retriever
+from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+    QdrantVectorStoreRetriever as Retriever,
+)
+from langchain_core.retrievers import BaseRetriever
 
-# lmlib.lmprint()  # feedback about what models we are using.
-PERSIST_DIR = "./storage_openai"
-# load retriever from index
-# retriever = lmlib.load_retriever(persist_folder=PERSIST_DIR)
+# TODO: revise from_config_settings with logger and None result
+retriever: BaseRetriever = Retriever.from_config_settings()
 
 
 def queryfn(querytext: str) -> str:
-    # history is not used as it is cached and rehashed in the chat engine object
-    # but is required by the gradio interface
+    # required by type checker
+    if chat_settings is None:
+        raise ValueError("Unreacheable code reached")
 
     # check if the querytext is empty
     if querytext == "":
-        return "Please ask a question about the textbook."
+        return chat_settings.MSG_EMPTY_QUERY
 
     # check if the querytext is too long
     if len(querytext) > 3000:
-        return "Your question is too long. Please ask a shorter question."
+        return chat_settings.MSG_LONG_QUERY
 
-    # Replacements probably Mistral-specific
-    querytext = querytext.replace(
-        "the textbook", "the context provided"
-    )
+    # query database
+    context: str = ""
     try:
-        docs = []  # retriever.retrieve(querytext)
-        context = ''
+        docs = retriever.invoke(querytext)
         for doc in docs:
-            context += doc.text + r'\n\n'
+            context += doc.page_content + "\n------\n"
     except Exception as e:
-        print(e)
-        with open('./excpetions.log', "a", encoding='utf-8') as f:
-            now = datetime.now()
-            f.write(
-                "\n\n*********************************************************\n"
-            )
-            f.write(f"{now}: {querytext}\n\nOFFENDING QUERY\n")
-        return ''
+        logger.error(f"Error while retrieving context: {e}")
+        return context
+
     return context
 
 
@@ -153,10 +148,6 @@ def synthetise_query(question: str) -> str:
         return ""
     prompt += context
     return prompt
-
-
-LOG_EVALUATION = False
-LOGFILE = "access_rags_statistics.log"
 
 
 def chat_function(question: str) -> tuple[str, str]:
@@ -184,85 +175,15 @@ def chat_function(question: str) -> tuple[str, str]:
 
     # ask openai to give a reponse with audio
     (audio, response) = chat_completion(prompt)
-
-    # check pertinence
-    # (flag, content) = lmlib.check_content(response)
-    # if False == flag:
-    #     if LOG_EVALUATION:
-    #         lmlib.log_evaluation_chat_response(question, response, True)
-    #     print(content)
-    #     return ('./Resources/ErrorWongQuestion.mp3',
-    #             'I am sorry, I do not have this information.')
-
-    # log evaluation
-    if LOG_EVALUATION:
-        lmlib.log_evaluation_chat_response(question, response, False)
-
-    # log querytext and accesstoken in LOGFILE
-    from datetime import datetime
-
-    with open(LOGFILE, "a", encoding='utf-8') as f:
-        now = datetime.now()
-        f.write(
-            "\n\n---------------------------------------------------------------------\n"
-        )
-        f.write(f"{now}: {question}\n\n{response}\n")
+    print("RESPONSE from model: ------------------")
+    print(response)
 
     return (audio, response)
 
 
-from lmm_education.webcast.sources import slide_generator_factory
-
-# generate_slide = slide_generator_factory()
-
-# a co-routine based on closures (do not use yield, as gradio will not
-# handle it correctly, speeding up the images). View this as a list of
-# events obtained by transforming lecture_list. It'll start from the
-# second slide, since the first slide is already loaded in the interface.
-# You could also write an iterator class for this, but this is simpler.
-# keeper = {"counter": -1}
-
-
-# def generate_slide():
-#     keeper["counter"] += 1
-#     print(f"Slide {keeper["counter"]} of {len(lecture_list)}")
-#     if keeper["counter"] < len(lecture_list):
-#         print("Loading slide...")
-#         if SLIDE_GAP > 0.01:
-#             time.sleep(SLIDE_GAP)
-#         if not os.path.exists(
-#             lecture_list[keeper["counter"]]['imagefile']
-#         ):
-#             print(
-#                 lecture_list[keeper["counter"]]['imagefile']
-#                 + " does not exist"
-#             )
-#         if not os.path.exists(
-#             lecture_list[keeper["counter"]]['audiofile']
-#         ):
-#             print(
-#                 lecture_list[keeper["counter"]]['audiofile']
-#                 + " does not exist"
-#             )
-#         print(
-#             'Image file: '
-#             + lecture_list[keeper["counter"]]['imagefile']
-#         )
-#         print(
-#             'Audio file: '
-#             + lecture_list[keeper["counter"]]['audiofile']
-#         )
-#         return [
-#             lecture_list[keeper["counter"]]['imagefile'],
-#             lecture_list[keeper["counter"]]['audiofile'],
-#         ]
-#     else:
-#         return [gr.skip(), None]
-
-
 # Create a Gradio interface to play the slides
 with gr.Blocks() as webcast:
-    generate_slide = slide_generator_factory()
+    chatbot = gr.Chatbot(type="messages", visible=False)
     img = gr.Image(
         type='filepath',
         show_download_button=False,
@@ -294,22 +215,52 @@ with gr.Blocks() as webcast:
         type='filepath', autoplay=True, visible=False
     )
 
+    def _get_lecture(
+        history: list[gr.ChatMessage],
+    ) -> tuple[
+        str | dict[str, str], str | None, list[gr.ChatMessage]
+    ]:
+        # returns image and audio file, updates history
+        counter: int = len(history)
+        if counter < len(lecture_list):
+            imagefile = lecture_list[counter]['imagefile']
+            audiofile = lecture_list[counter]['audiofile']
+            if not os.path.exists(imagefile):
+                print('Image not found')
+            if not os.path.exists(audiofile):
+                print('Audio not found')
+            history.append(
+                gr.ChatMessage(
+                    role="assistant",
+                    content=imagefile,
+                )
+            )
+            time.sleep(SLIDE_GAP)
+            return (imagefile, audiofile, history)
+        else:
+            return (gr.skip(), None, history)  # type: ignore (gradio type)
+
     # loads the first slide
     webcast.load(
-        fn=generate_slide,
-        outputs=[img, audio],
+        fn=_get_lecture,
+        inputs=[chatbot],
+        outputs=[img, audio, chatbot],
     )
     # loads the next slide when the audio has been played
-    audio.stop(fn=generate_slide, outputs=[img, audio])
+    audio.stop(
+        fn=_get_lecture,
+        inputs=[chatbot],
+        outputs=[img, audio, chatbot],
+    )
 
     # you can chain transcribe and chat_completion together, but it gives more
     # feedback if the question is displayed immediately. Here, I suppress the
     # text output of the chat completion, but you can display it if you want.
-    chatinput.stop_recording(lambda x: transcribe(x), chatinput, txt)
+    chatinput.stop_recording(lambda x: transcribe(x), chatinput, txt)  # type: ignore
     txt.change(
-        lambda x: (
+        lambda x: (  # type: ignore
             gr.Audio(value=None, interactive=False),
-            chat_function(x)[0],
+            chat_function(x)[0],  # type: ignore
         ),
         txt,
         [chatinput, chatoutput],
@@ -345,8 +296,11 @@ if __name__ == "__main__":
     else:
         # allow public access on internet computer
         webcast.launch(
-            # server_name='85.124.80.91',  # probably not necessary
+            server_name='85.124.80.91',  # probably not necessary
             server_port=chat_settings.server.port,
             show_api=False,
             # auth=('accesstoken', 'hackerbrücke'),
         )
+    # shut down db client
+    if retriever is not None:  # type: ignore
+        retriever.close_client()  # type: ignore
