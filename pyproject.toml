@@ -19,6 +19,8 @@ dependencies = [
     "gradio (>=5.46.0,<6.0.0)",
     "hf-xet (>=1.2.0,<2.0.0)",
     "typer (>=0.20.0,<0.21.0)",
+    "soundfile (>=0.13.1,<0.14.0)",
+    "openai-whisper (>=20250625,<20250626)",
 ]
 
 
@@ -41,4 +43,3 @@ mkdocstrings-python = "^1.18.2"
 
 [tool.poetry.dependencies]
 lmm = {develop = true}
-

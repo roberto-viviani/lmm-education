@@ -496,7 +496,7 @@ if __name__ == "__main__":
     else:
         # allow public access on internet computer
         app.launch(
-            # server_name='85.124.80.91',  # probably not necessary
+            server_name='85.124.80.91',  # keep this
             server_port=chat_settings.server.port,
             show_api=False,
             auth=('accesstoken', 'hackerbrücke'),
