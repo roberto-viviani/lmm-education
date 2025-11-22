@@ -391,7 +391,7 @@ async def chat_function_with_validation(
                     check_complete = True
                     if error_message:
                         logger.warning(
-                            f"LLM exchange without check: {buffer_text}"
+                            "LLM exchange without content check (aux failure)"
                         )
 
                     # Yield all buffered chunks

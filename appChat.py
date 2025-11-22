@@ -199,17 +199,24 @@ async def async_log(
         # Log context if available (from context role in history). We also
         # record relevance of context for further monitoring.
         if context:
-            # context: str = history[-1]['content']
-            lmm_validator: RunnableType = create_runnable(
-                'context_validator'  # this will be a dict lookup
-            )
-            validation: str = await lmm_validator.ainvoke(
-                {
-                    'query': f"{query}. {response}",
-                    'context': context[0],
-                }
-            )
-            validation = validation.upper()
+            # we evaluate consistency of context prior to saving
+            try:
+                lmm_validator: RunnableType = create_runnable(
+                    'context_validator'  # this will be a dict lookup
+                )
+                validation: str = await lmm_validator.ainvoke(
+                    {
+                        'query': f"{query}. {response}",
+                        'context': context[0],
+                    }
+                )
+                validation = validation.upper()
+            except Exception as e:
+                logger.error(
+                    f'Could not connect to aux model to validate context: {e}'
+                )
+                validation = "<failed>"
+
             with open(
                 CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
             ) as f:
@@ -218,7 +225,7 @@ async def async_log(
                 )
 
     except Exception as e:
-        logger.error(f"Background logging failed: {e}")
+        logger.error(f"Async logging failed: {e}")
 
 
 LatexStyle = Literal["dollar", "backslash", "default", "raw"]
