@@ -471,6 +471,7 @@ with gr.Blocks() as app:
         theme="default",
         api_name=False,
         show_api=False,
+        save_history=True,
         chatbot=chatbot,
     )
     gr.Markdown(chat_settings.comment)
