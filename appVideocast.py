@@ -207,9 +207,232 @@ def chat_function(question: str) -> tuple[str, str]:
     return (audio, response)
 
 
+# ========== STATE MANAGEMENT FUNCTIONS ==========
+
+
+def _get_video_title(index: int) -> str:
+    """Get a display title for a video."""
+    if 0 <= index < len(lecture_list):
+        lecture = lecture_list[index]
+        # Try to extract a meaningful title from text field
+        text = lecture.get('text', '')
+        if text:
+            # Get first sentence or first 50 chars
+            first_sentence = text.split('.')[0][:50]
+            return f"Video {index + 1}: {first_sentence}..."
+        return f"Video {index + 1}"
+    return "Unknown"
+
+
+def _get_user_state(history: list[gr.ChatMessage]) -> dict:
+    """
+    Extract current user state from chatbot history.
+    Returns state dict with current_index, viewed list, and navigation_mode.
+    """
+    if not history:
+        return {
+            "current_index": 0,
+            "viewed": [],
+            "navigation_mode": "auto",
+        }
+
+    try:
+        # Try to parse the last entry as JSON state
+        last_content = history[-1].content
+        if isinstance(last_content, str) and last_content.startswith(
+            '{"current_index"'
+        ):
+            state = json.loads(last_content)
+            # Validate required fields
+            if all(
+                key in state
+                for key in [
+                    "current_index",
+                    "viewed",
+                    "navigation_mode",
+                ]
+            ):
+                return state
+    except (json.JSONDecodeError, KeyError, AttributeError):
+        pass
+
+    # Fallback: treat history length as current index (backward compatibility)
+    # Count non-state entries (video file paths)
+    video_count = sum(
+        1
+        for msg in history
+        if isinstance(msg, gr.ChatMessage)
+        and isinstance(msg.content, str)
+        and not msg.content.startswith('{"current_index"')
+    )
+    return {
+        "current_index": max(0, video_count - 1),
+        "viewed": list(range(video_count)),
+        "navigation_mode": "auto",
+    }
+
+
+def _create_state_entry(
+    index: int, mode: str, viewed_list: list[int]
+) -> dict:
+    """Create a state data structure for storing in history."""
+    if 0 <= index < len(lecture_list):
+        lecture = lecture_list[index]
+        videofile = lecture.get('videofile', '')
+    else:
+        videofile = ''
+
+    return {
+        "current_index": index,
+        "video_file": videofile,
+        "viewed": sorted(list(set(viewed_list + [index]))),
+        "navigation_mode": mode,
+    }
+
+
+def _get_progress_text(state: dict) -> str:
+    """Generate progress indicator text from state."""
+    current = state.get("current_index", 0)
+    total = len(lecture_list)
+    viewed = state.get("viewed", [])
+    mode = state.get("navigation_mode", "auto")
+
+    title = _get_video_title(current)
+    mode_emoji = "🔄" if mode == "auto" else "⏸️"
+
+    progress = f"{mode_emoji} **{title}** ({current + 1} of {total})"
+    if len(viewed) > 1:
+        progress += f" | Viewed: {len(viewed)}/{total}"
+
+    return progress
+
+
+def _navigate_to_video(
+    target_index: int,
+    history: list[gr.ChatMessage],
+    mode: str | None = None,
+) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+    """
+    Navigate to a specific video index with state management.
+    Returns: (videofile, progress_text, updated_history)
+    """
+    # Get current state
+    current_state = _get_user_state(history)
+
+    # Validate target index
+    if not (0 <= target_index < len(lecture_list)):
+        logger.warning(f"Invalid video index: {target_index}")
+        return (
+            gr.skip(),
+            _get_progress_text(current_state),
+            history,
+        )  # type: ignore
+
+    # Get lecture info
+    lecture = lecture_list[target_index]
+
+    if 'videofile' not in lecture:
+        logger.error(
+            f"Lecture {target_index} missing 'videofile' field"
+        )
+        return (
+            gr.skip(),
+            _get_progress_text(current_state),
+            history,
+        )  # type: ignore
+
+    videofile = os.path.join(SOURCE_DIR, lecture['videofile'])
+
+    # Validate video file exists
+    if not os.path.exists(videofile):
+        logger.error(f'Video file not found: {videofile}')
+        return (
+            gr.skip(),
+            _get_progress_text(current_state),
+            history,
+        )  # type: ignore
+
+    # Use provided mode or keep current mode
+    navigation_mode = (
+        mode
+        if mode is not None
+        else current_state.get("navigation_mode", "auto")
+    )
+
+    # Create new state
+    new_state = _create_state_entry(
+        target_index, navigation_mode, current_state.get("viewed", [])
+    )
+
+    # Add state to history
+    history.append(
+        gr.ChatMessage(
+            role="assistant", content=json.dumps(new_state)
+        )
+    )
+
+    # Add slide gap delay if configured
+    if SLIDE_GAP > 0.01:
+        time.sleep(SLIDE_GAP)
+
+    logger.info(
+        f"Navigating to video {target_index + 1}/{len(lecture_list)}: {videofile}"
+    )
+
+    return (videofile, _get_progress_text(new_state), history)
+
+
+def _previous_video(
+    history: list[gr.ChatMessage],
+) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+    """Navigate to previous video."""
+    state = _get_user_state(history)
+    target = max(0, state["current_index"] - 1)
+    return _navigate_to_video(target, history)
+
+
+def _next_video(
+    history: list[gr.ChatMessage],
+) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+    """Navigate to next video."""
+    state = _get_user_state(history)
+    target = min(len(lecture_list) - 1, state["current_index"] + 1)
+    return _navigate_to_video(target, history)
+
+
+def _toggle_autoplay(
+    current_mode: str, history: list[gr.ChatMessage]
+) -> tuple[str, str, list[gr.ChatMessage]]:
+    """Toggle between auto-advance and manual mode."""
+    state = _get_user_state(history)
+    new_mode = "manual" if current_mode == "auto" else "auto"
+
+    # Update state with new mode
+    new_state = _create_state_entry(
+        state["current_index"], new_mode, state.get("viewed", [])
+    )
+
+    history.append(
+        gr.ChatMessage(
+            role="assistant", content=json.dumps(new_state)
+        )
+    )
+
+    button_text = (
+        "🔄 Auto-Advance: ON"
+        if new_mode == "auto"
+        else "⏸️ Auto-Advance: OFF"
+    )
+    logger.info(f"Playback mode changed to: {new_mode}")
+
+    return (button_text, new_mode, history)
+
+
 # Create a Gradio interface to play the video slides
 with gr.Blocks() as videocast:
     chatbot = gr.Chatbot(type="messages", visible=False)
+    # Hidden state for tracking navigation mode
+    nav_mode_state = gr.State("auto")
 
     # Start button - visible initially
     with gr.Row():
@@ -231,11 +454,39 @@ with gr.Blocks() as videocast:
         - 🎥 View lecture videos with synchronized visuals and audio
         - 🎤 Ask questions using your microphone
         - ⏯️ Control playback with the video controls
+        - ⬅️➡️ Navigate manually between videos
         
-        **Note:** Videos will autoplay and automatically progress to the next slide when completed.
+        **Note:** Videos will autoplay by default. Use the Auto-Advance toggle to control progression.
         """,
         visible=True,
     )
+
+    # Progress indicator - hidden initially
+    progress_info = gr.Markdown(
+        "🔄 **Video 1** (1 of 7)",
+        visible=False,
+    )
+
+    # Navigation controls - hidden initially
+    with gr.Row(visible=False) as nav_row:
+        prev_btn = gr.Button("⬅️ Previous", size="sm", scale=1)
+        autoplay_btn = gr.Button(
+            "🔄 Auto-Advance: ON", size="sm", scale=1
+        )
+        next_btn = gr.Button("Next ➡️", size="sm", scale=1)
+
+    # Video selector dropdown - hidden initially
+    with gr.Accordion(
+        "📋 Jump to Video", open=False, visible=False
+    ) as video_selector_accordion:
+        video_choices = [
+            (_get_video_title(i), i) for i in range(len(lecture_list))
+        ]
+        video_selector = gr.Dropdown(
+            choices=video_choices,
+            label="Select Video",
+            value=0,
+        )
 
     # Main content - hidden initially
     video = gr.Video(
@@ -321,27 +572,63 @@ with gr.Blocks() as videocast:
     ) -> tuple[
         gr.Button,
         gr.Markdown,
+        gr.Markdown,
+        gr.Row,
+        gr.Accordion,
         gr.Video,
         gr.Row,
         gr.Textbox,
         str | dict[str, str],
+        str,
         list[gr.ChatMessage],
     ]:
         """Handle start button click - shows UI and loads first video"""
-        # Get the first lecture video
-        videofile, updated_history = _get_lecture(history)
+        # Navigate to first video using state management
+        videofile, progress_text, updated_history = (
+            _navigate_to_video(0, history, mode="auto")
+        )
 
         # Return updates for all components:
         # Hide start button and welcome message, show main content
         return (
             gr.Button(visible=False),  # start_btn
             gr.Markdown(visible=False),  # welcome_msg
+            gr.Markdown(visible=True),  # progress_info
+            gr.Row(visible=True),  # nav_row
+            gr.Accordion(visible=True),  # video_selector_accordion
             gr.Video(visible=True),  # video
             gr.Row(visible=True),  # chat_row
             gr.Textbox(visible=True),  # txt
             videofile,  # video value
+            progress_text,  # progress_info value
             updated_history,  # chatbot
         )
+
+    def _auto_advance_video(
+        history: list[gr.ChatMessage],
+    ) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+        """
+        Auto-advance to next video when current video ends.
+        Only advances if in auto mode.
+        """
+        state = _get_user_state(history)
+
+        # Check if we're in auto mode
+        if state.get("navigation_mode") != "auto":
+            # In manual mode, don't auto-advance
+            return (gr.skip(), _get_progress_text(state), history)  # type: ignore
+
+        # Auto-advance to next video
+        current_index = state.get("current_index", 0)
+        next_index = current_index + 1
+
+        # Check if there's a next video
+        if next_index >= len(lecture_list):
+            logger.info("Reached end of lecture series")
+            return (gr.skip(), _get_progress_text(state), history)  # type: ignore
+
+        # Navigate to next video
+        return _navigate_to_video(next_index, history)
 
     # Connect start button to show UI and load first video
     start_btn.click(
@@ -350,19 +637,50 @@ with gr.Blocks() as videocast:
         outputs=[
             start_btn,
             welcome_msg,
+            progress_info,
+            nav_row,
+            video_selector_accordion,
             video,
             chat_row,
             txt,
             video,
+            progress_info,
             chatbot,
         ],
     )
 
-    # Load the next video when the current video has finished playing
+    # Auto-advance when video ends (only if in auto mode)
     video.stop(
-        fn=_get_lecture,
+        fn=_auto_advance_video,
         inputs=[chatbot],
-        outputs=[video, chatbot],
+        outputs=[video, progress_info, chatbot],
+    )
+
+    # Navigation button handlers
+    prev_btn.click(
+        fn=_previous_video,
+        inputs=[chatbot],
+        outputs=[video, progress_info, chatbot],
+    )
+
+    next_btn.click(
+        fn=_next_video,
+        inputs=[chatbot],
+        outputs=[video, progress_info, chatbot],
+    )
+
+    # Auto-advance toggle handler
+    autoplay_btn.click(
+        fn=_toggle_autoplay,
+        inputs=[nav_mode_state, chatbot],
+        outputs=[autoplay_btn, nav_mode_state, chatbot],
+    )
+
+    # Video selector dropdown handler
+    video_selector.change(
+        fn=lambda idx, history: _navigate_to_video(idx, history),
+        inputs=[video_selector, chatbot],
+        outputs=[video, progress_info, chatbot],
     )
 
     # Chain transcribe and chat_completion for Q&A functionality
