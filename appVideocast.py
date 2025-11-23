@@ -74,7 +74,7 @@ for idx, lecture in enumerate(lecture_list):
             logger.warning(f"Video file is empty: {video_path}")
         elif file_size > 100 * 1024 * 1024:  # 100MB warning threshold
             logger.warning(
-                f"Large video file ({file_size / (1024*1024):.1f}MB): {video_path}"
+                f"Large video file ({file_size / (1024 * 1024):.1f}MB): {video_path}"
             )
 
 
@@ -209,6 +209,17 @@ def chat_function(question: str) -> tuple[str, str]:
 
 # ========== STATE MANAGEMENT FUNCTIONS ==========
 
+# SessionStateDict = dict[str, int | list[int] | str]
+
+from typing import TypedDict
+
+
+class SessionStateDict(TypedDict):
+    current_index: int
+    viewed: list[int]
+    navigation_mode: str
+    video_file: str
+
 
 def _get_video_title(index: int) -> str:
     """Get a display title for a video."""
@@ -224,7 +235,9 @@ def _get_video_title(index: int) -> str:
     return "Unknown"
 
 
-def _get_user_state(history: list[gr.ChatMessage]) -> dict:
+def _get_user_state(
+    history: list[gr.ChatMessage] | list[gr.MessageDict],
+) -> SessionStateDict:
     """
     Extract current user state from chatbot history.
     Returns state dict with current_index, viewed list, and navigation_mode.
@@ -234,11 +247,17 @@ def _get_user_state(history: list[gr.ChatMessage]) -> dict:
             "current_index": 0,
             "viewed": [],
             "navigation_mode": "auto",
+            "video_file": "",
         }
 
+    # convert input
+    msg_history: list[gr.ChatMessage] = [
+        gr.ChatMessage(**h) if isinstance(h, dict) else h
+        for h in history
+    ]
     try:
         # Try to parse the last entry as JSON state
-        last_content = history[-1].content
+        last_content = msg_history[-1].content  # type: ignore (gradio type)
         if isinstance(last_content, str) and last_content.startswith(
             '{"current_index"'
         ):
@@ -260,21 +279,21 @@ def _get_user_state(history: list[gr.ChatMessage]) -> dict:
     # Count non-state entries (video file paths)
     video_count = sum(
         1
-        for msg in history
-        if isinstance(msg, gr.ChatMessage)
-        and isinstance(msg.content, str)
+        for msg in msg_history
+        if isinstance(msg.content, str)  # type: ignore (gradio type)
         and not msg.content.startswith('{"current_index"')
     )
     return {
         "current_index": max(0, video_count - 1),
         "viewed": list(range(video_count)),
         "navigation_mode": "auto",
+        "video_file": "",
     }
 
 
 def _create_state_entry(
     index: int, mode: str, viewed_list: list[int]
-) -> dict:
+) -> SessionStateDict:
     """Create a state data structure for storing in history."""
     if 0 <= index < len(lecture_list):
         lecture = lecture_list[index]
@@ -290,14 +309,14 @@ def _create_state_entry(
     }
 
 
-def _get_progress_text(state: dict) -> str:
+def _get_progress_text(state: SessionStateDict) -> str:
     """Generate progress indicator text from state."""
     current = state.get("current_index", 0)
     total = len(lecture_list)
     viewed = state.get("viewed", [])
     mode = state.get("navigation_mode", "auto")
 
-    title = _get_video_title(current)
+    title = _get_video_title(current)  # type: ignore (current_index)
     mode_emoji = "🔄" if mode == "auto" else "⏸️"
 
     progress = f"{mode_emoji} **{title}** ({current + 1} of {total})"
@@ -309,23 +328,29 @@ def _get_progress_text(state: dict) -> str:
 
 def _navigate_to_video(
     target_index: int,
-    history: list[gr.ChatMessage],
+    history: list[gr.ChatMessage] | list[gr.MessageDict],
     mode: str | None = None,
-) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
     """
     Navigate to a specific video index with state management.
-    Returns: (videofile, progress_text, updated_history)
+    Returns: (videofile, progress_text, video_index, updated_history)
     """
+    # convert input
+    msg_history: list[gr.ChatMessage] = [
+        gr.ChatMessage(**h) if isinstance(h, dict) else h
+        for h in history
+    ]
+
     # Get current state
-    current_state = _get_user_state(history)
+    current_state = _get_user_state(msg_history)
 
     # Validate target index
     if not (0 <= target_index < len(lecture_list)):
         logger.warning(f"Invalid video index: {target_index}")
         return (
-            gr.skip(),
+            gr.skip(),  # type: ignore (gradio type)
             _get_progress_text(current_state),
-            history,
+            msg_history,
         )  # type: ignore
 
     # Get lecture info
@@ -336,9 +361,9 @@ def _navigate_to_video(
             f"Lecture {target_index} missing 'videofile' field"
         )
         return (
-            gr.skip(),
+            gr.skip(),  # type: ignore (gradio type)
             _get_progress_text(current_state),
-            history,
+            msg_history,
         )  # type: ignore
 
     videofile = os.path.join(SOURCE_DIR, lecture['videofile'])
@@ -347,9 +372,9 @@ def _navigate_to_video(
     if not os.path.exists(videofile):
         logger.error(f'Video file not found: {videofile}')
         return (
-            gr.skip(),
+            gr.skip(),  # type: ignore (gradio type)
             _get_progress_text(current_state),
-            history,
+            msg_history,
         )  # type: ignore
 
     # Use provided mode or keep current mode
@@ -365,11 +390,12 @@ def _navigate_to_video(
     )
 
     # Add state to history
-    history.append(
+    msg_history.append(
         gr.ChatMessage(
             role="assistant", content=json.dumps(new_state)
         )
     )
+    history = msg_history
 
     # Add slide gap delay if configured
     if SLIDE_GAP > 0.01:
@@ -379,12 +405,17 @@ def _navigate_to_video(
         f"Navigating to video {target_index + 1}/{len(lecture_list)}: {videofile}"
     )
 
-    return (videofile, _get_progress_text(new_state), history)
+    return (
+        videofile,
+        _get_progress_text(new_state),
+        target_index,
+        history,
+    )
 
 
 def _previous_video(
-    history: list[gr.ChatMessage],
-) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+    history: list[gr.ChatMessage] | list[gr.MessageDict],
+) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
     """Navigate to previous video."""
     state = _get_user_state(history)
     target = max(0, state["current_index"] - 1)
@@ -392,8 +423,8 @@ def _previous_video(
 
 
 def _next_video(
-    history: list[gr.ChatMessage],
-) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+    history: list[gr.ChatMessage] | list[gr.MessageDict],
+) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
     """Navigate to next video."""
     state = _get_user_state(history)
     target = min(len(lecture_list) - 1, state["current_index"] + 1)
@@ -495,6 +526,7 @@ with gr.Blocks() as videocast:
         show_share_button=False,
         autoplay=True,
         visible=False,
+        width="60vw",
     )
 
     with gr.Row(visible=False) as chat_row:
@@ -517,56 +549,6 @@ with gr.Blocks() as videocast:
         type='filepath', autoplay=True, visible=False
     )
 
-    def _get_lecture(
-        history: list[gr.ChatMessage],
-    ) -> tuple[str | dict[str, str], list[gr.ChatMessage]]:
-        """
-        Returns video file path and updates history.
-        Validates video file existence and format.
-        """
-        counter: int = len(history)
-        if counter < len(lecture_list):
-            lecture = lecture_list[counter]
-
-            # Check if videofile field exists
-            if 'videofile' not in lecture:
-                logger.error(
-                    f"Lecture {counter} missing 'videofile' field"
-                )
-                return (gr.skip(), history)  # type: ignore (gradio type)
-
-            videofile = os.path.join(SOURCE_DIR, lecture['videofile'])
-
-            # Validate video file exists
-            if not os.path.exists(videofile):
-                logger.error(f'Video file not found: {videofile}')
-                return (gr.skip(), history)  # type: ignore (gradio type)
-
-            # Validate video file format
-            if not videofile.lower().endswith(
-                ('.mp4', '.webm', '.ogg')
-            ):
-                logger.warning(
-                    f'Unsupported video format: {videofile}'
-                )
-
-            history.append(
-                gr.ChatMessage(
-                    role="assistant",
-                    content=videofile,
-                )
-            )
-
-            # Add slide gap delay if configured
-            if SLIDE_GAP > 0.01:
-                time.sleep(SLIDE_GAP)
-
-            logger.info(f"Loading video: {videofile}")
-            return (videofile, history)
-        else:
-            logger.info("All lectures completed")
-            return (gr.skip(), history)  # type: ignore (gradio type)
-
     def _start_videocast(
         history: list[gr.ChatMessage],
     ) -> tuple[
@@ -580,11 +562,12 @@ with gr.Blocks() as videocast:
         gr.Textbox,
         str | dict[str, str],
         str,
+        int,
         list[gr.ChatMessage],
     ]:
         """Handle start button click - shows UI and loads first video"""
         # Navigate to first video using state management
-        videofile, progress_text, updated_history = (
+        videofile, progress_text, video_index, updated_history = (
             _navigate_to_video(0, history, mode="auto")
         )
 
@@ -601,12 +584,16 @@ with gr.Blocks() as videocast:
             gr.Textbox(visible=True),  # txt
             videofile,  # video value
             progress_text,  # progress_info value
+            video_index,  # video_selector value
             updated_history,  # chatbot
         )
 
+    from pydantic import validate_call
+
+    @validate_call(config={'arbitrary_types_allowed': True})
     def _auto_advance_video(
         history: list[gr.ChatMessage],
-    ) -> tuple[str | dict[str, str], str, list[gr.ChatMessage]]:
+    ) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
         """
         Auto-advance to next video when current video ends.
         Only advances if in auto mode.
@@ -616,7 +603,8 @@ with gr.Blocks() as videocast:
         # Check if we're in auto mode
         if state.get("navigation_mode") != "auto":
             # In manual mode, don't auto-advance
-            return (gr.skip(), _get_progress_text(state), history)  # type: ignore
+            current_index = state.get("current_index", 0)
+            return (gr.skip(), _get_progress_text(state), current_index, history)  # type: ignore
 
         # Auto-advance to next video
         current_index = state.get("current_index", 0)
@@ -625,7 +613,7 @@ with gr.Blocks() as videocast:
         # Check if there's a next video
         if next_index >= len(lecture_list):
             logger.info("Reached end of lecture series")
-            return (gr.skip(), _get_progress_text(state), history)  # type: ignore
+            return (gr.skip(), _get_progress_text(state), current_index, history)  # type: ignore
 
         # Navigate to next video
         return _navigate_to_video(next_index, history)
@@ -645,6 +633,7 @@ with gr.Blocks() as videocast:
             txt,
             video,
             progress_info,
+            video_selector,
             chatbot,
         ],
     )
@@ -653,20 +642,20 @@ with gr.Blocks() as videocast:
     video.stop(
         fn=_auto_advance_video,
         inputs=[chatbot],
-        outputs=[video, progress_info, chatbot],
+        outputs=[video, progress_info, video_selector, chatbot],
     )
 
     # Navigation button handlers
     prev_btn.click(
         fn=_previous_video,
         inputs=[chatbot],
-        outputs=[video, progress_info, chatbot],
+        outputs=[video, progress_info, video_selector, chatbot],
     )
 
     next_btn.click(
         fn=_next_video,
         inputs=[chatbot],
-        outputs=[video, progress_info, chatbot],
+        outputs=[video, progress_info, video_selector, chatbot],
     )
 
     # Auto-advance toggle handler
@@ -678,9 +667,9 @@ with gr.Blocks() as videocast:
 
     # Video selector dropdown handler
     video_selector.change(
-        fn=lambda idx, history: _navigate_to_video(idx, history),
+        fn=lambda idx, history: _navigate_to_video(idx, history),  # type: ignore
         inputs=[video_selector, chatbot],
-        outputs=[video, progress_info, chatbot],
+        outputs=[video, progress_info, video_selector, chatbot],
     )
 
     # Chain transcribe and chat_completion for Q&A functionality
