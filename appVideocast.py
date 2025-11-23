@@ -1,3 +1,11 @@
+"""
+Videocast app. Displays a video and uses the OpenAI TTS API to
+create a conversational chatbot about the content of the video.
+"""
+
+# errors line initiates with blank for strings
+# flake8: noqa
+
 # basic imports
 import os
 import time
@@ -33,12 +41,10 @@ chat_settings: ChatSettings | None = load_settings(logger=logger)
 if chat_settings is None:
     exit()
 
-
 # RAGS imports
 from openai import OpenAI
 
 aiclient = OpenAI()
-
 
 # check if there is a file 'lecture_list.json' in the Sources directory. If not, exit.
 if not os.path.exists(f'{SOURCE_DIR}lecture_list.json'):
