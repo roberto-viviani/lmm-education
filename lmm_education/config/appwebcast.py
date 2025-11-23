@@ -3,7 +3,8 @@ This file contains the configuration for the Webcast source files.
 """
 
 # Settings for directories where the source files are located
-SOURCE_DIR = './Sources/'  # Files in the sources folder are used to create scripts
+SOURCE_DIR = './webcast_sources/'  # Directory containing video/audio/image files for presentations
+# For backward compatibility, use './Sources/' for the original image+audio slideshow
 
 # Settings for the OpenAI client
 OPENAI_VOICE = 'nova'  # The voice to use for the audio files

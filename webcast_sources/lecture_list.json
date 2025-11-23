@@ -1,1 +1,51 @@
-[{"imagefile": "Lecture8_00.jpg", "textfile": "Lecture8_00.txt", "text": "Hallo to everyone! Today we will continue on the topic of the logistic regression that we introduced last week. As we saw, Logistic regression is the type of regression that you would use when your outcome variable takes only two values, such as yes/no, or success/failure. ", "audiofile": "Lecture8_00.mp3"}, {"imagefile": "Lecture8_01.jpg", "textfile": "Lecture8_01.txt", "text": "A logistic regression has two components: a linear part, called the linear predictor, and a link function, which is a method to map the fitted propabilites to the linear predictor. All generalized linear models use some link function, and we saw that the _logit_ is the link function of logistic regression.", "audiofile": "Lecture8_01.mp3"}, {"imagefile": "Lecture8_02.jpg", "textfile": "Lecture8_02.txt", "text": "In the example we saw last week, we had a logistic regression predicting the probability that kids had to pass the final exam from the IQ of their mothers. In the plot of this slide, we have the IQs of mothers on the x axis, and passing the exam on the y axis. The observed data, plotted as points in the figure, only take the values of zero (failure) or one (success). As you can see, the fit is the prediction of the probability to pass the exam given IQ. The fit is a curve is constrained to lie between zero and one because probabilities can only take values between zero and one.", "audiofile": "Lecture8_02.mp3"}, {"imagefile": "Lecture8_03.jpg", "textfile": "Lecture8_03.txt", "text": "Now, let us see in practice how we may fit a logistic regression in R. Here, I have already loaded the data for the regression. The second line shows the syntax to be used to code the model. The first thing to notice is that we are now using the function _glm_ instead of _lm_ as in ordinary regression to obtain a logistic regression.", "audiofile": "Lecture8_03.mp3"}, {"imagefile": "Lecture8_04.jpg", "textfile": "Lecture8_04.txt", "text": "The second thing to notice is that the first thing we specify is the model equation, just as we would do in ordinary regression. We specify outcome and predictors in exactly the same way. This is not just notation: we specify this model as in an ordinary regression because this model equation codes the linear predictor of the logistic regression. This is a linear component as in a linear regression.", "audiofile": "Lecture8_04.mp3"}, {"imagefile": "Lecture8_05.jpg", "textfile": "Lecture8_05.txt", "text": "The second thing we specify is the dataframe. This is again the same as when using the function lm.", "audiofile": "Lecture8_05.mp3"}, {"imagefile": "Lecture8_06.jpg", "textfile": "Lecture8_06.txt", "text": "Finally, we specify the second component of the logistic regression: the link function. There are several available link functions that glm can fit, but for now we will just consider the logit. Do not forget to add this specification to glm. If you forget, glm will not complain and fit an ordinary regression instead. In this case, the linear predictor will specify the fit directly.", "audiofile": "Lecture8_06.mp3"}]
+[
+  {
+    "imagefile": "Lecture8_00.jpg",
+    "textfile": "Lecture8_00.txt",
+    "text": "Hallo to everyone! Today we will continue on the topic of the logistic regression that we introduced last week. As we saw, Logistic regression is the type of regression that you would use when your outcome variable takes only two values, such as yes/no, or success/failure. ",
+    "audiofile": "Lecture8_00.mp3",
+    "videofile": "Lecture8_00.mp4"
+  },
+  {
+    "imagefile": "Lecture8_01.jpg",
+    "textfile": "Lecture8_01.txt",
+    "text": "A logistic regression has two components: a linear part, called the linear predictor, and a link function, which is a method to map the fitted propabilites to the linear predictor. All generalized linear models use some link function, and we saw that the _logit_ is the link function of logistic regression.",
+    "audiofile": "Lecture8_01.mp3",
+    "videofile": "Lecture8_01.mp4"
+  },
+  {
+    "imagefile": "Lecture8_02.jpg",
+    "textfile": "Lecture8_02.txt",
+    "text": "In the example we saw last week, we had a logistic regression predicting the probability that kids had to pass the final exam from the IQ of their mothers. In the plot of this slide, we have the IQs of mothers on the x axis, and passing the exam on the y axis. The observed data, plotted as points in the figure, only take the values of zero (failure) or one (success). As you can see, the fit is the prediction of the probability to pass the exam given IQ. The fit is a curve is constrained to lie between zero and one because probabilities can only take values between zero and one.",
+    "audiofile": "Lecture8_02.mp3",
+    "videofile": "Lecture8_02.mp4"
+  },
+  {
+    "imagefile": "Lecture8_03.jpg",
+    "textfile": "Lecture8_03.txt",
+    "text": "Now, let us see in practice how we may fit a logistic regression in R. Here, I have already loaded the data for the regression. The second line shows the syntax to be used to code the model. The first thing to notice is that we are now using the function _glm_ instead of _lm_ as in ordinary regression to obtain a logistic regression.",
+    "audiofile": "Lecture8_03.mp3",
+    "videofile": "Lecture8_03.mp4"
+  },
+  {
+    "imagefile": "Lecture8_04.jpg",
+    "textfile": "Lecture8_04.txt",
+    "text": "The second thing to notice is that the first thing we specify is the model equation, just as we would do in ordinary regression. We specify outcome and predictors in exactly the same way. This is not just notation: we specify this model as in an ordinary regression because this model equation codes the linear predictor of the logistic regression. This is a linear component as in a linear regression.",
+    "audiofile": "Lecture8_04.mp3",
+    "videofile": "Lecture8_04.mp4"
+  },
+  {
+    "imagefile": "Lecture8_05.jpg",
+    "textfile": "Lecture8_05.txt",
+    "text": "The second thing we specify is the dataframe. This is again the same as when using the function lm.",
+    "audiofile": "Lecture8_05.mp3",
+    "videofile": "Lecture8_05.mp4"
+  },
+  {
+    "imagefile": "Lecture8_06.jpg",
+    "textfile": "Lecture8_06.txt",
+    "text": "Finally, we specify the second component of the logistic regression: the link function. There are several available link functions that glm can fit, but for now we will just consider the logit. Do not forget to add this specification to glm. If you forget, glm will not complain and fit an ordinary regression instead. In this case, the linear predictor will specify the fit directly.",
+    "audiofile": "Lecture8_06.mp3",
+    "videofile": "Lecture8_06.mp4"
+  }
+]

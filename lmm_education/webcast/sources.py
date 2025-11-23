@@ -19,6 +19,60 @@ with open(f"{SOURCE_DIR}lecture_list.json", "r") as file:
     lecture_list = json.load(file)
 
 
+def video_generator_factory(
+    srcdir: str = SOURCE_DIR,
+) -> Callable[[], str | dict[str, str] | None]:
+    """
+    Factory function to create a video generator for videocast presentations.
+    Returns a generator function that yields video file paths sequentially.
+
+    :param srcdir: Source directory containing lecture_list.json and video files
+    :return: Generator function that returns video file paths
+    """
+    # check if there is a file 'lecture_list.json' in the Sources directory. If not, exit.
+    if not os.path.exists(f'{srcdir}lecture_list.json'):
+        print("lecture_list.json not found in Sources directory.")
+        raise ValueError("Lecture sources not found.")
+
+    # Load the lecture list from the json file defining the script
+    with open(f"{srcdir}lecture_list.json", "r") as file:
+        lecture_list = json.load(file)
+
+    # Validate that all lectures have videofile field
+    for idx, lecture in enumerate(lecture_list):
+        if 'videofile' not in lecture:
+            print(f"Warning: Lecture {idx} missing 'videofile' field")
+
+    # a co-routine based on closures
+    keeper = {"counter": -1}
+
+    def generate_video() -> str | dict[str, str] | None:
+        keeper["counter"] += 1
+        if keeper["counter"] < len(lecture_list):
+            if SLIDE_GAP > 0.01:
+                time.sleep(SLIDE_GAP)
+
+            lecture = lecture_list[keeper["counter"]]
+            if 'videofile' not in lecture:
+                print(
+                    f"Error: Lecture {keeper['counter']} missing 'videofile' field"
+                )
+                return None
+
+            videofile = srcdir + lecture['videofile']
+            print(f"Returning video: {videofile}")
+
+            if not os.path.exists(videofile):
+                print(f"Warning: Video file not found: {videofile}")
+                return None
+
+            return videofile
+        else:
+            return None
+
+    return generate_video
+
+
 def slide_generator_factory(
     srcdir: str = SOURCE_DIR,
 ) -> Callable[[], list[dict[str, object] | None]]:
