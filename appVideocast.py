@@ -1,13 +1,14 @@
 # basic imports
 import os
-import io
 import time
 import json
-
-import whisper  # type: ignore (stub file not found)
-import soundfile as sf  # type: ignore (stub file etc.)
 import gradio as gr
-import numpy as np
+
+from lmm_education.webcast.webcastlib import (
+    synthetise_query,
+    transcribe,
+    SAMPLE_RATE,
+)
 
 # configuration imports
 from lmm_education.config.appwebcast import (
@@ -37,11 +38,6 @@ if chat_settings is None:
 from openai import OpenAI
 
 aiclient = OpenAI()
-model = whisper.load_model('tiny.en')
-SAMPLE_RATE = (
-    whisper.audio.SAMPLE_RATE
-)  # Kept for backward compatibility
-AUDIO_FORMAT = "wav"  # Kept for backward compatibility
 
 
 # check if there is a file 'lecture_list.json' in the Sources directory. If not, exit.
@@ -57,6 +53,7 @@ with open(f"{SOURCE_DIR}lecture_list.json", "r") as file:
     lecture_list = json.load(file)
 
 # Validate lecture list structure and check for video files
+video_file_missing = False
 for idx, lecture in enumerate(lecture_list):
     if 'videofile' not in lecture:
         logger.warning(
@@ -66,6 +63,7 @@ for idx, lecture in enumerate(lecture_list):
 
     video_path = os.path.join(SOURCE_DIR, lecture['videofile'])
     if not os.path.exists(video_path):
+        video_file_missing = True
         logger.error(f"Video file not found: {video_path}")
     else:
         # Check file size
@@ -77,29 +75,49 @@ for idx, lecture in enumerate(lecture_list):
                 f"Large video file ({file_size / (1024 * 1024):.1f}MB): {video_path}"
             )
 
-
-def transcribe(audiodata: tuple[float, np.ndarray] | None) -> str:
-    if audiodata is None:
-        print("No audio data received.")
-        return ""
-    sr, data = audiodata
-
-    # Convert to mono if stereo
-    if data.ndim > 1:
-        data = data.mean(axis=1)
-
-    data = data.astype(np.float32)
-    data /= np.max(np.abs(data))  # Normalize the audio data
-
-    # transform data, np.ndarray, to a file object
-    audio_file = 'C:/temp/slidetext.' + AUDIO_FORMAT
-    with io.FileIO(audio_file, 'wb') as f:
-        sf.write(f, data, sr, format=AUDIO_FORMAT)  # type: ignore
-
-    transcription = model.transcribe(  # type: ignore
-        audio_file, language='en', fp16=False
+if video_file_missing:
+    print(
+        "Video files missing. Replace video files before starting app."
     )
-    return str(transcription['text'])  # type: ignore
+    exit(1)
+
+
+def chat_function(
+    question: str,
+) -> tuple[str, str]:
+    if question == "":
+        return (
+            './Resources/ErrorEmptyQuestion.mp3',
+            'No question recorded. Please feel free to ask your question.',
+        )
+
+    if len(question) > 2000:
+        return (
+            './Resources/ErrorQuestionTooLong.mp3',
+            'Your question is too long.',
+        )
+
+    if chat_settings is None:  # type checker
+        raise ValueError("Unreacheable code reached.")
+
+    prompt = synthetise_query(
+        question, retriever, chat_settings, logger
+    )
+    if prompt == "":
+        return (
+            './Resources/ErrorWrongQuestion.mp3',
+            'I cannot find information about your question.',
+        )
+
+    # for debug, for now
+    print('PROMPT: ' + prompt)
+
+    # ask openai to give a reponse with audio
+    (audio, response) = chat_completion(prompt)
+    print("RESPONSE from model: ------------------")
+    print(response)
+
+    return (audio, response)
 
 
 def chat_completion(text: str) -> tuple[str, str]:
@@ -121,10 +139,15 @@ def chat_completion(text: str) -> tuple[str, str]:
     )
 
     # write to temp file
-    f = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-    f.write(wav_bytes)
+    temp_filename: str = ""
+    with tempfile.NamedTemporaryFile(
+        suffix='.wav', delete=False, delete_on_close=False
+    ) as f:
+        f.write(wav_bytes)
+        temp_filename = f.name
 
-    return (f.name, completion.choices[0].message.audio.transcript)  # type: ignore
+    print(temp_filename)
+    return (temp_filename, completion.choices[0].message.audio.transcript)  # type: ignore
 
 
 # load retriever
@@ -137,81 +160,11 @@ from langchain_core.retrievers import BaseRetriever
 retriever: BaseRetriever = Retriever.from_config_settings()
 
 
-def queryfn(querytext: str) -> str:
-    # required by type checker
-    if chat_settings is None:
-        raise ValueError("Unreacheable code reached")
-
-    # check if the querytext is empty
-    if querytext == "":
-        return chat_settings.MSG_EMPTY_QUERY
-
-    # check if the querytext is too long
-    if len(querytext) > 3000:
-        return chat_settings.MSG_LONG_QUERY
-
-    # query database
-    context: str = ""
-    try:
-        docs = retriever.invoke(querytext)
-        for doc in docs:
-            context += doc.page_content + "\n------\n"
-    except Exception as e:
-        logger.error(f"Error while retrieving context: {e}")
-        return context
-
-    return context
-
-
-def synthetise_query(question: str) -> str:
-    prompt = """Please assist the user by answering the user's question with the provided context.\\n
-             --------------------------------------\\nQuestion:\\n"""
-    prompt += question
-    prompt += "\\n--------------------------------------\\n"
-    prompt += "Context:\\n"
-    context = queryfn(question)
-    if context == "":
-        return ""
-    prompt += context
-    return prompt
-
-
-def chat_function(question: str) -> tuple[str, str]:
-    if question == "":
-        return (
-            './Resources/ErrorEmptyQuestion.mp3',
-            'No question recorded. Please feel free to ask your question.',
-        )
-
-    if len(question) > 2000:
-        return (
-            './Resources/ErrorQuestionTooLong.mp3',
-            'Your question is too long.',
-        )
-
-    prompt = synthetise_query(question)
-    if prompt == "":
-        return (
-            './Resources/ErrorWrongQuestion.mp3',
-            'I cannot find information about your question.',
-        )
-
-    # for debug, for now
-    print('PROMPT: ' + prompt)
-
-    # ask openai to give a reponse with audio
-    (audio, response) = chat_completion(prompt)
-    print("RESPONSE from model: ------------------")
-    print(response)
-
-    return (audio, response)
-
-
 # ========== STATE MANAGEMENT FUNCTIONS ==========
 
 # SessionStateDict = dict[str, int | list[int] | str]
 
-from typing import TypedDict
+from typing import TypedDict, NamedTuple
 
 
 class SessionStateDict(TypedDict):
@@ -219,6 +172,15 @@ class SessionStateDict(TypedDict):
     viewed: list[int]
     navigation_mode: str
     video_file: str
+
+
+class NavigationResult(NamedTuple):
+    """Result of video navigation operations."""
+
+    video_source: str | dict[str, str]  # Video file path or gr.skip()
+    progress_text: str  # Progress indicator text
+    video_index: int  # Current video position (0-based)
+    chat_history: list[gr.ChatMessage]  # Updated chat history
 
 
 def _get_video_title(index: int) -> str:
@@ -330,10 +292,10 @@ def _navigate_to_video(
     target_index: int,
     history: list[gr.ChatMessage] | list[gr.MessageDict],
     mode: str | None = None,
-) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
+) -> NavigationResult:
     """
     Navigate to a specific video index with state management.
-    Returns: (videofile, progress_text, video_index, updated_history)
+    Returns NavigationResult with video source, progress text, index, and history.
     """
     # convert input
     msg_history: list[gr.ChatMessage] = [
@@ -347,11 +309,12 @@ def _navigate_to_video(
     # Validate target index
     if not (0 <= target_index < len(lecture_list)):
         logger.warning(f"Invalid video index: {target_index}")
-        return (
-            gr.skip(),  # type: ignore (gradio type)
-            _get_progress_text(current_state),
-            msg_history,
-        )  # type: ignore
+        return NavigationResult(
+            video_source=gr.skip(),  # type: ignore (gradio type)
+            progress_text=_get_progress_text(current_state),
+            video_index=0,
+            chat_history=msg_history,
+        )
 
     # Get lecture info
     lecture = lecture_list[target_index]
@@ -360,22 +323,24 @@ def _navigate_to_video(
         logger.error(
             f"Lecture {target_index} missing 'videofile' field"
         )
-        return (
-            gr.skip(),  # type: ignore (gradio type)
-            _get_progress_text(current_state),
-            msg_history,
-        )  # type: ignore
+        return NavigationResult(
+            video_source=gr.skip(),  # type: ignore (gradio type)
+            progress_text=_get_progress_text(current_state),
+            video_index=0,
+            chat_history=msg_history,
+        )
 
     videofile = os.path.join(SOURCE_DIR, lecture['videofile'])
 
     # Validate video file exists
     if not os.path.exists(videofile):
         logger.error(f'Video file not found: {videofile}')
-        return (
-            gr.skip(),  # type: ignore (gradio type)
-            _get_progress_text(current_state),
-            msg_history,
-        )  # type: ignore
+        return NavigationResult(
+            video_source=gr.skip(),  # type: ignore (gradio type)
+            progress_text=_get_progress_text(current_state),
+            video_index=0,
+            chat_history=msg_history,
+        )
 
     # Use provided mode or keep current mode
     navigation_mode = (
@@ -405,17 +370,17 @@ def _navigate_to_video(
         f"Navigating to video {target_index + 1}/{len(lecture_list)}: {videofile}"
     )
 
-    return (
-        videofile,
-        _get_progress_text(new_state),
-        target_index,
-        history,
+    return NavigationResult(
+        video_source=videofile,
+        progress_text=_get_progress_text(new_state),
+        video_index=target_index,
+        chat_history=history,
     )
 
 
 def _previous_video(
     history: list[gr.ChatMessage] | list[gr.MessageDict],
-) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
+) -> NavigationResult:
     """Navigate to previous video."""
     state = _get_user_state(history)
     target = max(0, state["current_index"] - 1)
@@ -424,7 +389,7 @@ def _previous_video(
 
 def _next_video(
     history: list[gr.ChatMessage] | list[gr.MessageDict],
-) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
+) -> NavigationResult:
     """Navigate to next video."""
     state = _get_user_state(history)
     target = min(len(lecture_list) - 1, state["current_index"] + 1)
@@ -526,7 +491,7 @@ with gr.Blocks() as videocast:
         show_share_button=False,
         autoplay=True,
         visible=False,
-        width="60vw",
+        height="30vw",
     )
 
     with gr.Row(visible=False) as chat_row:
@@ -588,9 +553,6 @@ with gr.Blocks() as videocast:
             updated_history,  # chatbot
         )
 
-    from pydantic import validate_call
-
-    @validate_call(config={'arbitrary_types_allowed': True})
     def _auto_advance_video(
         history: list[gr.ChatMessage],
     ) -> tuple[str | dict[str, str], str, int, list[gr.ChatMessage]]:
@@ -673,8 +635,9 @@ with gr.Blocks() as videocast:
     )
 
     # Chain transcribe and chat_completion for Q&A functionality
-    chatinput.stop_recording(lambda x: transcribe(x), chatinput, txt)  # type: ignore
-    txt.change(
+    chatinput.stop_recording(
+        lambda x: transcribe(x), chatinput, txt  # type: ignore
+    ).then(
         lambda x: (  # type: ignore
             gr.Audio(value=None, interactive=False),
             chat_function(x)[0],  # type: ignore
