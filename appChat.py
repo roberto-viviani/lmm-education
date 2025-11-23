@@ -7,9 +7,12 @@ Entry point for the RAG model chat application.
 from datetime import datetime
 import os
 from typing import Literal
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+import asyncio
+
 
 import gradio as gr
+from langchain_core.messages import BaseMessageChunk
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
@@ -122,10 +125,6 @@ except Exception as e:
     print(f"Error message:\n{e}")
     exit()
 
-
-from collections.abc import AsyncIterator
-from langchain_core.messages import BaseMessageChunk
-import asyncio
 
 # Import refactored chat functions
 from lmm_education.query import (

@@ -182,7 +182,7 @@ async def chat_function(
         try:
             documents: list[Document] = await retriever.ainvoke(
                 querytext,
-                limit=6,
+                # limit=6,
             )
         except Exception as e:
             logger.error(
