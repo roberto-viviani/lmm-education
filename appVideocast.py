@@ -2,19 +2,13 @@
 import os
 import time
 import json
-import gradio as gr
+from typing import TypedDict, NamedTuple
 
+import gradio as gr
 from lmm_education.webcast.webcastlib import (
     synthetise_query,
     transcribe,
     SAMPLE_RATE,
-)
-
-# configuration imports
-from lmm_education.config.appwebcast import (
-    SOURCE_DIR,
-    SLIDE_GAP,
-    OPENAI_VOICE,
 )
 
 # logs
@@ -27,12 +21,18 @@ logger = FileConsoleLogger(
     file_level=logging.ERROR,
 )
 
-# settings
+# configuration imports
 from lmm_education.config.appchat import ChatSettings, load_settings
+from lmm_education.config.appwebcast import (
+    SOURCE_DIR,
+    SLIDE_GAP,
+    OPENAI_VOICE,
+)
 
 chat_settings: ChatSettings | None = load_settings(logger=logger)
 if chat_settings is None:
     exit()
+
 
 # RAGS imports
 from openai import OpenAI
@@ -45,7 +45,6 @@ if not os.path.exists(f'{SOURCE_DIR}lecture_list.json'):
     logger.error(
         f"lecture_list.json not found in {SOURCE_DIR} directory."
     )
-    print(f"lecture_list.json not found in {SOURCE_DIR} directory.")
     exit()
 
 # Load the lecture list from the json file defining the script
@@ -76,7 +75,7 @@ for idx, lecture in enumerate(lecture_list):
             )
 
 if video_file_missing:
-    print(
+    logger.error(
         "Video files missing. Replace video files before starting app."
     )
     exit(1)
@@ -84,7 +83,11 @@ if video_file_missing:
 
 def chat_function(
     question: str,
-) -> tuple[str, str]:
+) -> tuple[str | bytes, str]:
+    """
+    Process a chat question and return audio response with transcript.
+    Returns (audio_data, transcript) where audio_data can be file path or bytes.
+    """
     if question == "":
         return (
             './Resources/ErrorEmptyQuestion.mp3',
@@ -109,20 +112,18 @@ def chat_function(
             'I cannot find information about your question.',
         )
 
-    # for debug, for now
-    print('PROMPT: ' + prompt)
-
     # ask openai to give a reponse with audio
     (audio, response) = chat_completion(prompt)
-    print("RESPONSE from model: ------------------")
-    print(response)
+    # TODO: logging
 
     return (audio, response)
 
 
-def chat_completion(text: str) -> tuple[str, str]:
-    """Get chat completion from OpenAI API."""
-    import tempfile
+def chat_completion(text: str) -> tuple[bytes, str]:
+    """
+    Get chat completion from OpenAI API.
+    Returns audio data as bytes and transcript text.
+    """
     import base64
 
     completion = aiclient.chat.completions.create(
@@ -132,22 +133,13 @@ def chat_completion(text: str) -> tuple[str, str]:
         messages=[{"role": "user", "content": text}],
     )
 
-    # at present, with go through writing to a temp file
-    # return (completion.choices[0].message.audio.data, completion.choices[0].message.audio.transcript)
+    # Decode audio data from base64 to bytes
     wav_bytes = base64.b64decode(
         completion.choices[0].message.audio.data  # type: ignore
     )
 
-    # write to temp file
-    temp_filename: str = ""
-    with tempfile.NamedTemporaryFile(
-        suffix='.wav', delete=False, delete_on_close=False
-    ) as f:
-        f.write(wav_bytes)
-        temp_filename = f.name
-
-    print(temp_filename)
-    return (temp_filename, completion.choices[0].message.audio.transcript)  # type: ignore
+    # Return bytes directly - no temporary file needed!
+    return (wav_bytes, completion.choices[0].message.audio.transcript)  # type: ignore
 
 
 # load retriever
@@ -162,16 +154,19 @@ retriever: BaseRetriever = Retriever.from_config_settings()
 
 # ========== STATE MANAGEMENT FUNCTIONS ==========
 
-# SessionStateDict = dict[str, int | list[int] | str]
-
-from typing import TypedDict, NamedTuple
-
 
 class SessionStateDict(TypedDict):
     current_index: int
     viewed: list[int]
     navigation_mode: str
     video_file: str
+    error_state: (
+        str | None
+    )  # "error" if current video has error, None otherwise
+    failed_videos: list[
+        int
+    ]  # List of video indices that failed to load
+    retry_count: int  # Number of retries for current video
 
 
 class NavigationResult(NamedTuple):
@@ -210,6 +205,9 @@ def _get_user_state(
             "viewed": [],
             "navigation_mode": "auto",
             "video_file": "",
+            "error_state": None,
+            "failed_videos": [],
+            "retry_count": 0,
         }
 
     # convert input
@@ -250,11 +248,19 @@ def _get_user_state(
         "viewed": list(range(video_count)),
         "navigation_mode": "auto",
         "video_file": "",
+        "error_state": None,
+        "failed_videos": [],
+        "retry_count": 0,
     }
 
 
 def _create_state_entry(
-    index: int, mode: str, viewed_list: list[int]
+    index: int,
+    mode: str,
+    viewed_list: list[int],
+    error_state: str | None = None,
+    failed_videos: list[int] | None = None,
+    retry_count: int = 0,
 ) -> SessionStateDict:
     """Create a state data structure for storing in history."""
     if 0 <= index < len(lecture_list):
@@ -268,6 +274,11 @@ def _create_state_entry(
         "video_file": videofile,
         "viewed": sorted(list(set(viewed_list + [index]))),
         "navigation_mode": mode,
+        "error_state": error_state,
+        "failed_videos": (
+            failed_videos if failed_videos is not None else []
+        ),
+        "retry_count": retry_count,
     }
 
 
@@ -294,9 +305,18 @@ def _navigate_to_video(
     mode: str | None = None,
 ) -> NavigationResult:
     """
-    Navigate to a specific video index with state management.
+    Navigate to a specific video index with state management and error handling.
+    Includes 2-attempt retry logic with 2-second delays.
     Returns NavigationResult with video source, progress text, index, and history.
     """
+    from lmm_education.webcast.video_validation import (
+        validate_video_file,
+        map_validation_to_error_type,
+    )
+    from lmm_education.webcast.error_handling import (
+        get_error_placeholder,
+    )
+
     # convert input
     msg_history: list[gr.ChatMessage] = [
         gr.ChatMessage(**h) if isinstance(h, dict) else h
@@ -332,49 +352,148 @@ def _navigate_to_video(
 
     videofile = os.path.join(SOURCE_DIR, lecture['videofile'])
 
-    # Validate video file exists
-    if not os.path.exists(videofile):
-        logger.error(f'Video file not found: {videofile}')
+    # Check if this video has already failed
+    failed_videos = current_state.get("failed_videos", [])
+    if target_index in failed_videos:
+        # Video previously failed, use error placeholder immediately
+        logger.warning(
+            f"Video {target_index} previously failed, showing error placeholder"
+        )
+        error_type = map_validation_to_error_type("corrupted")
+        placeholder = get_error_placeholder(
+            error_type, f"Video {target_index + 1} unavailable"
+        )
+
+        error_state = _create_state_entry(
+            target_index,
+            "manual",  # Force manual mode on error
+            current_state.get("viewed", []),
+            error_state="error",
+            failed_videos=failed_videos,
+            retry_count=0,
+        )
+
+        msg_history.append(
+            gr.ChatMessage(
+                role="assistant", content=json.dumps(error_state)
+            )
+        )
+
+        error_progress = f"⚠️ **Video Error** ({target_index + 1} of {len(lecture_list)})"
+
         return NavigationResult(
-            video_source=gr.skip(),  # type: ignore (gradio type)
-            progress_text=_get_progress_text(current_state),
-            video_index=0,
+            video_source=placeholder,
+            progress_text=error_progress,
+            video_index=target_index,
             chat_history=msg_history,
         )
 
-    # Use provided mode or keep current mode
-    navigation_mode = (
-        mode
-        if mode is not None
-        else current_state.get("navigation_mode", "auto")
-    )
+    # Retry logic: Try to load video with up to 2 attempts
+    MAX_RETRIES = 2
+    RETRY_DELAY = 2.0  # seconds
 
-    # Create new state
-    new_state = _create_state_entry(
-        target_index, navigation_mode, current_state.get("viewed", [])
-    )
-
-    # Add state to history
-    msg_history.append(
-        gr.ChatMessage(
-            role="assistant", content=json.dumps(new_state)
+    for attempt in range(MAX_RETRIES):
+        # Validate video file
+        validation_result, error_message = validate_video_file(
+            videofile
         )
-    )
-    history = msg_history
 
-    # Add slide gap delay if configured
-    if SLIDE_GAP > 0.01:
-        time.sleep(SLIDE_GAP)
+        if validation_result == "success":
+            # Video is valid, proceed with normal loading
+            navigation_mode = (
+                mode
+                if mode is not None
+                else current_state.get("navigation_mode", "auto")
+            )
 
-    logger.info(
-        f"Navigating to video {target_index + 1}/{len(lecture_list)}: {videofile}"
-    )
+            # Create new state (clear any error state)
+            new_state = _create_state_entry(
+                target_index,
+                navigation_mode,
+                current_state.get("viewed", []),
+                error_state=None,
+                failed_videos=failed_videos,
+                retry_count=0,
+            )
 
+            # Add state to history
+            msg_history.append(
+                gr.ChatMessage(
+                    role="assistant", content=json.dumps(new_state)
+                )
+            )
+
+            # Add slide gap delay if configured
+            if SLIDE_GAP > 0.01:
+                time.sleep(SLIDE_GAP)
+
+            logger.info(
+                f"Successfully navigated to video {target_index + 1}/{len(lecture_list)}: {videofile}"
+            )
+
+            return NavigationResult(
+                video_source=videofile,
+                progress_text=_get_progress_text(new_state),
+                video_index=target_index,
+                chat_history=msg_history,
+            )
+
+        # Video validation failed
+        if attempt < MAX_RETRIES - 1:
+            # Not the last attempt, retry after delay
+            logger.warning(
+                f"Video validation failed (attempt {attempt + 1}/{MAX_RETRIES}): {error_message}"
+            )
+            time.sleep(RETRY_DELAY)
+        else:
+            # Final attempt failed, show error placeholder
+            logger.error(
+                f"Video validation failed after {MAX_RETRIES} attempts: {error_message}"
+            )
+
+            # Add to failed videos list
+            failed_videos = list(set(failed_videos + [target_index]))
+
+            # Generate error placeholder
+            error_type = map_validation_to_error_type(
+                validation_result
+            )
+            placeholder = get_error_placeholder(
+                error_type, error_message
+            )
+
+            # Create error state (force manual mode to pause auto-advance)
+            error_state = _create_state_entry(
+                target_index,
+                "manual",  # Force manual mode when error occurs
+                current_state.get("viewed", []),
+                error_state="error",
+                failed_videos=failed_videos,
+                retry_count=MAX_RETRIES,
+            )
+
+            msg_history.append(
+                gr.ChatMessage(
+                    role="assistant", content=json.dumps(error_state)
+                )
+            )
+
+            # Create error progress message
+            error_progress = f"⚠️ **Video Error: {error_message}** ({target_index + 1} of {len(lecture_list)})"
+
+            return NavigationResult(
+                video_source=placeholder,
+                progress_text=error_progress,
+                video_index=target_index,
+                chat_history=msg_history,
+            )
+
+    # Should never reach here, but handle it just in case
     return NavigationResult(
-        video_source=videofile,
-        progress_text=_get_progress_text(new_state),
+        video_source=gr.skip(),  # type: ignore (gradio type)
+        progress_text=_get_progress_text(current_state),
         video_index=target_index,
-        chat_history=history,
+        chat_history=msg_history,
     )
 
 
