@@ -61,3 +61,101 @@ def slide_generator_factory(
             return [gr.skip(), None]  # type: ignore (incomplete gradio type)
 
     return generate_slide
+
+
+def create_video_from_pairs(
+    jpg_list: list[str],
+    mp3_list: list[str],
+    output_directory: str = "output_videos",
+) -> None:
+    """
+    Converts paired JPG and MP3 files into MP4 video files.
+
+    :param jpg_list: List of full paths to JPG image files.
+    :param mp3_list: List of full paths to MP3 audio files.
+    :param output_directory: The directory where the resulting MP4 files will be saved.
+    """
+    import os
+    from moviepy import ImageClip, AudioFileClip  # type: ignore (stub not found)
+
+    if len(jpg_list) != len(mp3_list):
+        print(
+            "Error: The number of JPG and MP3 files must be the same."
+        )
+        return
+
+    # Create the output directory if it doesn't exist
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    print(f"Starting video creation for {len(jpg_list)} pairs...")
+
+    # Process each pair of files
+    for i, (jpg_file, mp3_file) in enumerate(zip(jpg_list, mp3_list)):
+        try:
+            # 1. Load the audio file
+            audio_clip = AudioFileClip(mp3_file)
+
+            # 2. Create the image clip and set its duration to the audio's duration
+            image_clip = ImageClip(
+                jpg_file, duration=audio_clip.duration  # type: ignore
+            )
+
+            # 3. Set the image clip's audio track
+            video_clip = image_clip.with_audio(audio_clip)
+
+            # 4. Define the output file name
+            # Use the base name of the MP3 file for the video name
+            base_name = os.path.splitext(os.path.basename(mp3_file))[
+                0
+            ]
+            output_filename = os.path.join(
+                output_directory, f"{base_name}.mp4"
+            )
+
+            # 5. Write the final video file
+            print(
+                f"Processing pair {i + 1}/{len(jpg_list)}: {jpg_file} + {mp3_file} -> {output_filename}"
+            )
+
+            video_clip.write_videofile(
+                output_filename,
+                fps=24,  # Frames per second for the still image (standard value)
+                codec='libx264',  # Standard H.264 codec for MP4
+                audio_codec='aac',  # Standard AAC audio codec for MP4
+                logger=None,  # Suppress MoviePy log messages for cleaner output
+            )
+
+            # Close clips to free up resources
+            audio_clip.close()
+            image_clip.close()
+            video_clip.close()
+
+        except Exception as e:
+            print(
+                f"An error occurred while processing pair {i + 1} ({jpg_file}, {mp3_file}): {e}"
+            )
+
+    print("\n✅ All processing complete!")
+
+
+def convert_source_folder_to_videos(
+    srcdir: str = SOURCE_DIR, output_directory: str | None = None
+) -> None:
+    import glob
+    import os
+
+    # Define the directory where your files are located
+    FILES_DIR = srcdir
+    if output_directory is None:
+        output_directory = FILES_DIR
+
+    # Use glob to find all files of a specific type
+    jpg_files = sorted(glob.glob(os.path.join(FILES_DIR, "*.jpg")))
+    mp3_files = sorted(glob.glob(os.path.join(FILES_DIR, "*.mp3")))
+
+    # Assuming the files are named such that they sort correctly (e.g., 01.jpg, 01.mp3)
+    # The `sorted()` function ensures the lists are ordered identically for correct pairing.
+
+    # Now call your function
+    create_video_from_pairs(jpg_files, mp3_files, output_directory)

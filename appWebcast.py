@@ -184,13 +184,39 @@ def chat_function(question: str) -> tuple[str, str]:
 # Create a Gradio interface to play the slides
 with gr.Blocks() as webcast:
     chatbot = gr.Chatbot(type="messages", visible=False)
+
+    # Start button - visible initially
+    with gr.Row():
+        start_btn = gr.Button(
+            "🎬 Start Webcast", variant="primary", size="lg", scale=1
+        )
+
+    # Welcome message
+    welcome_msg = gr.Markdown(
+        """
+        ### Welcome to the Webcast
+        
+        Click the **Start Webcast** button above to begin the presentation.
+        
+        Once started, you can:
+        - 📊 View lecture slides with synchronized audio
+        - 🎤 Ask questions using your microphone
+        - ⏯️ Control playback with the audio controls
+        
+        **Note:** Audio will autoplay after you start the webcast.
+        """,
+        visible=True,
+    )
+
+    # Main content - hidden initially
     img = gr.Image(
         type='filepath',
         show_download_button=False,
         label='Slides',
         show_share_button=False,
+        visible=False,
     )
-    with gr.Row():
+    with gr.Row(visible=False) as audio_row:
         audio = gr.Audio(
             type='filepath',
             show_download_button=False,
@@ -210,7 +236,9 @@ with gr.Blocks() as webcast:
                 'sample_rate': SAMPLE_RATE,
             },
         )
-    txt = gr.Textbox(interactive=False, label='Questions...')
+    txt = gr.Textbox(
+        interactive=False, label='Questions...', visible=False
+    )
     chatoutput = gr.Audio(
         type='filepath', autoplay=True, visible=False
     )
@@ -240,11 +268,49 @@ with gr.Blocks() as webcast:
         else:
             return (gr.skip(), None, history)  # type: ignore (gradio type)
 
-    # loads the first slide
-    webcast.load(
-        fn=_get_lecture,
+    def _start_webcast(
+        history: list[gr.ChatMessage],
+    ) -> tuple[
+        gr.Button,
+        gr.Markdown,
+        gr.Image,
+        gr.Row,
+        gr.Textbox,
+        str | dict[str, str],
+        str | None,
+        list[gr.ChatMessage],
+    ]:
+        """Handle start button click - shows UI and loads first slide"""
+        # Get the first lecture slide
+        imagefile, audiofile, updated_history = _get_lecture(history)
+
+        # Return updates for all components:
+        # Hide start button and welcome message, show main content
+        return (
+            gr.Button(visible=False),  # start_btn
+            gr.Markdown(visible=False),  # welcome_msg
+            gr.Image(visible=True),  # img
+            gr.Row(visible=True),  # audio_row
+            gr.Textbox(visible=True),  # txt
+            imagefile,  # img value
+            audiofile,  # audio value
+            updated_history,  # chatbot
+        )
+
+    # Connect start button to show UI and load first slide
+    start_btn.click(
+        fn=_start_webcast,
         inputs=[chatbot],
-        outputs=[img, audio, chatbot],
+        outputs=[
+            start_btn,
+            welcome_msg,
+            img,
+            audio_row,
+            txt,
+            img,
+            audio,
+            chatbot,
+        ],
     )
     # loads the next slide when the audio has been played
     audio.stop(
