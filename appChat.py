@@ -53,7 +53,7 @@ if not os.path.exists(DATABASE_FILE):
 
 if not os.path.exists(CONTEXT_DATABASE_FILE):
     with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
-        f.write("record_id,valid,context\n")
+        f.write("record_id,evaluation,context,classification\n")
 
 # Config files.
 if not os.path.exists(DEFAULT_CONFIG_FILE):
@@ -221,7 +221,7 @@ async def async_log(
                 CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
             ) as f:
                 f.write(
-                    f'{record_id},{validation},"{_fmat(context[0])}"\n'
+                    f'{record_id},{validation},"{_fmat(context[0])},NA"\n'
                 )
 
     except Exception as e:
