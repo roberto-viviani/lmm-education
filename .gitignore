@@ -14,3 +14,6 @@ queries.csv
 storage/*
 .Rproj.user
 appWebcast.log
+appVideocast.log
+webcast_sources/
+develop_docs/
