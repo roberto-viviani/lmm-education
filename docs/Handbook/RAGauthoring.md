@@ -1,14 +1,18 @@
+--- # **Default header added**
+title: RAG authoring
+---
+
 # RAG authoring
 
 When creating a vector database for RAG, it is not necessary to curate the content: LM markdown for education will ingest all markdown documents in the input directory and add the relevant information automatically. However, it is also possible to curate this document. Here, we detail how this may be done in an interactive interactive process.
 
 ## Step 1: preparing content
 
-Creation of a RAG application starts with the documents the application will be serving. You can prepare all documents at once, or incrementally.
+Creating a RAG application begins with gathering the documents that the application will serve. You can prepare all documents at once or add them incrementally.
 
-The language model may assist the RAG author in the creation of content. You can ask the language model to comment on your content for clarity and conciseness, to suggest improvements, to create questions that your text answers to verify the points that your text addresses.
+The language model can assist the RAG author in content creation by proofreading the text. You may ask the model to review your content for clarity and conciseness, suggest improvements, or generate questions that verify the points your text addresses.
 
-The interaction with the model takes place through metadata blocks. You insert the property `query:` in the block, and send the markdown to the language model for response. For example, in the following markdown, a query property was manually added to the markdown text:
+The interaction with the model takes place through metadata blocks. You create a metadata block before the heading containing the text you want to proofread, insert the property `query:` in the block with the text of your request, and send the markdown to the language model for response. For example, in the following markdown, the query property manually added requests an evaluation of the text for clarity and conciseness:
 
 ``` markdown
 ---
@@ -28,7 +32,7 @@ Linear models can be generalized to cover situations where the outcome is not co
 
 Here, part of the message that is sent to the language model is "evaluate the text for clarity and conciseness". This message part is integrated with the text to which the metadata refer, which is here the text under "What are linear models?", but not the text under "The generalization of linear models". If there had been subheadings after "What are linear models", the text of the subheadings would also be sent to the language model. The term 'text' here is key: the language model knows that your question refers to the parts of the markdown that are sent over, because these are qualified as "text" in the message.
 
-To send the message to the model, first make sure to have saved the file with the query. Then open a command window, and use the following command:
+To send the message to the model, first **make sure to have saved the file with the query**. Then open a command window, and use the following command:
 
 ```bash
 lmme scan-messages Lecture01.md
@@ -49,7 +53,7 @@ where Lecture01.md is the markdown file in questions. The response of the langua
 query: evaluate the text for clarity and conciseness.
 ~chat:
 - evaluate the text for clarity and conciseness.
-- The text is generally clear and informative, providing a good introduction to linear models and their practical application. However, it can be made more concise by reducing redundancy and simplifying some phrases without losing meaning. 
+- The text is generally clear and informative, providing a good introduction to linear models and their practical application. However, it can be made more concise by reducing redundancy and simplifying some phrases without losing meaning.
 
 Here is a revised version for improved clarity and conciseness:
 
@@ -69,11 +73,11 @@ Linear models capture the association between a set of variables, the *predictor
 Linear models can be generalized to cover situations where the outcome is not continuous, and therefore linearity cannot apply. Further text omitted...
 ```
 
-You can use the interaction with the language model to have it criticize your text, and adopt the improvements that the model suggests if they do improve the quality of your writing. Try and change the prompt to obtain differnt responses from the model. For example, if you ask for comments, it may list its observation on the text without providing an alternative text; if you ask for a revision, it will provide a new text draft. 
+You can use the interaction with the language model to have it criticize your text, and adopt the improvements that the model suggests if they do improve the quality of your writing. Try and change the prompt to obtain differnt responses from the model. For example, if you ask for comments, it may list its observation on the text without providing an alternative text; if you ask for a revision, it will provide a new text draft.
 
 If you ask the model to criticize text or suggest improvements, it will always find something to criticize and improve. Hence, you can keep improving until you think that the suggestions of the language model are superfluous.
 
-A common approach to interact with the language model is to create provisional sub-sections to stake out the parts of the text that the language model should work on. After the interaction is completed, the sub-sections and the chat content is deleted.
+The text that is sent to the language model depends on the orgnization of your markdown document. LM markdown for education sees the file as a hierachy of chapters, depending on the level of the heading. The metadata blocks are always meant to annotate the part of the markdown that follows. A metadata block before a heading annotates all text under the heading, while a metadata block before a text block annotates only the following text block. Therefore, when interacting with the language model, the position of the block where the query is made determines what text is sent to the language model. A common approach to interact with the language model is to create provisional sub-sections to stake out the parts of the text that the language model should work on. After the interaction is completed, the sub-sections are merged back into the main text.
 
 You can ask new queries on the same text by editing the `query` properties, and run `scan_messages` again. Queries that have already been responded are not responded again. If you want the model to respond to the same message, delete the text of the query in the `~chat` property.
 
@@ -93,7 +97,7 @@ scan_clear_messages("Lecture01.md")
 
 Even if not removed explicitly, queries and chats are not used when ingesting the markdown in the vector database.
 
-## Step 2: generation of annotations
+## Step 2: Generation of annotations to facilitate retrieval of text
 
 Annotations are metadata properties that facilitate the retrieval of text from the vector database. Consider the following text.
 
@@ -117,9 +121,9 @@ When we look at the significance of the association between predictors and outco
 Linear models are not oracles that can divine aspects of reality: all that they see is just numbers. Therefore, an important task when estimating linear models is our capacity to relate these numbers to measurements and observations in the real world, and interpret the output of the model in the light of this knowledge. The distinction between the interpretation of the associations in observational and experimental studies is one example of this task.
 ```
 
-Here, questions on "observational studies" may retrieve the second chunk, even if the chunk that explains what observational studies are is the first. This is because the fragment "observational and experimental studies" is closer semantically to a questions on observational studies than the fragment "studies of this type are called observational." This example shows that a mechanism is needed to characterize the semantics of pieces of text to facilitate their retrieval.
+Here, questions on "observational studies" may retrieve the second chunk, even if the chunk that explains what observational studies are is the first. This is because the fragment "observational and experimental studies" is closer semantically to a questions on observational studies than the fragment "studies of this type are called observational." This example shows that a mechanism is needed to characterize the semantics of pieces of text explicitily to facilitate their retrieval.
 
-One think to keep in mind is that the performance of sentence embeddings to capture semantic similarity varies across providers and embeddings size. Hence, the efficiency of retrieval may improve by adopting better sentence embeddings. However, a downside of this approach is that one embedding type must be used for the whole database, so it is not possible to improve the embedding selectively for parts of text that do not perform. To update the embedding, the whole vector database must be re-ingested anew.
+One thing to keep in mind is that the performance of sentence embeddings to capture semantic similarity varies across providers and embeddings size. Hence, the efficiency of retrieval may improve by adopting better sentence embeddings. However, a downside of this approach is that one embedding type must be used for the whole database, so it is not possible to improve the embedding selectively for parts of text that do not perform. To update the embedding, the whole vector database must be re-ingested anew.
 
 Annotations are the best mechanism to improve the capacity of the vector database to retrieve the right parts of text, because they more precisely enhence the capacity to represent specific content. Annotations constitute additional information that is used in the embedding. Annotations that may improve embedding performance are:
 
@@ -127,20 +131,18 @@ Annotations are the best mechanism to improve the capacity of the vector databas
 -   questions that the text answers
 -   keywords (forthcoming)
 
-LM markdown for education uses the language model to compute the annotations, but they can always be integrated or edited in an interactive loop. What annotations should be generated is specified in the "RAG" section of config.toml:
+LM markdown for education uses a language model to create the annotations. However, they can always be integrated or edited in an interactive loop. What annotations should be generated is specified in the "RAG" section of config.toml:
 
-```         
+```
 [RAG]
 questions=true
 titles=true
 keywords=false
 ```
 
-'true' and 'false' switch the automatic generation of annotations on and off.
+'true' and 'false' switch the automatic generation of annotations on and off. In general, you would use the same annotation model in the whole project.
 
-Note: it is strongly recommended to use the same annotation model in the whole project.
-
-To have LM markdown to generate the annotations without ingesting the document, use the console:
+To have LM markdown generate the annotations for inspection, i.e. without ingesting the document, use the console:
 
 ```bash
 lmme scan-rag Lecture01.md
@@ -241,7 +243,7 @@ These options trade off accurate encoding of annotations on the one hand and cos
 
 You can customize the encoding model by entering the option in config.toml in the RAG section:
 
-```         
+```
 [RAG]
 encoding_model=sparse_merged
 ```
@@ -250,7 +252,7 @@ Remember that the same encoding model must be used in all interactions with the 
 
 The encoding model influences how the text is encoded, but the retrieved text is not necessarily the same as the one from which the encoding was computed. This is because the retrieved text must contain context for its use in generating a response well. LM markdown for education can be directed to retrieve the whole text of the subheading where the chunk is located. This directive is in the `database` section:
 
-```         
+```
 [database]
 collection_name = "chunks"
 companion_collection = "documents"
@@ -279,14 +281,14 @@ title: chapter 1
 This text is sent to the RAG database.
 
 ---
-skip: True
+skip: true
 ---
 This text is not sent.
 
 This text is sent again.
 
 ---
-skip: True
+skip: true
 ---
 ## More introductory words
 
