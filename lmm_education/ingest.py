@@ -19,8 +19,8 @@ storage for a RAG application. In the standard approach, the text is
 chunked, possibly with overlapping segments, combined with additional
 text (such as questions answered by the text) and ingested. In the
 hierarchical graph RAG approach, the chunks provide the embeddings for
-retrieving larger parts of text, determined by text blocks under
-headings.
+retrieving larger parts of text, determined by the whole text under
+the same heading.
 
 The two approaches intermingle somewhat as the hierarchical structure
 is exploited to extract information from the text in both cases.
@@ -31,8 +31,8 @@ folder and ingests them into the database.
 
 Main functions:
     markdown_upload: ingest markdown files
-    __main__: uploads and ingests markdown files using default
-        configuration settings from a default input folder.
+    __main__: ingests markdown files using default configuration
+        settings from a default input folder.
 """
 
 # pyright: reportUnusedImport=false

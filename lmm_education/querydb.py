@@ -10,8 +10,8 @@ module).
 
 Examples:
 
-```python
-# from the python REPL
+```bash
+# Python from the command line
 
 python -m lmm_education.querydb 'What is logistic regression?'
 ```
@@ -27,12 +27,13 @@ print(response)
 Because ingest replaces the content of the database when documents
 are edited, you can set up an ingest-evaluate loop:
 
-```python
-# from the python REPL
+```bash
+# Python called from the command line
 
 # append True to ingest the file 'RaggedDocument.md'
 python -m lmm_education.ingest RaggedDocument.md True
 python -m lmm_education.querydb 'what is logistic regression?'
+```
 """
 
 from pydantic import validate_call
@@ -66,6 +67,8 @@ def querydb(
 
     Args:
         query_text: a text to use as query.
+        client: a QdrantClient object
+        logger: a logger object. Defaults to the console.
 
     Returns:
         a string concatenating the results of the query.

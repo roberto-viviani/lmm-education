@@ -8,8 +8,8 @@ a database on basic statistical modelling.
 
 Examples:
 
-```python
-# from the python REPL
+```bash
+# Python called from the console
 
 python -m lmm_education.query 'What is logistic regression?'
 ```
@@ -24,12 +24,13 @@ respons = query('what is logistic regression?')
 Because ingest replaces the content of the database when documents
 are edited, you can set up an ingest-evaluate loop:
 
-```python
-# from the python REPL
+```bash
+# Python called from the console
 
 # append True to ingest the file 'RaggedDocument.md'
 python -m lmm_education.ingest RaggedDocument.md True
 python -m lmm_education.query 'what is logistic regression?'
+```
 """
 
 import asyncio
