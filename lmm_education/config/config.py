@@ -453,8 +453,8 @@ def load_settings(
     Args:
         file_name: Path to settings file (defaults to config.toml)
         logger: logger to use. Defaults to a exception-raising logger.
-        This centralizes exception handling, instead of writing
-        the except clauses for each instantiation of ConfigSettings().
+            This centralizes exception handling, instead of writing
+            the except clauses for each instantiation of ConfigSettings().
 
     Returns:
         ConfigSettings: The loaded configuration settings object, or
