@@ -4,6 +4,7 @@ import unittest
 from pydantic import ValidationError
 
 from lmm_education.config.config import CheckResponse
+from lmm_education.config.appchat import ChatSettings, ServerSettings
 
 
 class TestCheckResponseValidator(unittest.TestCase):
@@ -54,6 +55,17 @@ class TestCheckResponseValidator(unittest.TestCase):
         check = CheckResponse()
         self.assertFalse(check.check_response)
         self.assertEqual(check.allowed_content, [])
+
+
+class TestChatSettings(unittest.TestCase):
+
+    def test_max_query_len(self):
+        settings = ChatSettings()
+        self.assertEqual(settings.max_query_word_count, 120)
+
+    def test_server_settings(self):
+        settings = ChatSettings()
+        self.assertIsInstance(settings.server, ServerSettings)
 
 
 if __name__ == "__main__":

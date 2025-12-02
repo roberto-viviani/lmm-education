@@ -155,7 +155,7 @@ async def chat_function(
         llm = create_model_from_settings(ConfigSettings().major)
 
     # the max allowed number of words in the user's query
-    MAX_QUERY_LENGTH: int = 60
+    MAX_QUERY_LENGTH: int = chat_settings.max_query_word_count
 
     # checks
     if not querytext:
@@ -271,7 +271,7 @@ async def chat_function_with_validation(
 
     # Perform basic validation checks before calling chat_function
     # This ensures error iterators are returned directly without wrapping
-    MAX_QUERY_LENGTH: int = 60
+    MAX_QUERY_LENGTH: int = chat_settings.max_query_word_count
 
     # Check for empty query
     if not querytext:

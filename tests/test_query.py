@@ -51,7 +51,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_long_query(self):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query")
-        long_query = " ".join(["word"] * 100)
+        long_query = " ".join(["word"] * 200)
         iterator = await chat_function(long_query, [])
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
@@ -172,7 +172,7 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query with validation")
         logger: LoggerBase = LoglistLogger()
-        long_query = " ".join(["word"] * 100)
+        long_query = " ".join(["word"] * 200)
         iterator = await chat_function_with_validation(
             long_query,
             [],

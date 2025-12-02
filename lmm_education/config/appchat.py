@@ -97,6 +97,10 @@ QUERY: "{query}"
 """
     )
 
+    max_query_word_count: int = Field(
+        default=120, ge=0, description="Max word count in query"
+    )
+
     server: ServerSettings = Field(
         default_factory=ServerSettings,
         description="Server configuration",
