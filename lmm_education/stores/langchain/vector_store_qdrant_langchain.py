@@ -1,13 +1,16 @@
 """
 A langchain interface to Qdrant vector store retrievers.
 
-This module provides multiple retriever implementations for querying Qdrant
-vector stores through the Langchain framework:
+This module provides multiple retriever implementations for querying
+Qdrant vector stores through the Langchain framework:
 
 - QdrantVectorStoreRetriever: Synchronous retriever for basic queries
-- AsyncQdrantVectorStoreRetriever: Asynchronous retriever for basic queries
-- QdrantVectorStoreRetrieverGrouped: Synchronous retriever for grouped queries
-- AsyncQdrantVectorStoreRetrieverGrouped: Asynchronous retriever for grouped queries
+- AsyncQdrantVectorStoreRetriever: Asynchronous retriever for basic
+    queries
+- QdrantVectorStoreRetrieverGrouped: Synchronous retriever for grouped
+    queries
+- AsyncQdrantVectorStoreRetrieverGrouped: Asynchronous retriever for
+    grouped queries
 
 Note: only the query functions are supported (no document insertion).
 
@@ -77,6 +80,8 @@ from langchain_core.callbacks.manager import (
 )
 
 from qdrant_client import QdrantClient, AsyncQdrantClient
+
+from lmm_education.config.config import DatabaseSettings
 from .. import vector_store_qdrant as vsq
 
 from pydantic import Field, ConfigDict
@@ -168,6 +173,8 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     @staticmethod
     def from_config_settings(
         opts: ConfigSettings | None = None,
+        *,
+        client: QdrantClient | None = None,
     ) -> BaseRetriever:
         """
         Initializes a QdrantVectorStoreRetriever from a ConfigSettings
@@ -176,6 +183,9 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         Args:
             opts: a ConfigSettings object, or none to read settings
                 from the configutation file
+            client: a QdrantClient object (optional). If provided,
+                overrides the settings in ConfigSettings to locate
+                the database.
 
         Returns:
             A QdrantVectorStoreRetriever object
@@ -188,16 +198,15 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 "Could not initialize retriever due to "
                 + "invalid config settings"
             )
-        dbOpts = opts.database
+        dbOpts: DatabaseSettings = opts.database
 
         if bool(dbOpts.companion_collection):
             return QdrantVectorStoreRetrieverGrouped.from_config_settings(
-                opts
+                opts, client=client
             )
 
-        client: QdrantClient | None = client_from_config(
-            opts=opts, logger=logger
-        )
+        if client is None:
+            client = client_from_config(opts=opts, logger=logger)
         if client is None:
             raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetriever(
@@ -319,6 +328,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     @staticmethod
     def from_config_settings(
         opts: ConfigSettings | None = None,
+        *,
+        client: AsyncQdrantClient | None = None,
     ) -> BaseRetriever:
         """
         Initializes a ansynchronous QdrantVectorStoreRetriever from a
@@ -327,6 +338,10 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         Args:
             opts: a ConfigSettings object, or none to read settings
                 from the configutation file
+            client: an Async QdrantClient object (optional). If
+                provided, overrides the settings in ConfigSettings
+                to locate the database.
+
 
         Returns:
             An AsyncQdrantVectorStoreRetriever object
@@ -342,12 +357,11 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
 
         if bool(dbOpts.companion_collection):
             return AsyncQdrantVectorStoreRetrieverGrouped.from_config_settings(
-                opts
+                opts, client=client
             )
 
-        client: AsyncQdrantClient | None = async_client_from_config(
-            opts, logger
-        )
+        if client is None:
+            client = async_client_from_config(opts, logger)
         if client is None:
             raise ValueError("Could not initialize client")
         return AsyncQdrantVectorStoreRetriever(
@@ -520,6 +534,8 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     @staticmethod
     def from_config_settings(
         opts: ConfigSettings | None = None,
+        *,
+        client: QdrantClient | None = None,
     ) -> BaseRetriever:
         """
         Initializes a QdrantVectorStoreRetrieverGrouped from a
@@ -545,12 +561,11 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
 
         if not bool(dbOpts.companion_collection):
             return QdrantVectorStoreRetriever.from_config_settings(
-                opts
+                opts, client=client
             )
 
-        client: QdrantClient | None = client_from_config(
-            opts=opts, logger=logger
-        )
+        if client is None:
+            client = client_from_config(opts=opts, logger=logger)
         if client is None:
             raise ValueError("Could not initialize client")
         return QdrantVectorStoreRetrieverGrouped(
@@ -688,6 +703,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     @staticmethod
     def from_config_settings(
         opts: ConfigSettings | None = None,
+        *,
+        client: AsyncQdrantClient | None = None,
     ) -> BaseRetriever:
         """
         Initializes a ansynchronous QdrantVectorStoreRetrieverGrouped
@@ -715,13 +732,12 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         if not bool(dbOpts.companion_collection):
             return (
                 AsyncQdrantVectorStoreRetriever.from_config_settings(
-                    opts
+                    opts, client=client
                 )
             )
 
-        client: AsyncQdrantClient | None = async_client_from_config(
-            opts, logger
-        )
+        if client is None:
+            client = async_client_from_config(opts, logger)
         if client is None:
             raise ValueError("Could not initialize client")
         return AsyncQdrantVectorStoreRetrieverGrouped(

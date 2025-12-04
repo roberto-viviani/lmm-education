@@ -88,9 +88,14 @@ from langchain_core.retrievers import BaseRetriever
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as QdrantRetriever,
 )
+from lmm_education.stores.vector_store_qdrant_context import (
+    global_async_client_from_config,
+)
 
 # will return grouped retriever if appropriate
-retriever: BaseRetriever = QdrantRetriever.from_config_settings()
+retriever: BaseRetriever = QdrantRetriever.from_config_settings(
+    client=global_async_client_from_config()
+)
 
 # Create chat engine.
 from langchain_core.prompts import PromptTemplate # fmt: skip

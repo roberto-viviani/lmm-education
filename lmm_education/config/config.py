@@ -131,6 +131,9 @@ class LocalStorage(BaseModel):
         ..., min_length=1, description="Path to the vector database"
     )
 
+    # frozen for hashability
+    model_config = SettingsConfigDict(frozen=True, extra='forbid')
+
 
 class RemoteSource(BaseModel):
     url: HttpUrl = Field(..., description="URL of the remote source.")
@@ -140,6 +143,9 @@ class RemoteSource(BaseModel):
         lt=65536,
         description="Port number for the remote source (1-65535).",
     )
+
+    # frozen for hashability
+    model_config = SettingsConfigDict(frozen=True, extra='forbid')
 
 
 DatabaseSource = Literal[':memory:'] | LocalStorage | RemoteSource

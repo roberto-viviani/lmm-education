@@ -3,9 +3,9 @@ Computes the embeddings and handles uploading and saving the data
 to the vector database.
 
 This is a low-level module that provides the interface to the qdrant
-database, while also bringing it together with the settings information
-in config.toml and an embeddings provider. Exceptions are relayed to a
-logger object for use in a REPL interface. A connection to the
+database, while also bringing it together with the settings informa-
+tion in config.toml and an embeddings provider. Exceptions are relayed
+to a logger object for use in a REPL interface. A connection to the
 database is representend by a `QdrantClient` object of the Qdrant API,
 which may be initialized directly through the constructor, or through
 the `client_from_config` function which reads the database options
@@ -44,11 +44,11 @@ logger is specified, an error message is printed on the console.
         # read causes from logger
 ```
 
-The role of client_from_config is to bind the creation of a QdrantClient
-object with the relevant settings in config.toml, and channel possible
-exceptions through the logger. Note, however, that the QdrantClient can
-also be created with the qdrant API directly. Note that in both cases
-the client needs be closed before exiting.
+The role of client_from_config is to bind the creation of a
+QdrantClient object with the relevant settings in config.toml, and
+channel possible exceptions through the logger. Note, however, that
+the QdrantClient can also be created with the qdrant API directly.
+Note that in both cases the client needs be closed before exiting.
 
 A slightly more higher-lever alternative is obtaining the client
 through a context manager by calling `qdrant_client_context`:
