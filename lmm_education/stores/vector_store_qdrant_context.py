@@ -4,14 +4,17 @@ Provides a global context to share a qdrant connection globally.
 Global QdrantClient objects may be obtained by calling the functions
 qdrant_client_from_config and qdrant_async_client_from_config. Both
 accept a DatabaseSource value to identify the database. If no
-argument is provided, the database storage in the configuation
-file is used.
+argument is provided, the database storage in the configuration
+file config.toml is used.
 
-Database source values example values are: ":memory:",
+Database source possible example values are: ":memory:",
 LocalStorage(folder="path_to_storage"),
 RemoteStorage(url=127.0.0.1,12324) (see config.py)
 
 """
+
+# Automatic construction and destruction of singleton objects
+# implemented with LazyLoadingDict
 
 import asyncio
 
@@ -32,7 +35,8 @@ logger = ConsoleLogger()
 def _client_constructor(
     dbsource: DatabaseSource,
 ) -> QdrantClient:
-    """The factory function of a QdrantClient"""
+    """The factory function of a QdrantClient uniquely defined by
+    the dbsource argument"""
     client: QdrantClient | None = client_from_config(dbsource, logger)
     if client is None:
         raise ValueError("Could not create global client.")
@@ -42,7 +46,8 @@ def _client_constructor(
 def _async_client_constructor(
     dbsource: DatabaseSource,
 ) -> AsyncQdrantClient:
-    """The factory function of an AsyncQdrantClient"""
+    """The factory function of an AsyncQdrantClient, uniquely
+    define by the dbsoure argument"""
     client: AsyncQdrantClient | None = async_client_from_config(
         dbsource, logger
     )
@@ -51,12 +56,44 @@ def _async_client_constructor(
     return client
 
 
-def _async_client_destructor(client: AsyncQdrantClient):
-    asyncio.create_task(client.close())
+def _client_destructor(client: QdrantClient) -> None:
+    try:
+        source: str = (
+            client.init_options['path']
+            or client.init_options['location']
+            or client.init_options['url']
+        )
+        logger.info(f"Closing client {source}")
+        client.close()
+    except Exception:
+        # this may fail if python is closing down
+        pass
+
+
+def _async_client_destructor(client: AsyncQdrantClient) -> None:
+    """Destructor: sync wrapper of async close coroutine"""
+    try:
+        source: str = (
+            client.init_options['path']
+            or client.init_options['location']
+            or client.init_options['url']
+        )
+        logger.info(f"Closing client {source}")
+    except Exception:
+        pass
+    try:
+        loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(client.close())
+        finally:
+            loop.close()
+    except Exception:
+        # During shutdown, even this might fail - suppress errors
+        pass
 
 
 qdrant_clients: LazyLoadingDict[DatabaseSource, QdrantClient] = (
-    LazyLoadingDict(_client_constructor)
+    LazyLoadingDict(_client_constructor, _client_destructor)
 )
 
 qdrant_async_clients: LazyLoadingDict[
