@@ -3,6 +3,11 @@
 import unittest
 import logging
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.retrievers import BaseRetriever
+from lmm.language_models.langchain.models import (
+    create_model_from_settings,
+)
 from lmm_education.query import (
     chat_function_with_validation,
     consume_chat_stream,
@@ -13,6 +18,7 @@ from lmm_education.config.config import (
     ConfigSettings,
     export_settings,
 )
+from lmm_education.config.appchat import ChatSettings
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
@@ -39,10 +45,24 @@ def tearDownModule():
 
 class TestQuery(unittest.IsolatedAsyncioTestCase):
 
+    def setUp(self):
+        self.llm: BaseChatModel = create_model_from_settings(
+            ConfigSettings().major
+        )
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
+
     async def test_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query")
-        iterator = await chat_function("", [])
+        iterator = await chat_function(
+            "",
+            [],
+            self.retriever,
+            llm=self.llm,
+            chat_settings=ChatSettings(),
+        )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("If you have questions", result)
@@ -52,7 +72,13 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query")
         long_query = " ".join(["word"] * 200)
-        iterator = await chat_function(long_query, [])
+        iterator = await chat_function(
+            long_query,
+            [],
+            self.retriever,
+            llm=self.llm,
+            chat_settings=ChatSettings(),
+        )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("too long", result)
@@ -62,7 +88,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test a normal query (if LLM is available)."""
         print("Test 3: Normal query")
         try:
-            iterator = await chat_function("What is a linear model?")
+            iterator = await chat_function(
+                "What is a linear model?",
+                llm=self.llm,
+                chat_settings=ChatSettings(),
+            )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
@@ -81,14 +111,20 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             # explicit retirever, that may be re-used
             retriever = AsyncQdrantRetriever.from_config_settings()
             iterator = await chat_function(
-                "What is a linear model?", retriever=retriever
+                "What is a linear model?",
+                retriever=retriever,
+                llm=self.llm,
+                chat_settings=ChatSettings(),
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             self.assertTrue(len(result) > 0)
             iterator = await chat_function(
-                "What is a logistic regression?", retriever=retriever
+                "What is a logistic regression?",
+                retriever=retriever,
+                llm=self.llm,
+                chat_settings=ChatSettings(),
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
@@ -113,6 +149,14 @@ from lmm.utils.logging import (
 
 class TestErrorMessageIterator(unittest.IsolatedAsyncioTestCase):
     """Test the _error_message_iterator helper function."""
+
+    def setUp(self):
+        self.llm: BaseChatModel = create_model_from_settings(
+            ConfigSettings().major
+        )
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
 
     async def test_error_message_iterator(self):
         """Test that _error_message_iterator creates an async iterator that streams the error message."""
@@ -157,11 +201,23 @@ class TestErrorMessageIterator(unittest.IsolatedAsyncioTestCase):
 
 class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
 
+    def setUp(self):
+        self.llm: BaseChatModel = create_model_from_settings(
+            ConfigSettings().major
+        )
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
+
     async def test_validation_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query with validation")
         iterator = await chat_function_with_validation(
-            "", [], allowed_content=["statistics"]
+            "",
+            [],
+            chat_settings=ChatSettings(),
+            llm=self.llm,
+            allowed_content=["statistics"],
         )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
@@ -176,6 +232,8 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         iterator = await chat_function_with_validation(
             long_query,
             [],
+            llm=self.llm,
+            chat_settings=ChatSettings(),
             allowed_content=["statistics"],
             logger=logger,
         )
@@ -194,6 +252,8 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
             iterator = await chat_function_with_validation(
                 "What is a linear model?",
                 [],
+                chat_settings=ChatSettings(),
+                llm=self.llm,
                 initial_buffer_size=50,  # Use smaller buffer for testing
                 allowed_content=["statistics"],
             )

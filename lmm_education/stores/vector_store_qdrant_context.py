@@ -77,10 +77,13 @@ def _async_client_constructor(
 
 def _client_destructor(client: QdrantClient) -> None:
     try:
-        # these functions should run ok even if client closed
+        # these functions should run ok even if client closed.
+        # However, a likely bug in qdrant_client.py tries to close
+        # when client is garbage-collected, raising an error when
+        # Python is shutting down.
         source: str = database_name(client)
         logger.info(f"Closing client {source}")
-        client.close()
+        client.close(grpc_grace=0.3)
     except Exception:
         # this may still fail if python is closing down
         pass

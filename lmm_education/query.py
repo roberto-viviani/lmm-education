@@ -1,8 +1,8 @@
 """
-This module allows interactive query with a language model to
-test use of material ingested in the RAG database.
+This module allows interactively querying a language model, such that
+it can be tested using material ingested in the RAG database.
 
-A database must have been created (for example, with the ingest
+A RAG database must have been previously created (for example, with the ingest
 module). In the following examples, we assume the existence of
 a database on basic statistical modelling.
 
@@ -18,7 +18,8 @@ python -m lmm_education.query 'What is logistic regression?'
 # from python code
 from lmm_education.query import query
 
-respons = query('what is logistic regression?')
+response = query('what is logistic regression?')
+print(response)
 ```
 
 Because ingest replaces the content of the database when documents
@@ -27,8 +28,8 @@ are edited, you can set up an ingest-evaluate loop:
 ```bash
 # Python called from the console
 
-# append True to ingest the file 'RaggedDocument.md'
-python -m lmm_education.ingest RaggedDocument.md True
+# append True to ingest the file 'LogisticRegression.md'
+python -m lmm_education.ingest LogisticRegression.md True
 python -m lmm_education.query 'what is logistic regression?'
 ```
 """
@@ -54,18 +55,17 @@ from lmm.language_models.langchain.models import (
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
 
 # LM markdown for education
+from .config.config import load_settings
 from .config.config import ConfigSettings, DEFAULT_CONFIG_FILE
 from .stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
-from .config.appchat import ChatSettings
-
-chat_settings = ChatSettings()
+from .config.appchat import (
+    ChatSettings,
+    load_settings as load_chat_settings,
+)
 
 from langchain_core.prompts import PromptTemplate # fmt: skip
-default_prompt: PromptTemplate = PromptTemplate.from_template(
-    chat_settings.PROMPT_TEMPLATE
-)
 
 
 # Helper function to create error message iterators
@@ -117,10 +117,10 @@ async def chat_function(
     querytext: str,
     history: list[dict[str, str]] = [],
     retriever: BaseRetriever | None = None,
-    llm: BaseChatModel | None = None,
     *,
+    llm: BaseChatModel,
+    chat_settings: ChatSettings,
     system_msg: str = "You are a helpful assistant",
-    prompt: PromptTemplate = default_prompt,
     context_print: bool = False,
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncIterator[BaseMessageChunk]:
@@ -135,7 +135,7 @@ async def chat_function(
         querytext: The user's query text
         history: List of previous message exchanges
         retriever: Optional document retriever for RAG
-        llm: Optional language model to use
+        llm: Optional Langchain language model object
         system_msg: System message for the conversation
         prompt: Prompt template for formatting context and query
         context_print: Prints the results of the query to the logger
@@ -151,10 +151,18 @@ async def chat_function(
     # to the model and information about other conditions. This
     # is used upstream to log these interactions (subject to revision)
 
-    if llm is None:
-        llm = create_model_from_settings(ConfigSettings().major)
+    config_settings: ConfigSettings | None = load_settings(
+        logger=logger
+    )
+    if config_settings is None:
+        logger.error("Could not load settings")
+        return _error_message_iterator("Could not load settings")
 
-    # the max allowed number of words in the user's query
+    # prompt and the max allowed number of words in the user's
+    # query are in chat settings.
+    prompt: PromptTemplate = PromptTemplate.from_template(
+        chat_settings.PROMPT_TEMPLATE
+    )
     MAX_QUERY_LENGTH: int = chat_settings.max_query_word_count
 
     # checks
@@ -172,13 +180,17 @@ async def chat_function(
 
     # if the history is empty, retrieve the context. The context
     # will be contained in the history thereafter.
-    import typing
-
     if not history:
-        create_flag: bool = False
         if retriever is None:
-            retriever = AsyncQdrantRetriever.from_config_settings()
-            create_flag = True
+            try:
+                retriever = AsyncQdrantRetriever.from_config_settings(
+                    config_settings  # type: ignore (checked above)
+                )
+            except Exception as e:
+                logger.error(f"Could not open vector database: {e}")
+                return _error_message_iterator(
+                    "System currently not available."
+                )
 
         try:
             documents: list[Document] = await retriever.ainvoke(
@@ -205,10 +217,6 @@ async def chat_function(
             )
         querytext = prompt.format(context=context, query=querytext)
 
-        if create_flag:
-            retriever = typing.cast(AsyncQdrantRetriever, retriever)
-            await retriever.close_client()
-
     # Query language model
     query: list[tuple[str, str]] = _prepare_messages(
         querytext, history, system_msg
@@ -220,11 +228,11 @@ async def chat_function_with_validation(
     querytext: str,
     history: list[dict[str, str]],
     retriever: BaseRetriever | None = None,
-    llm: BaseChatModel | None = None,
     *,
+    llm: BaseChatModel,
     allowed_content: list[str],
+    chat_settings: ChatSettings,
     system_msg: str = "You are a helpful assistant",
-    prompt: PromptTemplate = default_prompt,
     context_print: bool = False,
     logger: LoggerBase = ConsoleLogger(),
     initial_buffer_size: int = 320,
@@ -299,9 +307,9 @@ async def chat_function_with_validation(
             history=history,
             retriever=retriever,
             llm=llm,
+            chat_settings=chat_settings,
             system_msg=system_msg,
             context_print=context_print,
-            prompt=prompt,
             logger=logger,
         )
     )
@@ -448,8 +456,9 @@ async def consume_chat_stream(
 @validate_call(config={'arbitrary_types_allowed': True})
 def query(
     querystr: str,
-    settings: LanguageModelSettings | str | None = None,
+    model_settings: LanguageModelSettings | str | None = None,
     *,
+    chat_settings: ChatSettings | None = None,
     console_print: bool = False,
     context_print: bool = False,
     validate_content: bool = False,
@@ -460,9 +469,41 @@ def query(
     if not querystr:
         return ""
 
-    if validate_content and not allowed_content:
+    config_settings: ConfigSettings | None = load_settings(
+        logger=logger
+    )
+    if config_settings is None:
+        logger.error("Could not load settings.")
+        return ""
+    if model_settings is None:
+        model_settings = config_settings.major
+    elif isinstance(model_settings, str):
         config = ConfigSettings()
-        allowed_content = config.check_response.allowed_content
+        if model_settings == "major":
+            model_settings = config.major
+        elif model_settings == "minor":
+            model_settings = config.minor
+        elif model_settings == "aux":
+            model_settings = config.aux
+        else:
+            logger.error(
+                f"Invalid language model settings: {model_settings}\nShould"
+                " be one of 'major', 'minor', 'aux'"
+            )
+            return ""
+
+    llm: BaseChatModel = create_model_from_settings(model_settings)
+
+    if chat_settings is None:
+        chat_settings = load_chat_settings(logger=logger)
+        if chat_settings is None:
+            logger.error("Could not load chat settings")
+            return ""
+
+    if validate_content and not allowed_content:
+        allowed_content = (
+            config_settings.check_response.allowed_content
+        )
         if not allowed_content:
             logger.error(
                 "A request to validate content was made, but there is"
@@ -476,25 +517,11 @@ def query(
         print("Please enter a complete query.")
         return ""
 
-    if settings is None:
-        config = ConfigSettings()
-        settings = config.major
-    elif isinstance(settings, str):
-        config = ConfigSettings()
-        if settings == "major":
-            settings = config.major
-        elif settings == "minor":
-            settings = config.minor
-        elif settings == "aux":
-            settings = config.aux
-        else:
-            logger.error(
-                f"Invalid language model settings: {settings}\nShould"
-                " be one of 'major', 'minor', 'aux'"
-            )
-            return ""
-
-    llm: BaseChatModel = create_model_from_settings(settings)
+    try:
+        retriever = AsyncQdrantRetriever.from_config_settings()
+    except Exception as e:
+        logger.error(f"Could not load retriever: {e}")
+        return ""
 
     # Get the iterator and consume it
     async def run_query() -> str:
@@ -503,7 +530,9 @@ def query(
                 await chat_function_with_validation(
                     querystr,
                     [],
+                    retriever=retriever,
                     llm=llm,
+                    chat_settings=chat_settings,
                     allowed_content=allowed_content,
                     context_print=context_print,
                     logger=logger,
@@ -514,6 +543,7 @@ def query(
                 querystr,
                 [],
                 llm=llm,
+                chat_settings=chat_settings,
                 context_print=context_print,
                 logger=logger,
             )

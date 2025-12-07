@@ -389,10 +389,17 @@ def query(
     """
     from lmm_education.query import query
     from lmm_education.config.config import ConfigSettings
+    from lmm_education.config.appchat import ChatSettings
     from lmm.config.config import LanguageModelSettings
 
     try:
         settings = ConfigSettings()
+    except Exception as e:
+        logger.error(f"Could not load settings: {e}")
+        raise typer.Exit(1)
+
+    try:
+        chat_settings = ChatSettings()
     except Exception as e:
         logger.error(f"Could not load settings: {e}")
         raise typer.Exit(1)
@@ -457,8 +464,9 @@ def query(
         # to the console itself.
         query(
             query_text,
+            model_settings=model_settings,
+            chat_settings=chat_settings,
             console_print=True,
-            settings=model_settings,
             validate_content=validate_content,
             context_print=print_context,
             logger=logger,
