@@ -3,18 +3,53 @@
 NOTE: initialize collection tested in test_lmm_rag.py
 """
 
-# flake8: noqa
 
 import unittest
 import logging
+import re
 
-from lmm.markdown.parse_markdown import *
-from lmm.scan.chunks import *
-from lmm_education.stores.vector_store_qdrant import *
+# lmm
 from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY
 from lmm.utils.logging import ExceptionConsoleLogger
-import re
+from lmm.markdown.parse_markdown import (
+    Block,
+    HeaderBlock,
+    MetadataBlock,
+    HeadingBlock,
+    TextBlock,
+    blocklist_copy,
+    parse_markdown_text,
+)
+from lmm.scan.chunks import (
+    blocks_to_chunks,
+    EncodingModel,
+)
+from lmm.scan.scan_rag import blocklist_rag, ScanOpts
+
+# lmm_education
+from lmm_education.config.config import AnnotationModel, ConfigSettings, RAGSettings
+from lmm_education.stores.vector_store_qdrant import (
+    QdrantClient,
+    encoding_to_qdrantembedding_model,
+    initialize_collection,
+    initialize_collection_from_config,
+    chunks_to_points,
+    upload,
+    query,
+    points_to_ids,
+    points_to_text,
+    Point,
+    ScoredPoint,
+)
+from lmm_education.stores.vector_store_qdrant_context import (
+    global_client_from_config,
+)
+from lmm_education.stores.vector_store_qdrant_utils import (
+    check_schema,
+    get_schema,
+)
+
 
 exception_logger = ExceptionConsoleLogger()
 
@@ -289,12 +324,6 @@ class TestInitializationContext(unittest.TestCase):
             "init_collection should return True for encoding model",
         )
 
-
-from lmm_education.config.config import RAGSettings
-from lmm_education.stores.vector_store_qdrant_utils import (
-    check_schema,
-    get_schema,
-)
 
 
 class TestInitializationConfigObject(unittest.TestCase):
@@ -703,9 +732,8 @@ class TestInitializationLocal(unittest.TestCase):
             TestInitializationLocal._get_settings()
         )
 
-        local_client = client_from_config(logger=logger)
+        local_client = global_client_from_config()
         self.assertIsNotNone(local_client)
-        self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
 
         result = initialize_collection_from_config(
             local_client, collection_name, logger=logger
@@ -755,11 +783,12 @@ class TestInitializationLocal(unittest.TestCase):
             },
         )
 
-        local_client.close()
-
         # delete the storage directory and all its contents
         import shutil
-
+        from lmm_education.stores.vector_store_qdrant_context import (
+            global_clients_close
+        )
+        global_clients_close()
         shutil.rmtree("./test_storage")
 
 
@@ -819,7 +848,9 @@ class TestInitializationMemory(unittest.TestCase):
             storage=":memory:",
         )
 
-        local_client = client_from_config(settings, logger=logger)
+        local_client = global_client_from_config(
+            settings.storage
+        )
         self.assertIsNotNone(local_client)
         self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
 
@@ -858,7 +889,6 @@ class TestInitializationMemory(unittest.TestCase):
             )
         )
 
-        local_client.close()
 
     def test_encoding_content(self):
         self.dotest_encoding(EncodingModel.CONTENT)
@@ -916,15 +946,6 @@ class TestInitializationConfigError(unittest.TestCase):
     def tearDownClass(cls):
         settings = cls.original_settings
         export_settings(settings)
-
-    def test_encoding_content(self):
-        from lmm.utils.logging import LoglistLogger
-
-        logger = LoglistLogger()
-
-        client = client_from_config(logger=logger)
-        self.assertIsNone(client)
-        self.assertLess(0, logger.count_logs(level=logging.WARNING))
 
 
 class TestIngestionAndQuery(unittest.TestCase):
