@@ -30,10 +30,14 @@ are edited, you can set up an ingest-evaluate loop:
 ```bash
 # Python called from the command line
 
-# append True to ingest the file 'RaggedDocument.md'
-python -m lmm_education.ingest RaggedDocument.md True
+# append True to ingest the file 'LogisticRegression.md'
+python -m lmm_education.ingest LogisticRegression.md True
 python -m lmm_education.querydb 'what is logistic regression?'
 ```
+
+Important: this module is only provided for use from an
+interactive envirnoment, such as the Python REPL. It opens the
+database exclusively.
 """
 
 from pydantic import validate_call
@@ -52,8 +56,8 @@ from .stores.vector_store_qdrant import (
     groups_to_points,
     points_to_text,
 )
-from .stores.vector_store_qdrant_context import (
-    global_client_from_config,
+from .stores.vector_store_qdrant import (
+    client_from_config,
 )
 from .config.config import load_settings
 
@@ -90,12 +94,16 @@ def querydb(
         logger.error("Could not read settings")
         return ""
 
+    # do not use the global client here, as it will raise an
+    # error at garbage collection. The downside is that the
+    # database is open with exclusive access.
+    create_flag: bool = False
     if client is None:
-        try:
-            client = global_client_from_config(settings.storage)
-        except Exception as e:
-            logger.error(f"Failed to initialize qdrant client: {e}")
+        client = client_from_config(settings.storage, logger=logger)
+        if client is None:
+            logger.error("Failed to initialize qdrant client")
             return ""
+        create_flag = True
 
     points: list[ScoredPoint] = []
     if settings.database.companion_collection:
@@ -122,6 +130,8 @@ def querydb(
             query_text,
             logger=logger,
         )
+    if create_flag:
+        client.close()
 
     if not points:
         return "No results, please check connection/database."
