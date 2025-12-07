@@ -69,6 +69,8 @@ The Qdrant API uses A `QdrantClient` object as an argument to all functions that
 - `LocalStorage`: a class representing a local folder
 - `RemoteSource`: a class representing a remote Qdrant server.
 
+Note that if you obtain a client from the `client_from_config` function, you'll have to handle closing the connection to the database yourself. A better option is to use the function `global_client_from_config` from the vector_store_qdrant_context module. This function centralizes creation and destruction (including closing connections) of Qdrant objects. Only one connection is created and is closed automatically.
+
 Within the database represented by the `QdrantClient` object, there are collections (the equivalent of tables in a traditional database) that are initialized through a call to `initialize_collection`. 
 
 The modalities in which data are stored in the database are captured by two elements: the `QdrantEmbeddingModel` and `Chunk` objects. The `QdrantEmbeddingModel`, which is declared in the call to `initialize_collection`, specifies how data are embedded in the database. These are the embedding models that are supported by Qdrant, as supported by the framework:

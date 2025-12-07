@@ -30,6 +30,9 @@ properties that override config.toml.
     client: QdrantClient | None = client_from_config(settings)
 ```
 
+(Please also see the vector_store_qdrant_context module to create a
+global client object that is automatically closed).
+
 The functions in this module use a logger to communicate errors, so
 that the way exceptions are handled depends on the logger type. If no
 logger is specified, an error message is printed on the console.
