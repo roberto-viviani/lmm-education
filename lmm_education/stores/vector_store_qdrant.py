@@ -194,6 +194,8 @@ from qdrant_client.http.exceptions import (
     ApiException,
     UnexpectedResponse,
 )
+from fastembed import SparseEmbedding, SparseTextEmbedding
+
 
 # lmmarkdown
 from lmm.scan.scan_keys import GROUP_UUID_KEY
@@ -226,8 +228,6 @@ from lmm.utils.logging import LoggerBase, get_logger
 
 default_logger: LoggerBase = get_logger(__name__)
 
-
-from fastembed import SparseEmbedding, SparseTextEmbedding
 
 
 class QdrantEmbeddingModel(Enum):
@@ -2264,7 +2264,7 @@ def groups_to_points(groups: GroupsResult) -> list[ScoredPoint]:
     records: list[Record] = [
         g.lookup for g in groups.groups if g.lookup
     ]
-    _max: Callable[[list[ScoredPoint]], float] = lambda hits: max(
+    _max: Callable[[list[ScoredPoint]], float] = lambda hits: max(  # noqa: E731
         [h.score for h in hits]
     )
     scores: list[float] = [
