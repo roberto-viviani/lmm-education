@@ -1,5 +1,7 @@
 """
 Provides a global context to share a qdrant connection globally.
+Provides singleton client objects and handles destruction
+automatically.
 
 Global QdrantClient objects may be obtained by calling the functions
 qdrant_client_from_config and qdrant_async_client_from_config. Both
@@ -9,7 +11,23 @@ file config.toml is used.
 
 Database source possible example values are: ":memory:",
 LocalStorage(folder="path_to_storage"),
-RemoteStorage(url=127.0.0.1,12324) (see config.py)
+RemoteStorage(url=127.0.0.1,12324) (see config.py):
+
+```python
+from lmm_education.stores.vector_store_qdrant_context import (
+    global_async_client_from_config,
+)
+
+# get an async client using default config from config.toml
+client = global_async_client_from_config()
+```
+
+Important! Because destruction closes the client connection, which
+is stored globally, DO NOT close the client obtained rhough this
+module manually, i.e. by calling client.close().
+
+Closing clients is handled automatically, but if you need to close
+them, use global_clients_close() or global_async_clients_close().
 
 """
 
@@ -123,6 +141,11 @@ def global_client_from_config(
     return qdrant_clients[dbsource]
 
 
+def global_clients_close() -> None:
+    """Close all clients."""
+    qdrant_clients.clear()
+
+
 def global_async_client_from_config(
     dbsource: DatabaseSource | None = None,
 ) -> AsyncQdrantClient:
@@ -146,3 +169,8 @@ def global_async_client_from_config(
         dbsource = opts.storage
 
     return qdrant_async_clients[dbsource]
+
+
+def global_async_clients_close() -> None:
+    """Close all async clients"""
+    qdrant_async_clients.clear()

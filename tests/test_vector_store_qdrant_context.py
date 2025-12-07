@@ -7,6 +7,8 @@ from lmm_education.stores.vector_store_qdrant_context import (
     global_async_client_from_config,
     qdrant_clients,
     qdrant_async_clients,
+    global_async_clients_close,
+    global_clients_close,
 )
 
 
@@ -24,6 +26,10 @@ class TestQdrantGlobal(unittest.TestCase):
         self.assertEqual(len(qdrant_clients), 1)
         self.assertIs(client, client2)
 
+        # test destruction
+        global_clients_close()
+        self.assertEqual(len(qdrant_clients), 0)
+
     def test_async(self):
         qdrant_async_clients.clear()
         self.assertEqual(len(qdrant_async_clients), 0)
@@ -39,7 +45,8 @@ class TestQdrantGlobal(unittest.TestCase):
         )
         self.assertEqual(len(qdrant_async_clients), 1)
         self.assertIs(client, client2)
-        qdrant_async_clients.clear()
+        global_async_clients_close()
+        self.assertEqual(len(qdrant_async_clients), 0)
 
     def test_async_config(self):
         qdrant_async_clients.clear()
