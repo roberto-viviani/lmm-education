@@ -8,7 +8,7 @@ from lmm.markdown.parse_markdown import parse_markdown_text
 from lmm.utils.logging import LoglistLogger
 from lmm.scan.chunks import EncodingModel
 
-# from lmm.scan.scan_keys import TITLES_KEY, QUESTIONS_KEY, SUMMARY_KEY
+import lmm.scan.scan_keys as keys
 
 from lmm_education.ingest import (
     blocklist_encode,
@@ -67,12 +67,17 @@ When we use models for prediction only, the caveats about inference of the first
 
 blocklist = parse_markdown_text(document)
 
-import lmm.scan.scan_keys as keys
-
 original_settings = ConfigSettings()
+
+# Test markdown file name
+TEST_MARKDOWN_FILE = "test_chapter.Rmd"
 
 
 def setUpModule():
+    # Save the document content to a test file
+    with open(TEST_MARKDOWN_FILE, 'w', encoding='utf-8') as f:
+        f.write(document)
+    
     settings = ConfigSettings(
         major={'model': "Debug/debug"},
         minor={'model': "Debug/debug"},
@@ -86,6 +91,11 @@ def setUpModule():
 
 
 def tearDownModule():
+    # Clean up the test file
+    import os
+    if os.path.exists(TEST_MARKDOWN_FILE):
+        os.remove(TEST_MARKDOWN_FILE)
+    
     export_settings(original_settings)
 
 
@@ -101,7 +111,8 @@ class TestSetup(unittest.TestCase):
         self.assertEqual(settings.aux.get_model_name(), "debug")
 
 
-class TestIngest(unittest.TestCase):
+# Test transformation into chunks and formation annotations
+class TestEncoding(unittest.TestCase):
 
     def test_settings_minimal(self):
         listlogger = LoglistLogger()
@@ -334,7 +345,7 @@ class TestLoadMarkdown(unittest.TestCase):
             raise Exception("Could not initialize client")
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
-            "Chapter_1.Rmd",
+            TEST_MARKDOWN_FILE,
             config_opts=opts,
             save_files=False,
             ingest=True,
@@ -377,7 +388,7 @@ class TestLoadMarkdown(unittest.TestCase):
             raise Exception("Could not initialize client")
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
-            "Chapter_1.Rmd",
+            TEST_MARKDOWN_FILE,
             config_opts=opts,
             save_files=False,
             ingest=True,
@@ -432,7 +443,7 @@ class TestMarkdownQueries(unittest.TestCase):
             return
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
-            "Chapter_1.Rmd",
+            TEST_MARKDOWN_FILE,
             config_opts=opts,
             save_files=output,
             ingest=True,
@@ -475,7 +486,7 @@ class TestMarkdownQueries(unittest.TestCase):
             return
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
-            "Chapter_1.Rmd",
+            TEST_MARKDOWN_FILE,
             config_opts=opts,
             save_files=output,
             ingest=True,
@@ -540,7 +551,7 @@ class TestMarkdownQueries(unittest.TestCase):
             return
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
-            "Chapter_1.Rmd",
+            TEST_MARKDOWN_FILE,
             config_opts=opts,
             save_files=output,
             ingest=True,
@@ -576,7 +587,7 @@ class TestMarkdownQueries(unittest.TestCase):
             return
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
         ids = markdown_upload(
-            "Chapter_1.Rmd",
+            TEST_MARKDOWN_FILE,
             config_opts=opts,
             save_files=output,
             ingest=True,
