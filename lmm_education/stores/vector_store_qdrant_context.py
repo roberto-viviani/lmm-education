@@ -27,6 +27,7 @@ from .vector_store_qdrant import (
     ConfigSettings,
     DatabaseSource,
 )
+from .vector_store_qdrant_utils import database_name
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 logger = ConsoleLogger()
@@ -58,26 +59,20 @@ def _async_client_constructor(
 
 def _client_destructor(client: QdrantClient) -> None:
     try:
-        source: str = (
-            client.init_options['path']
-            or client.init_options['location']
-            or client.init_options['url']
-        )
+        # these functions should run ok even if client closed
+        source: str = database_name(client)
         logger.info(f"Closing client {source}")
         client.close()
     except Exception:
-        # this may fail if python is closing down
+        # this may still fail if python is closing down
         pass
 
 
 def _async_client_destructor(client: AsyncQdrantClient) -> None:
     """Destructor: sync wrapper of async close coroutine"""
     try:
-        source: str = (
-            client.init_options['path']
-            or client.init_options['location']
-            or client.init_options['url']
-        )
+        # these functions should run ok even if client closed
+        source: str = database_name(client)
         logger.info(f"Closing client {source}")
     except Exception:
         pass

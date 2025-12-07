@@ -548,5 +548,15 @@ async def adatabase_info(
             await client.close()
 
 
+def database_name(
+    client: QdrantClient | AsyncQdrantClient,
+) -> str:
+    return (
+        client.init_options['path']
+        or client.init_options['location']
+        or client.init_options['url']
+    )
+
+
 if __name__ == "__main__":
     print(database_info())
