@@ -88,14 +88,9 @@ from langchain_core.retrievers import BaseRetriever
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as QdrantRetriever,
 )
-from lmm_education.stores.vector_store_qdrant_context import (
-    global_async_client_from_config,
-)
 
 # will return grouped retriever if appropriate
-retriever: BaseRetriever = QdrantRetriever.from_config_settings(
-    client=global_async_client_from_config()
-)
+retriever: BaseRetriever = QdrantRetriever.from_config_settings()
 
 # Create chat engine.
 from langchain_core.prompts import PromptTemplate # fmt: skip
@@ -288,8 +283,8 @@ async def fn(
                 history=history,
                 retriever=retriever,
                 llm=llm,
+                chat_settings=chat_settings,
                 system_msg=chat_settings.SYSTEM_MESSAGE,
-                prompt=prompt,
                 logger=logger,
             )
         )
@@ -355,8 +350,8 @@ async def fn_checked(
                 history=history,
                 retriever=retriever,
                 llm=llm,
+                chat_settings=chat_settings,
                 system_msg=chat_settings.SYSTEM_MESSAGE,
-                prompt=prompt,
                 allowed_content=settings.check_response.allowed_content,
                 initial_buffer_size=settings.check_response.initial_buffer_size,
                 max_retries=2,

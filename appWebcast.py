@@ -95,12 +95,16 @@ if video_file_missing:
 
 # load retriever
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-    QdrantVectorStoreRetriever as Retriever,
+    AsyncQdrantVectorStoreRetriever as Retriever,
 )
 from langchain_core.retrievers import BaseRetriever
 
 # TODO: revise from_config_settings with logger and None result
-retriever: BaseRetriever = Retriever.from_config_settings()
+try:
+    retriever: BaseRetriever = Retriever.from_config_settings()
+except Exception as e:
+    logger.error(f"Could not open database: {e}")
+    exit(1)
 
 
 # ========== STATE MANAGEMENT FUNCTIONS ==========
@@ -558,8 +562,8 @@ async def fn(
                 history=history,
                 retriever=retriever,
                 llm=llm,
+                chat_settings=chat_settings,
                 system_msg=chat_settings.SYSTEM_MESSAGE,
-                prompt=prompt,
                 logger=logger,
             )
         )
@@ -625,8 +629,8 @@ async def fn_checked(
                 history=history,
                 retriever=retriever,
                 llm=llm,
+                chat_settings=chat_settings,
                 system_msg=chat_settings.SYSTEM_MESSAGE,
-                prompt=prompt,
                 allowed_content=settings.check_response.allowed_content,
                 initial_buffer_size=settings.check_response.initial_buffer_size,
                 max_retries=2,
@@ -1090,7 +1094,3 @@ if __name__ == "__main__":
             show_api=False,
             # auth=('accesstoken', 'hackerbrücke'),
         )
-
-    # shut down db client
-    if retriever is not None:  # type: ignore
-        retriever.close_client()  # type: ignore

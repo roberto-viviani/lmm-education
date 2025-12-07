@@ -154,8 +154,11 @@ from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
 )
 from langchain_core.retrievers import BaseRetriever
 
-# TODO: revise from_config_settings with logger and None result
-retriever: BaseRetriever = Retriever.from_config_settings()
+try:
+    retriever: BaseRetriever = Retriever.from_config_settings()
+except Exception as e:
+    logger.error(f"Could not open database: {e}")
+    exit(1)
 
 
 # ========== STATE MANAGEMENT FUNCTIONS ==========
