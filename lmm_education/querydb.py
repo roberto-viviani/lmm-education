@@ -39,17 +39,21 @@ python -m lmm_education.querydb 'what is logistic regression?'
 from pydantic import validate_call
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import ScoredPoint
+from qdrant_client.models import GroupsResult, ScoredPoint
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 
+from lmm_education.config.config import ConfigSettings
+
 from .stores.vector_store_qdrant import (
-    client_from_config,
     query,
     query_grouped,
     encoding_to_qdrantembedding_model,
     groups_to_points,
     points_to_text,
+)
+from .stores.vector_store_qdrant_context import (
+    global_client_from_config,
 )
 from .config.config import load_settings
 
@@ -81,22 +85,21 @@ def querydb(
         logger.info("Invalid query? " + query_text)
         return ""
 
-    settings = load_settings()
+    settings: ConfigSettings | None = load_settings(logger=logger)
     if not settings:
+        logger.error("Could not read settings")
         return ""
 
-    create_flag: bool = False
     if client is None:
-        client = client_from_config(settings)
-        if client is None:
-            logger.error("Failed to initialize qdrant client")
+        try:
+            client = global_client_from_config(settings.storage)
+        except Exception as e:
+            logger.error(f"Failed to initialize qdrant client: {e}")
             return ""
-        else:
-            create_flag = True
 
     points: list[ScoredPoint] = []
     if settings.database.companion_collection:
-        results = query_grouped(
+        results: GroupsResult = query_grouped(
             client,
             settings.database.collection_name,
             settings.database.companion_collection,
@@ -119,8 +122,6 @@ def querydb(
             query_text,
             logger=logger,
         )
-    if create_flag:
-        client.close()
 
     if not points:
         return "No results, please check connection/database."
