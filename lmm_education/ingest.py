@@ -17,26 +17,54 @@ storage.
 The LMM for education package allows two different models of creating
 storage for a RAG application. In the standard approach, the text is
 chunked, possibly with overlapping segments, combined with additional
-text (such as questions answered by the text) and ingested. In the
-hierarchical graph RAG approach, the chunks provide the embeddings for
-retrieving larger parts of text, determined by the whole text under
-the same heading.
+text ('annotations', such as questions answered by the text) and
+ingested. In the hierarchical graph RAG approach, the chunks provide
+the embeddings for retrieving larger parts of text, determined by the
+whole text under the same heading. The language model is then given
+these large coherent texts, exploiting the large context window of
+today's models.
 
 The two approaches intermingle somewhat as the hierarchical structure
 is exploited to extract information from the text in both cases.
 
-The module may be called directly; the main function reads the
-configuration options and reads in all markdown filed in the input
-folder and ingests them into the database.
-
 Main functions:
+    initialize_client: get a database client object for further use
     markdown_upload: ingest markdown files
-    __main__: ingests markdown files using default configuration
-        settings from a default input folder.
-"""
 
-# pyright: reportUnusedImport=false
-# flake8: noqa
+Examples:
+
+```python
+from lmm.utils.ioutils import list_files_with_extensions
+from lmm_education.ingest import markdown_upload
+
+try:
+    files: list[str] = list_files_with_extensions(
+        "./ingest_folder", ".md;.Rmd"
+    )
+    markdown_upload(
+        files,
+        save_files=True,
+        ingest=True,
+    )
+except Exception as e:
+    print(str(e))
+```
+
+Interactive use from console.
+
+```bash
+# ingests MyMarkdown.md
+python -m lmm_education.ingest MyMarkdown.md
+
+# process MyMarkdown.md without ingesting
+python -m lmm_education.ingest MyMarkdown.md False
+
+# process w/o ingesting, and save output
+python -m lmm_education.ingest MyMarkdown.md False True
+```
+
+See also the lmme module for the CLI interface to ingestion.
+"""
 
 import io
 from pathlib import Path
@@ -47,18 +75,13 @@ from pydantic import validate_call
 from lmm.markdown.parse_markdown import (
     Block,
     ErrorBlock,
-    HeaderBlock,
-    HeadingBlock,
-    MetadataBlock,
-    TextBlock,
     blocklist_haserrors,
     blocklist_errors,
     blocklist_copy,
-    save_blocks,
 )
 from lmm.markdown.blockutils import (
-    merge_code_blocks,
-    merge_equation_blocks,
+    # merge_code_blocks,
+    # merge_equation_blocks,
     merge_textblocks,
     clear_metadata_properties,
 )
@@ -68,12 +91,8 @@ from lmm.markdown.treeutils import (
 from lmm.markdown.tree import (
     blocks_to_tree,
     tree_to_blocks,
-    extract_content,
-    HeadingNode,
     MarkdownTree,
     MarkdownNode,
-    TextNode,
-    post_order_traversal,
 )
 from lmm.markdown.treeutils import (
     propagate_property,
@@ -115,19 +134,21 @@ from .config.config import (
     create_default_config_file,
     load_settings,
     ConfigSettings,
-    LocalStorage,
-    RemoteSource,
+    DatabaseSource,
     EncodingModel,
 )
 from .stores.vector_store_qdrant import (
     QdrantEmbeddingModel,
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
-    client_from_config,
     initialize_collection_from_config,
     initialize_collection,
     upload,
     chunks_to_points,
 )
+from .stores.vector_store_qdrant_context import (
+    global_client_from_config,
+)
+from .stores.vector_store_qdrant_utils import database_name
 
 # langchain, import text splitters from here
 from langchain_text_splitters import (
@@ -181,6 +202,7 @@ def initialize_client(
     Args:
         opts: a ConfigurationSettings object. If None, an object will
             be created from config.toml.
+        logger: a logger object. Defaults to a console logger.
 
     Returns:
         a Qdrant client object
@@ -192,18 +214,24 @@ def initialize_client(
         if opts is None:
             return None
 
-    dbOpts = opts.database
+    dbOpts: DatabaseSettings = opts.database
     collection_name: str = dbOpts.collection_name
     if not collection_name:
         return None
+    dbSource: DatabaseSource = opts.storage
 
-    # obtain a QdrantClient object using the config file settings
-    client: QdrantClient | None = client_from_config(
-        opts=opts, logger=logger
-    )
-    if client is None:
+    # Obtain a QdrantClient object using the config file settings.
+    # We use the sync client here so we block during load
+    client: QdrantClient
+    try:
+        client = global_client_from_config(dbSource)
+    except Exception as e:
+        logger.error(f"Could not load database: {e}")
         return None
 
+    # Initialize the database or check it for the presence of
+    # the collections used in LMM for education, as specified
+    # in the config file.
     flag: bool = initialize_collection_from_config(
         client,
         collection_name,
@@ -250,17 +278,27 @@ def markdown_upload(
             if None, will be read from config.toml
         ingest: Whether to ingest documents into the vector database
             (default: True)
-        save_files: Whether to save processed blocks to files
-            (default: False)
+        save_files: Whether to save processed blocks to files for
+            human inspection (default: False)
         client: if None (default) a QdrantClient will be initialized
-            from the config_opts spec. Note that for the :memory:
-            client, the client must be created once and passed around,
-            otherwise any initialization of the client will create
-            a new database instance.
+            from the config_opts spec.
         logger: a logger object
 
     Returns:
-        A list of Document objects representing the processed content
+        A list of strings, or string tuples, representing the
+            processed content.
+
+    Note:
+        This function makes use of the following other functions in
+        this same module:
+            initialize_client: to get a QdrantClient object
+                initialized to a database with the collections for
+                the ingestion
+            blocklist_encode: transforms markdown files into the chunks
+                that will be ingested, creating the annotations with
+                a language model if they are still missing
+            blocklist_upload: takes the chunks, forms the embeddings,
+                and loads the whole lot into the database.
     """
 
     # Check the config file is ok. The ConfigSettings constructor
@@ -274,12 +312,10 @@ def markdown_upload(
     # to validate the database schema, i.e that it has a schema that
     # corresponds to the encoding model applied to the documents. If
     # the database does not exist, it will be created.
-    local_client_flag: bool = False
     if client is None:
         client = initialize_client(config_opts, logger)
-        local_client_flag = True
     if not client:
-        logger.warning("Database could not be initialized.")
+        logger.error("Database could not be initialized.")
         return []
 
     # The markdown parser responds to errors by creating a special
@@ -290,8 +326,6 @@ def markdown_upload(
     # documents to check for errors.
     if not bool(sources):
         logger.warning("No documents for ingestion in the database.")
-        if local_client_flag:
-            client.close()
         return []
     if isinstance(sources, str):
         sources = [sources]
@@ -314,8 +348,6 @@ def markdown_upload(
             "Problems in markdowns, fix before continuing:\n\t"
             + "\n\t".join(error_sources.keys())
         )
-        if local_client_flag:
-            client.close()
         return []
     logger.set_level(logger_level)
 
@@ -325,10 +357,12 @@ def markdown_upload(
     ids: list[tuple[str] | tuple[str, str]] = []
     for source in sources:
         # Markdown documents are loaded from files with markdown_scan
-        # beacause this function can initialize default properties
+        # because this function can initialize default properties
         # such as 'title' from the file name.
-        blocks = markdown_scan(source, False, logger=logger)
-        # Process the markdown documents prior to ingesting.
+        SAVE_FILE = False
+        blocks = markdown_scan(source, SAVE_FILE, logger=logger)
+        # Process the markdown documents prior to ingesting, and
+        # create the chunks.
         chunks, comp_chunks = blocklist_encode(
             blocks, config_opts, logger
         )
@@ -336,26 +370,18 @@ def markdown_upload(
             logger.warning(f"{source} could not be encoded.")
             continue
         # Ingestion.
-        idss = blocklist_upload(
+        idss: list[tuple[str] | tuple[str, str]] = blocklist_upload(
             client,
             chunks,
             comp_chunks,
             config_opts,
-            ingest,
-            logger,
+            ingest=ingest,
+            logger=logger,
         )
+        # Feedback and cumulate idss
         if bool(idss):
             if ingest:
-                storage_location: str
-                match config_opts.storage:
-                    case LocalStorage():
-                        storage_location = config_opts.storage.folder
-                    case RemoteSource():
-                        storage_location = str(
-                            config_opts.storage.url
-                        )
-                    case _:
-                        storage_location = "memory database"
+                storage_location: str = database_name(client)
                 logger.info(f"{source} added to {storage_location}.")
             ids.extend(idss)
         else:
@@ -365,8 +391,12 @@ def markdown_upload(
         # this allows users to inspect the annotations that were
         # used to encode the document
         if bool(save_files) and bool(idss):
-            chunk_blocks = chunks_to_blocks(chunks, '+++++')
-            comp_blocks = chunks_to_blocks(comp_chunks, ".....")
+            chunk_blocks: list[Block] = chunks_to_blocks(
+                chunks, '+++++'
+            )
+            comp_blocks: list[Block] = chunks_to_blocks(
+                comp_chunks, "....."
+            )
             if isinstance(save_files, bool):
                 out_file: str = append_postfix_to_filename(
                     str(source), "_chunks"
@@ -390,22 +420,21 @@ def markdown_upload(
                     save_files, chunk_blocks + comp_blocks, logger
                 )
 
-    if local_client_flag:
-        client.close()
-
     return ids
 
 
 # This is the function that does the actual processing of the
-# markdown blocks. It implements the annotation strategy specified in
-# the ConfigSettings object: adds annotations using a language model
+# markdown blocks, tranforming them into chunks for the ingestion.
+# It implements the annotation strategy specified in the
+# ConfigSettings object: adds annotations using a language model
 # if the settings require it. It is the key point where a strategy
 # to extract further information from mere text is executed. Returns
-# the chunks for ingestion in the database.
+# the chunks for ingestion in the database (note: no embeddings
+# computed at this stage).
 def blocklist_encode(
     blocklist: list[Block],
     opts: ConfigSettings,
-    logger: LoggerBase = logger,
+    logger: LoggerBase,
 ) -> tuple[list[Chunk], list[Chunk]]:
     """
     Encode a list of markdown blocks. Preprocessing will be
@@ -436,6 +465,8 @@ def blocklist_encode(
     blocklist = clear_metadata_properties(blocklist, [UUID_KEY])
 
     # this contains the info if form a companion collection
+    # TODO: it would be more transparent for user to set this
+    # info in a RAG section of config.toml
     dbOpts: DatabaseSettings = opts.database
 
     # preprocessing for RAG. You tell scan_rag what annotations
@@ -547,8 +578,8 @@ def blocklist_encode(
         splits = _propagate_summaries(splits)
 
     # the blocks_to_chunks function transforms the chunks into the
-    # format recognized by qdrant for ingestion, also collecting the
-    # annotations specified by the encoding model.
+    # format recognized by the vector database for ingestion, also
+    # collecting the annotations specified by the encoding model.
     chunks: list[Chunk] = blocks_to_chunks(
         splits,
         encoding_model=opts.RAG.encoding_model,
@@ -572,8 +603,9 @@ def blocklist_upload(
     chunks: list[Chunk],
     companion_chunks: list[Chunk],
     opts: ConfigSettings,
+    *,
+    logger: LoggerBase,
     ingest: bool = True,
-    logger: LoggerBase = logger,
 ) -> list[tuple[str] | tuple[str, str]]:
     """
     Upload a list of preprocessed chunks (including document chunks)
@@ -668,48 +700,46 @@ def blocklist_upload(
 
 
 def _list_files_by_extension(
-    path: str, extensions: list[str]
+    path: str | Path, extensions: list[str]
 ) -> list[str]:
     """
-    Determines if a given path is a file or a folder.
+    Determines if a given path is a file or a folder, and lists matching files.
 
-    If it's a file, it returns a list with that file as member.
-    If it's a folder, it returns a list of files within that folder
-    that match a list of given extensions.
+    If the path is a file, it returns a list with that file as a member.
+    If the path is a folder, it delegates to the refactored listing function.
 
     Args:
-        path (str): The path to a file or folder.
-        extensions (list[str]): A list of file extensions to
-            filter by (e.g., ['.txt', '.log']).
+        path (str | Path): The path to a file or folder.
+        extensions (list[str]): A list of file extensions (e.g., ['.txt', '.log']).
 
     Returns:
-        list: A list of matching filenames if the path is a folder,
-              or a single-item list with the file if the path is a
-              file. Returns an empty list if the path does not exist
-              or there are no files.
+        list[str]: A list of matching full path strings.
+
+    Raises:
+        FileNotFoundError: If the path does not exist.
+        NotADirectoryError: If the path is an invalid directory.
+        ValueError: For invalid characters in extensions.
     """
-    import os
+    from lmm.utils.ioutils import list_files_with_extensions
 
-    if not os.path.exists(path):
-        raise ValueError(f"Error: The path '{path}' does not exist.")
+    p_path = Path(path)
 
-    if os.path.isfile(path):
-        return [path]
+    if not p_path.exists():
+        raise FileNotFoundError(
+            f"Error: The path '{p_path}' does not exist."
+        )
 
-    if os.path.isdir(path):
-        matching_files: list[str] = []
-        for file_name in os.listdir(path):
-            (
-                file_name_without_extension,  # type: ignore
-                file_extension,
-            ) = os.path.splitext(file_name)
+    if p_path.is_file():
+        return [str(p_path)]
 
-            if file_extension.lower() in [
-                ext.lower() for ext in extensions
-            ]:
-                full_path: str = os.path.join(path, file_name)
-                matching_files.append(full_path)
-        return matching_files
+    if p_path.is_dir():
+        return list_files_with_extensions(
+            folder_path=p_path,
+            extensions=extensions,
+        )
+
+    # Handle cases where the path exists but is neither a file nor a
+    # directory (e.g., a special device file or broken symlink).
     return []
 
 
