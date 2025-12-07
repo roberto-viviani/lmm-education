@@ -91,10 +91,12 @@ from lmm.utils.logging import ExceptionConsoleLogger
 from lmm.config.config import EmbeddingSettings
 from ...config.config import ConfigSettings, load_settings
 from ..vector_store_qdrant import (
-    client_from_config,
-    async_client_from_config,
     encoding_to_qdrantembedding_model,
     QdrantEmbeddingModel,
+)
+from ..vector_store_qdrant_context import (
+    global_async_client_from_config,
+    global_client_from_config,
 )
 
 
@@ -125,7 +127,6 @@ class QdrantVectorStoreRetriever(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
-    _create_flag: bool = False
 
     def __init__(
         self,
@@ -133,7 +134,6 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         collection_name: str,
         qdrant_embedding: QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
-        create_flag: bool = False,
     ):
         flag: bool = vsq.initialize_collection(
             client,
@@ -158,17 +158,13 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         self.collection_name = collection_name
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
-        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def close_client(self) -> None:
-        """Close client. Only to be called for objects
-        obtained from .from_config_settings"""
-        if not self._create_flag:
-            return
-        if hasattr(self, 'client'):
-            self.client.close()
+        """Close client. It is a no-op since we delegate
+        closing to the global dict repo."""
+        pass
 
     @staticmethod
     def from_config_settings(
@@ -206,9 +202,8 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             )
 
         if client is None:
-            client = client_from_config(opts=opts, logger=logger)
-        if client is None:
-            raise ValueError("Could not initialize client")
+            # will raise error if not creatable
+            client = global_client_from_config(opts.storage)
         return QdrantVectorStoreRetriever(
             client,
             dbOpts.collection_name,
@@ -216,7 +211,6 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 opts.RAG.encoding_model
             ),
             opts.embeddings,
-            True,
         )
 
     def _points_to_documents(
@@ -286,7 +280,6 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
-    _create_flag: bool = False
 
     def __init__(
         self,
@@ -294,7 +287,6 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         collection_name: str,
         qdrant_embedding: QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
-        create_flag: bool = False,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -313,17 +305,13 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
         self.collection_name = collection_name
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
-        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def close_client(self) -> None:
-        """Close client. Only to be called for objects
-        obtained from .from_config_settings"""
-        if not self._create_flag:
-            return
-        if hasattr(self, 'client'):
-            await self.client.close()
+        """Close client. It is a no-op since we delegate
+        closing to the global dict repo."""
+        pass
 
     @staticmethod
     def from_config_settings(
@@ -353,7 +341,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 "Could not initialize retriever due to "
                 + "invalid config settings"
             )
-        dbOpts = opts.database
+        dbOpts: DatabaseSettings = opts.database
 
         if bool(dbOpts.companion_collection):
             return AsyncQdrantVectorStoreRetrieverGrouped.from_config_settings(
@@ -361,9 +349,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             )
 
         if client is None:
-            client = async_client_from_config(opts, logger)
-        if client is None:
-            raise ValueError("Could not initialize client")
+            # will raise error if not creatable
+            client = global_async_client_from_config(opts.storage)
         return AsyncQdrantVectorStoreRetriever(
             client,
             dbOpts.collection_name,
@@ -371,7 +358,6 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 opts.RAG.encoding_model
             ),
             embedding_settings=opts.embeddings,
-            create_flag=True,
         )
 
     def _points_to_documents(
@@ -480,7 +466,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
-    _create_flag: bool = False
 
     def __init__(
         self,
@@ -491,7 +476,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         limitgroups: int,
         qdrant_embedding: QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
-        create_flag: bool = False,
     ):
         flag: bool = vsq.initialize_collection(
             client,
@@ -519,17 +503,13 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.limitgroups = limitgroups
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
-        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def close_client(self) -> None:
-        """Close client. Only to be called for objects
-        obtained from .from_config_settings"""
-        if not self._create_flag:
-            return
-        if hasattr(self, 'client'):
-            self.client.close()
+        """Close client. It is a no-op since we delegate
+        closing to the global dict repo."""
+        pass
 
     @staticmethod
     def from_config_settings(
@@ -557,7 +537,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 "Could not initialize retriever due to "
                 + "invalid config settings"
             )
-        dbOpts = opts.database
+        dbOpts: DatabaseSettings = opts.database
 
         if not bool(dbOpts.companion_collection):
             return QdrantVectorStoreRetriever.from_config_settings(
@@ -565,9 +545,8 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             )
 
         if client is None:
-            client = client_from_config(opts=opts, logger=logger)
-        if client is None:
-            raise ValueError("Could not initialize client")
+            # will raise error if not creatable
+            client = global_client_from_config(opts.storage)
         return QdrantVectorStoreRetrieverGrouped(
             client,
             dbOpts.collection_name,
@@ -578,7 +557,6 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 opts.RAG.encoding_model
             ),
             opts.embeddings,
-            create_flag=True,
         )
 
     def _results_to_documents(
@@ -655,7 +633,6 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
     embedding_settings: EmbeddingSettings = Field(
         default=ConfigSettings().embeddings, init=False
     )
-    _create_flag: bool = False
 
     def __init__(
         self,
@@ -666,7 +643,6 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         limitgroups: int,
         qdrant_embedding: vsq.QdrantEmbeddingModel,
         embedding_settings: EmbeddingSettings,
-        create_flag: bool = False,
     ):
         # TODO: verify the collection asynchronously
         # flag: bool = vsq.initialize_collection(
@@ -688,17 +664,13 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         self.limitgroups = limitgroups
         self.qdrant_embedding = qdrant_embedding
         self.embedding_settings = embedding_settings
-        self._create_flag = create_flag
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def close_client(self) -> None:
-        """Close client. Only to be called for objects
-        obtained from .from_config_settings"""
-        if not self._create_flag:
-            return
-        if hasattr(self, 'client'):
-            await self.client.close()
+        """Close client. It is a no-op since we delegate
+        closing to the global dict repo."""
+        pass
 
     @staticmethod
     def from_config_settings(
@@ -727,7 +699,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 "Could not initialize retriever due to "
                 + "invalid config settings"
             )
-        dbOpts = opts.database
+        dbOpts: DatabaseSettings = opts.database
 
         if not bool(dbOpts.companion_collection):
             return (
@@ -737,9 +709,8 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             )
 
         if client is None:
-            client = async_client_from_config(opts, logger)
-        if client is None:
-            raise ValueError("Could not initialize client")
+            # will raise error if not creatable
+            client = global_async_client_from_config(opts.storage)
         return AsyncQdrantVectorStoreRetrieverGrouped(
             client,
             dbOpts.collection_name,

@@ -183,7 +183,6 @@ class TestIngestionRetrieval(unittest.TestCase):
         retriever = Qdr.from_config_settings(config)
 
         docs = retriever.invoke("What are observational studies?")
-        retriever.client.close()
         self.assertTrue(len(docs) > 0)
 
     def _do_test_integration_retrieval(
@@ -224,7 +223,6 @@ class TestIngestionRetrieval(unittest.TestCase):
         retriever = Qdr.from_config_settings(config)
 
         chunks = retriever.invoke("What are observational studies?")
-        retriever.client.close()
         self.assertTrue(len(chunks) > 0)
 
     def test_integration_retrieval_models(self):
