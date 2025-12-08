@@ -16,7 +16,7 @@ from langchain_core.messages import BaseMessageChunk
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
-# settings. If config.toml does not exist, create it
+# lmm_education and lmm
 from lmm_education.config.config import (
     ConfigSettings,
     load_settings,
@@ -47,7 +47,7 @@ logger = FileConsoleLogger(
 DATABASE_FILE = "messages.csv"
 CONTEXT_DATABASE_FILE = "queries.csv"
 
-# Initialize CSV files with headers if they don't exist
+# Initialize CSV database files with headers if they don't exist
 if not os.path.exists(DATABASE_FILE):
     with open(DATABASE_FILE, "w", encoding='utf-8') as f:
         f.write(
@@ -58,7 +58,7 @@ if not os.path.exists(CONTEXT_DATABASE_FILE):
     with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
         f.write("record_id,evaluation,context,classification\n")
 
-# Config files.
+# Config files. If config.toml does not exist, create it
 if not os.path.exists(DEFAULT_CONFIG_FILE):
     create_default_config_file(DEFAULT_CONFIG_FILE)
     print(
@@ -125,6 +125,8 @@ except Exception as e:
     print(f"Error message:\n{e}")
     exit()
 
+# Set up a global container of active tasks (used by logging)
+active_logs: set[asyncio.Task[None]] = set()
 
 # Import refactored chat functions
 from lmm_education.query import (
@@ -258,6 +260,8 @@ def _preproc_for_markdown(response: str) -> str:
 
 
 # Callback for Gradio to call when a chat message is sent.
+# TODO: prepare a factory for the chat function, as fn and fn_checked
+# are essentially the same.
 async def fn(
     querytext: str, history: list[dict[str, str]], request: gr.Request
 ) -> AsyncGenerator[str, None]:
@@ -297,7 +301,7 @@ async def fn(
         # Non-blocking logging hook - fires after streaming completes
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
-        asyncio.create_task(
+        logtask: asyncio.Task[None] = asyncio.create_task(
             async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
@@ -310,6 +314,8 @@ async def fn(
                 model_name=model_name,
             )
         )
+        active_logs.add(logtask)
+        logtask.add_done_callback(active_logs.discard)
 
     except Exception as e:
         logger.error(
@@ -367,7 +373,7 @@ async def fn_checked(
         # Non-blocking logging hook - fires after streaming completes
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
-        asyncio.create_task(
+        logtask: asyncio.Task[None] = asyncio.create_task(
             async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
@@ -380,6 +386,8 @@ async def fn_checked(
                 model_name=model_name,
             )
         )
+        active_logs.add(logtask)
+        logtask.add_done_callback(active_logs.discard)
 
     except Exception as e:
         logger.error(
@@ -400,7 +408,7 @@ async def vote(data: gr.LikeData, request: gr.Request):
     record_id = generate_random_string(8)
     reaction = "approved" if data.liked else "disapproved"
 
-    asyncio.create_task(
+    task: asyncio.Task[None] = asyncio.create_task(
         async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
@@ -413,6 +421,8 @@ async def vote(data: gr.LikeData, request: gr.Request):
             model_name="",
         )
     )
+    active_logs.add(task)
+    task.add_done_callback(active_logs.discard)
 
 
 def clearchat() -> None:
@@ -425,7 +435,7 @@ async def postcomment(comment: object, request: gr.Request):
     """
     record_id = generate_random_string(8)
 
-    asyncio.create_task(
+    task: asyncio.Task[None] = asyncio.create_task(
         async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
@@ -438,6 +448,8 @@ async def postcomment(comment: object, request: gr.Request):
             model_name="",
         )
     )
+    active_logs.add(task)
+    task.add_done_callback(active_logs.discard)
 
 
 # create the app
@@ -501,3 +513,16 @@ if __name__ == "__main__":
             show_api=False,
             auth=('accesstoken', 'hackerbrücke'),
         )
+
+    # cleanup
+    async def shutdown() -> None:
+        if active_logs:
+            results = await asyncio.gather(
+                *active_logs, return_exceptions=True
+            )
+            # This only uncaught exceptions, i.e. in postcomment etc.
+            for result in results:
+                if isinstance(result, Exception):
+                    print(f"Feeback logging failed: {result}")
+
+    asyncio.run(shutdown())
