@@ -3,7 +3,6 @@
 NOTE: initialize collection tested in test_lmm_rag.py
 """
 
-
 import unittest
 import logging
 import re
@@ -28,7 +27,11 @@ from lmm.scan.chunks import (
 from lmm.scan.scan_rag import blocklist_rag, ScanOpts
 
 # lmm_education
-from lmm_education.config.config import AnnotationModel, ConfigSettings, RAGSettings
+from lmm_education.config.config import (
+    AnnotationModel,
+    ConfigSettings,
+    RAGSettings,
+)
 from lmm_education.stores.vector_store_qdrant import (
     QdrantClient,
     encoding_to_qdrantembedding_model,
@@ -323,7 +326,6 @@ class TestInitializationContext(unittest.TestCase):
             result,
             "init_collection should return True for encoding model",
         )
-
 
 
 class TestInitializationConfigObject(unittest.TestCase):
@@ -786,8 +788,9 @@ class TestInitializationLocal(unittest.TestCase):
         # delete the storage directory and all its contents
         import shutil
         from lmm_education.stores.vector_store_qdrant_context import (
-            global_clients_close
+            global_clients_close,
         )
+
         global_clients_close()
         shutil.rmtree("./test_storage")
 
@@ -848,9 +851,7 @@ class TestInitializationMemory(unittest.TestCase):
             storage=":memory:",
         )
 
-        local_client = global_client_from_config(
-            settings.storage
-        )
+        local_client = global_client_from_config(settings.storage)
         self.assertIsNotNone(local_client)
         self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
 
@@ -888,7 +889,6 @@ class TestInitializationMemory(unittest.TestCase):
                 settings.embeddings,
             )
         )
-
 
     def test_encoding_content(self):
         self.dotest_encoding(EncodingModel.CONTENT)
@@ -1571,6 +1571,7 @@ class TestIngestionAndQuery(unittest.TestCase):
             embedding_settings,
             chunks,
         )
+        self.assertGreater(len(ps), 0)
         results: list[ScoredPoint] = query(
             client,
             collection_name,
@@ -2564,6 +2565,7 @@ class TestQueryLargeText(unittest.TestCase):
             chunks,
             logger=exception_logger,
         )
+        self.assertGreater(len(ps), 0)
         results: list[ScoredPoint] = query(
             client,
             collection_name,
