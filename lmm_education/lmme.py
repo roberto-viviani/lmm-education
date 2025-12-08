@@ -285,6 +285,16 @@ def ingest(
         logger.error(str(e))
         raise typer.Exit(1)
 
+    # this is a workaround for the qdrant bug when clients
+    # are closed during garbage collection. We close all
+    # clients explicitly prior to exiting, as this routine
+    # is called from the CLI, i.e. here Python is exiting.
+    from lmm_education.stores.vector_store_qdrant_context import (
+        qdrant_clients,
+    )
+
+    qdrant_clients.clear()
+
 
 @app.command()
 def ingest_folder(
