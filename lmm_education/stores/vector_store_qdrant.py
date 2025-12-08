@@ -229,7 +229,6 @@ from lmm.utils.logging import LoggerBase, get_logger
 default_logger: LoggerBase = get_logger(__name__)
 
 
-
 class QdrantEmbeddingModel(Enum):
     """Enum for embedding strategies"""
 
@@ -2264,9 +2263,9 @@ def groups_to_points(groups: GroupsResult) -> list[ScoredPoint]:
     records: list[Record] = [
         g.lookup for g in groups.groups if g.lookup
     ]
-    _max: Callable[[list[ScoredPoint]], float] = lambda hits: max(  # noqa: E731
+    _max: Callable[[list[ScoredPoint]], float] = lambda hits: max(
         [h.score for h in hits]
-    )
+    )  # noqa: E731
     scores: list[float] = [
         _max(g.hits) for g in groups.groups if g.lookup
     ]

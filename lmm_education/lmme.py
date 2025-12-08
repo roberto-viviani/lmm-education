@@ -1,5 +1,6 @@
 """CLI interface for LM mearkdown for education"""
 
+from qdrant_client import QdrantClient
 import typer
 
 from pydantic import ValidationError
@@ -297,7 +298,7 @@ def ingest_folder(
 ) -> None:
     """
     Ingests a folder into the vector database, after
-    processing them as required by the encoding model.
+    processing the documents as required by the encoding model.
     """
     from lmm.utils.ioutils import list_files_with_extensions
     from lmm_education.ingest import markdown_upload
@@ -474,6 +475,47 @@ def query(
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
+
+
+@app.command()
+def property_values(
+    property: str = typer.Argument(..., help="Property to query"),
+    collection: str | None = typer.Argument(
+        default=None, help="Collection to query"
+    ),
+) -> None:
+    """
+    Displays the values of a property and their count in
+    a collection.
+    """
+    from lmm_education.stores.vector_store_qdrant_utils import (
+        list_property_values,
+    )
+    from lmm_education.stores.vector_store_qdrant import (
+        client_from_config,
+    )
+    from lmm_education.config.config import ConfigSettings
+
+    if collection is None:
+        try:
+            settings = ConfigSettings()
+            if settings.database.companion_collection:
+                collection = settings.database.companion_collection
+            else:
+                collection = settings.database.collection_name
+        except Exception as e:
+            logger.error(f"Could not load settings: {e}")
+            raise typer.Exit(1)
+
+    client: QdrantClient | None = client_from_config(logger=logger)
+    if client is None:
+        raise typer.Exit(1)
+    values: list[tuple[str, int]] = list_property_values(
+        client, property, collection, logger=logger
+    )
+    client.close()
+    for item in values:
+        print(f"{item[0]}\t{item[1]}")
 
 
 @app.command()

@@ -21,6 +21,7 @@ from pathlib import Path
 # qdrant
 from qdrant_client import QdrantClient
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.conversions.common_types import FacetResponse
 from qdrant_client.models import (
     PointStruct as Point,
     Record,
@@ -556,6 +557,40 @@ def database_name(
         or client.init_options['location']
         or client.init_options['url']
     )
+
+
+def list_property_values(
+    client: QdrantClient,
+    property: str,
+    collection: str,
+    *,
+    logger: LoggerBase = default_logger,
+) -> list[tuple[str, int]]:
+    try:
+        result: FacetResponse = client.facet(
+            collection, "metadata." + property
+        )
+        return [(str(h.value), h.count) for h in result.hits]
+    except Exception as e:
+        logger.error(str(e))
+        return []
+
+
+async def alist_property_values(
+    client: AsyncQdrantClient,
+    property: str,
+    collection: str,
+    *,
+    logger: LoggerBase = default_logger,
+) -> list[tuple[str, int]]:
+    try:
+        result: FacetResponse = await client.facet(
+            collection, "metadata." + property
+        )
+        return [(str(h.value), h.count) for h in result.hits]
+    except Exception as e:
+        logger.error(str(e))
+        return []
 
 
 if __name__ == "__main__":
