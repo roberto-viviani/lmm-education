@@ -6,8 +6,7 @@ Entry point for the RAG model chat application.
 
 from datetime import datetime
 import os
-from typing import Literal
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 import asyncio
 
 
@@ -29,11 +28,8 @@ from lmm_education.config.appchat import (
     create_default_config_file as create_default_chat_config_file,
     CHAT_CONFIG_FILE,
 )
+from lmm_education.apputils import async_log_factory, AsyncLogfuncType
 from lmm.utils.hash import generate_random_string
-from lmm.language_models.langchain.runnables import (
-    create_runnable,
-    RunnableType,
-)
 
 # logs
 import logging
@@ -57,6 +53,12 @@ if not os.path.exists(DATABASE_FILE):
 if not os.path.exists(CONTEXT_DATABASE_FILE):
     with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
         f.write("record_id,evaluation,context,classification\n")
+
+# Set up a global container of active tasks (used by logging)
+active_logs: set[asyncio.Task[None]] = set()
+async_log: AsyncLogfuncType = async_log_factory(
+    DATABASE_FILE, CONTEXT_DATABASE_FILE, logger
+)
 
 # Config files. If config.toml does not exist, create it
 if not os.path.exists(DEFAULT_CONFIG_FILE):
@@ -125,8 +127,6 @@ except Exception as e:
     print(f"Error message:\n{e}")
     exit()
 
-# Set up a global container of active tasks (used by logging)
-active_logs: set[asyncio.Task[None]] = set()
 
 # Import refactored chat functions
 from lmm_education.query import (
@@ -135,133 +135,18 @@ from lmm_education.query import (
 )
 
 
-def _fmat(text: str) -> str:
-    """
-    Format text for CSV storage by escaping quotes and newlines.
-    """
-    # Replace double quotation marks with single quotation marks
-    modified_text = text.replace('"', "'")
-    # Replace newline characters with " | "
-    modified_text = modified_text.replace('\n', ' | ')
-    return modified_text
+# centralize used latex style, perhaps depending
+# on model.
+from lmm_education.apputils import preproc_markdown_factory
 
-
-# Unified non-blocking async logging function
-async def async_log(
-    record_id: str,
-    client_host: str,
-    session_hash: str,
-    timestamp: datetime,
-    interaction_type: str,
-    history: list[dict[str, str]],
-    query: str = "",
-    response: str = "",
-    model_name: str = "",
-) -> None:
-    """
-    Unified non-blocking logging function for all interaction types.
-    Logs to CSV files without blocking the main async flow.
-
-    Args:
-        record_id: Unique identifier for this record
-        client_host: Client IP address
-        session_hash: Session identifier
-        timestamp: Timestamp of the interaction
-        interaction_type: Type of interaction ("MESSAGE", "USER REACTION", "USER COMMENT")
-        query: Query text (or action for reactions, comment for comments)
-        response: Response text (empty for reactions and comments)
-        history: conversation history (empty for reactions and comments)
-        model_name: Name of the model used (empty for reactions and comments)
-    """
-    try:
-        context: list[str] = [
-            b['content'] for b in history if b['role'] == "context"
-        ]
-        message: list[str] = [
-            b['content'] for b in history if b['role'] == "message"
-        ]
-        rejection: list[str] = [
-            b['content'] for b in history if b['role'] == "rejection"
-        ]
-
-        # Log main interaction to messages.csv
-        if message:
-            interaction_type = message[0]
-        if rejection:
-            interaction_type = "REJECTION"
-            response = rejection[0]
-        with open(DATABASE_FILE, "a", encoding='utf-8') as f:
-            f.write(
-                f'{record_id},{client_host},{session_hash},'
-                f'{timestamp},{len(history)},'
-                f'{model_name},{interaction_type},"{_fmat(query)}","{_fmat(response)}"\n'
-            )
-
-        # Log context if available (from context role in history). We also
-        # record relevance of context for further monitoring.
-        if context:
-            # we evaluate consistency of context prior to saving
-            try:
-                lmm_validator: RunnableType = create_runnable(
-                    'context_validator'  # this will be a dict lookup
-                )
-                validation: str = await lmm_validator.ainvoke(
-                    {
-                        'query': f"{query}. {response}",
-                        'context': context[0],
-                    }
-                )
-                validation = validation.upper()
-            except Exception as e:
-                logger.error(
-                    f'Could not connect to aux model to validate context: {e}'
-                )
-                validation = "<failed>"
-
-            with open(
-                CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
-            ) as f:
-                f.write(
-                    f'{record_id},{validation},"{_fmat(context[0])},NA"\n'
-                )
-
-    except Exception as e:
-        logger.error(f"Async logging failed: {e}")
-
-
-LatexStyle = Literal["dollar", "backslash", "default", "raw"]
-
-
-def _get_latex_style() -> LatexStyle:
-    # centralize used latex style, perhaps depending
-    # on model. Now we just use the one in tendency in
-    # OpenAI, Mistral.
-    if settings.major.get_model_source() == "Mistral":  # type: ignore
-        return "dollar"
-
-    return "backslash"
-
-
-def _preproc_for_markdown(response: str) -> str:
-    # This function allows centrailizing preprocessing
-    # of strings using a latex style.
-    from lmm.markdown.ioutils import (
-        convert_dollar_latex_delimiters,
-        convert_backslash_latex_delimiters,
-    )
-
-    match _get_latex_style():
-        case "backslash":
-            return convert_dollar_latex_delimiters(response)
-        case "dollar":
-            return convert_backslash_latex_delimiters(response)
-        case _:
-            return response
+_preproc_for_markdown: Callable[[str], str] = (
+    preproc_markdown_factory(settings.major)
+)
 
 
 # Callback for Gradio to call when a chat message is sent.
 # TODO: prepare a factory for the chat function, as fn and fn_checked
-# are essentially the same.
+# are essentially the same, and reused in app modules
 async def fn(
     querytext: str, history: list[dict[str, str]], request: gr.Request
 ) -> AsyncGenerator[str, None]:
@@ -301,7 +186,7 @@ async def fn(
         # Non-blocking logging hook - fires after streaming completes
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
-        logtask: asyncio.Task[None] = asyncio.create_task(
+        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
             async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
@@ -373,7 +258,7 @@ async def fn_checked(
         # Non-blocking logging hook - fires after streaming completes
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
-        logtask: asyncio.Task[None] = asyncio.create_task(
+        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
             async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
@@ -408,7 +293,7 @@ async def vote(data: gr.LikeData, request: gr.Request):
     record_id = generate_random_string(8)
     reaction = "approved" if data.liked else "disapproved"
 
-    task: asyncio.Task[None] = asyncio.create_task(
+    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
         async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
@@ -435,7 +320,7 @@ async def postcomment(comment: object, request: gr.Request):
     """
     record_id = generate_random_string(8)
 
-    task: asyncio.Task[None] = asyncio.create_task(
+    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
         async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
@@ -454,16 +339,12 @@ async def postcomment(comment: object, request: gr.Request):
 
 # create the app
 # latex delimeters for gradio.
-ldelims: list[dict[str, str | bool]] = (
-    []
-    if _get_latex_style() == "raw"
-    else [
-        {"left": "$$", "right": "$$", "display": True},
-        {"left": "$", "right": "$", "display": False},
-        {"left": r"\[", "right": r"\]", "display": True},
-        {"left": r"\(", "right": r"\)", "display": False},
-    ]
-)
+ldelims: list[dict[str, str | bool]] = [
+    {"left": "$$", "right": "$$", "display": True},
+    {"left": "$", "right": "$", "display": False},
+    {"left": r"\[", "right": r"\]", "display": True},
+    {"left": r"\(", "right": r"\)", "display": False},
+]
 
 with gr.Blocks() as app:
     gr.Markdown("# " + title)

@@ -11,6 +11,7 @@ import os
 import time
 import json
 from typing import TypedDict, NamedTuple
+from collections.abc import Callable
 
 import gradio as gr
 
@@ -25,6 +26,7 @@ logger = FileConsoleLogger(
 )
 
 # settings.
+from lmm_education.apputils import async_log_factory, AsyncLogfuncType
 from lmm_education.config.config import (
     ConfigSettings,
     load_settings,
@@ -511,7 +513,6 @@ def _toggle_autoplay(
 # from the same database. Hence, we need to copy all relevant
 # functions instead of importing them.
 
-from typing import Literal
 from datetime import datetime
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -522,6 +523,35 @@ from lmm_education.query import (
     chat_function,
     chat_function_with_validation,
 )
+
+# logs
+from lmm.utils.logging import FileConsoleLogger # fmt: skip
+logger = FileConsoleLogger(
+    "LM Markdown for Education",
+    "appChat.log",
+    console_level=logging.INFO,
+    file_level=logging.ERROR,
+)
+DATABASE_FILE = "messages.csv"
+CONTEXT_DATABASE_FILE = "queries.csv"
+
+# Initialize CSV database files with headers if they don't exist
+if not os.path.exists(DATABASE_FILE):
+    with open(DATABASE_FILE, "w", encoding='utf-8') as f:
+        f.write(
+            "record_id,client_host,session_hash,timestamp,history_length,model_name,interaction_type,query,response\n"
+        )
+
+if not os.path.exists(CONTEXT_DATABASE_FILE):
+    with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
+        f.write("record_id,evaluation,context,classification\n")
+
+# Set up a global container of active tasks (used by logging)
+active_logs: set[asyncio.Task[None]] = set()
+async_log: AsyncLogfuncType = async_log_factory(
+    DATABASE_FILE, CONTEXT_DATABASE_FILE, logger
+)
+
 
 # Create chat engine.
 from langchain_core.prompts import PromptTemplate # fmt: skip
@@ -576,7 +606,7 @@ async def fn(
         # Non-blocking logging hook - fires after streaming completes
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
-        asyncio.create_task(
+        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
             async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
@@ -589,6 +619,8 @@ async def fn(
                 model_name=model_name,
             )
         )
+        active_logs.add(logtask)
+        logtask.add_done_callback(active_logs.discard)
 
     except Exception as e:
         logger.error(
@@ -646,7 +678,7 @@ async def fn_checked(
         # Non-blocking logging hook - fires after streaming completes
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
-        asyncio.create_task(
+        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
             async_log(
                 record_id=record_id,
                 client_host=request.client.host,  # type: ignore
@@ -659,6 +691,8 @@ async def fn_checked(
                 model_name=model_name,
             )
         )
+        active_logs.add(logtask)
+        logtask.add_done_callback(active_logs.discard)
 
     except Exception as e:
         logger.error(
@@ -672,118 +706,13 @@ async def fn_checked(
     return
 
 
-# imports to avoid instantiating retriever.
-LatexStyle = Literal["dollar", "backslash", "default", "raw"]
+# centralize used latex style, perhaps depending
+# on model.
+from lmm_education.apputils import preproc_markdown_factory
 
-
-def _get_latex_style() -> LatexStyle:
-    # centralize used latex style, perhaps depending
-    # on model. Now we just use the one in tendency in
-    # OpenAI, Mistral.
-    if settings.major.get_model_source() == "Mistral":  # type: ignore
-        return "dollar"
-
-    return "backslash"
-
-
-def _preproc_for_markdown(response: str) -> str:
-    # This function allows centrailizing preprocessing
-    # of strings using a latex style.
-    from lmm.markdown.ioutils import (
-        convert_dollar_latex_delimiters,
-        convert_backslash_latex_delimiters,
-    )
-
-    match _get_latex_style():
-        case "backslash":
-            return convert_dollar_latex_delimiters(response)
-        case "dollar":
-            return convert_backslash_latex_delimiters(response)
-        case _:
-            return response
-
-
-async def async_log(
-    record_id: str,
-    client_host: str,
-    session_hash: str,
-    timestamp: datetime,
-    interaction_type: str,
-    history: list[dict[str, str]],
-    query: str = "",
-    response: str = "",
-    model_name: str = "",
-) -> None:
-    """
-    Unified non-blocking logging function for all interaction types.
-    Logs to CSV files without blocking the main async flow.
-
-    Args:
-        record_id: Unique identifier for this record
-        client_host: Client IP address
-        session_hash: Session identifier
-        timestamp: Timestamp of the interaction
-        interaction_type: Type of interaction ("MESSAGE", "USER REACTION", "USER COMMENT")
-        query: Query text (or action for reactions, comment for comments)
-        response: Response text (empty for reactions and comments)
-        history: conversation history (empty for reactions and comments)
-        model_name: Name of the model used (empty for reactions and comments)
-    """
-    pass
-    # try:
-    #     context: list[str] = [
-    #         b['content'] for b in history if b['role'] == "context"
-    #     ]
-    #     message: list[str] = [
-    #         b['content'] for b in history if b['role'] == "message"
-    #     ]
-    #     rejection: list[str] = [
-    #         b['content'] for b in history if b['role'] == "rejection"
-    #     ]
-
-    #     # Log main interaction to messages.csv
-    #     if message:
-    #         interaction_type = message[0]
-    #     if rejection:
-    #         interaction_type = "REJECTION"
-    #         response = rejection[0]
-    #     with open(DATABASE_FILE, "a", encoding='utf-8') as f:
-    #         f.write(
-    #             f'{record_id},{client_host},{session_hash},'
-    #             f'{timestamp},{len(history)},'
-    #             f'{model_name},{interaction_type},"{_fmat(query)}","{_fmat(response)}"\n'
-    #         )
-
-    #     # Log context if available (from context role in history). We also
-    #     # record relevance of context for further monitoring.
-    #     if context:
-    #         # we evaluate consistency of context prior to saving
-    #         try:
-    #             lmm_validator: RunnableType = create_runnable(
-    #                 'context_validator'  # this will be a dict lookup
-    #             )
-    #             validation: str = await lmm_validator.ainvoke(
-    #                 {
-    #                     'query': f"{query}. {response}",
-    #                     'context': context[0],
-    #                 }
-    #             )
-    #             validation = validation.upper()
-    #         except Exception as e:
-    #             logger.error(
-    #                 f'Could not connect to aux model to validate context: {e}'
-    #             )
-    #             validation = "<failed>"
-
-    #         with open(
-    #             CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
-    #         ) as f:
-    #             f.write(
-    #                 f'{record_id},{validation},"{_fmat(context[0])}"\n'
-    #             )
-
-    # except Exception as e:
-    #     logger.error(f"Async logging failed: {e}")
+_preproc_for_markdown: Callable[[str], str] = (
+    preproc_markdown_factory(settings.major)
+)
 
 
 async def vote(data: gr.LikeData, request: gr.Request):
@@ -793,7 +722,7 @@ async def vote(data: gr.LikeData, request: gr.Request):
     record_id = generate_random_string(8)
     reaction = "approved" if data.liked else "disapproved"
 
-    asyncio.create_task(
+    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (confused)
         async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
@@ -806,6 +735,8 @@ async def vote(data: gr.LikeData, request: gr.Request):
             model_name="",
         )
     )
+    active_logs.add(task)
+    task.add_done_callback(active_logs.discard)
 
 
 async def postcomment(comment: object, request: gr.Request):
@@ -814,7 +745,7 @@ async def postcomment(comment: object, request: gr.Request):
     """
     record_id = generate_random_string(8)
 
-    asyncio.create_task(
+    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
         async_log(
             record_id=record_id,
             client_host=request.client.host,  # type: ignore
@@ -827,6 +758,8 @@ async def postcomment(comment: object, request: gr.Request):
             model_name="",
         )
     )
+    active_logs.add(task)
+    task.add_done_callback(active_logs.discard)
 
 
 ldelims: list[dict[str, str | bool]] = [
@@ -1092,5 +1025,19 @@ if __name__ == "__main__":
             server_name='85.124.80.91',  # probably not necessary
             server_port=chat_settings.server.port,
             show_api=False,
+            # decomment to create login
             # auth=('accesstoken', 'hackerbrücke'),
         )
+
+    # cleanup
+    async def shutdown() -> None:
+        if active_logs:
+            results = await asyncio.gather(
+                *active_logs, return_exceptions=True
+            )
+            # This only uncaught exceptions, i.e. in postcomment etc.
+            for result in results:
+                if isinstance(result, Exception):
+                    print(f"Feeback logging failed: {result}")
+
+    asyncio.run(shutdown())
