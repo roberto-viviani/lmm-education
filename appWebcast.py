@@ -567,6 +567,8 @@ llm: BaseChatModel = create_model_from_settings(settings.major)
 
 
 # Callback for Gradio to call when a chat message is sent.
+# TODO: prepare a factory for the chat function, as fn and fn_checked
+# are essentially the same, and reused in app modules
 async def fn(
     querytext: str, history: list[dict[str, str]], request: gr.Request
 ) -> AsyncGenerator[str, None]:
@@ -806,6 +808,7 @@ with gr.Blocks() as videocast:
     )
 
     # Progress indicator - hidden initially
+    # TODO: fix total video number
     progress_info = gr.Markdown(
         "🔄 **Video 1** (1 of 7)",
         visible=False,
