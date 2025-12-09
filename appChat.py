@@ -395,15 +395,29 @@ if __name__ == "__main__":
             auth=('accesstoken', 'hackerbrücke'),
         )
 
-    # cleanup
+    # cleanup. Here, the concern is spawned tasks that were not awaited.
     async def shutdown() -> None:
         if active_logs:
             results = await asyncio.gather(
                 *active_logs, return_exceptions=True
             )
-            # This only uncaught exceptions, i.e. in postcomment etc.
+            # The only exceptions here are those raised by logging itself,
+            # because the coroutines are written to handle all exceptions
+            # and write them to the log.
             for result in results:
                 if isinstance(result, Exception):
-                    print(f"Feeback logging failed: {result}")
+                    print(f"Logging failed: {result}")
 
+    # If a loop is running, we cannot just create a task and exit,
+    # because the script might finish before the task runs.
+    # We must use nest_asyncio to allow re-entrant blocking wait.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import nest_asyncio
+        nest_asyncio.apply(loop)
+    
     asyncio.run(shutdown())
