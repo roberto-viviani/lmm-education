@@ -519,10 +519,6 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from langchain_core.messages import BaseMessageChunk
 from langchain_core.language_models import BaseChatModel
 from lmm.utils.hash import generate_random_string
-from lmm_education.query import (
-    chat_function,
-    chat_function_with_validation,
-)
 
 # logs
 from lmm.utils.logging import FileConsoleLogger # fmt: skip
@@ -565,11 +561,40 @@ from lmm.language_models.langchain.models import (
 
 llm: BaseChatModel = create_model_from_settings(settings.major)
 
+from lmm_education.query import (
+    chat_function,
+    chat_function_with_validation,
+)
+
+# Chat functions to use in gradio callback
+from lmm_education.query import (
+    chat_function,
+    chat_function_with_validation,
+)
+from typing import Any
+from collections.abc import Coroutine
+
+AsyncChatfuncType = Callable[
+    ..., Coroutine[Any, Any, AsyncIterator[BaseMessageChunk]]
+]
+_chat_function: AsyncChatfuncType
+
+if chat_settings.check_response.check_response:
+    _chat_function = chat_function_with_validation
+else:
+    _chat_function = chat_function
+
+# centralize used latex style, perhaps depending
+# on model.
+from lmm_education.apputils import preproc_markdown_factory
+
+_preproc_for_markdown: Callable[[str], str] = (
+    preproc_markdown_factory(settings.major)
+)
+
 
 # Callback for Gradio to call when a chat message is sent.
-# TODO: prepare a factory for the chat function, as fn and fn_checked
-# are essentially the same, and reused in app modules
-async def fn(
+async def gradio_callback_fn(
     querytext: str, history: list[dict[str, str]], request: gr.Request
 ) -> AsyncGenerator[str, None]:
     """
@@ -579,7 +604,7 @@ async def fn(
     request is a wrapper around FastAPI information, used to write a
     session ID in the logs. Note we collect IP address.
 
-    This version streams the content of the response using the refactored
+    The content of the response is streamed using the appropriate
     chat_function from lmm_education.query.
     """
 
@@ -589,7 +614,7 @@ async def fn(
         raise ValueError("Unreachable code reached")
     try:
         response_iter: AsyncIterator[BaseMessageChunk] = (
-            await chat_function(
+            await _chat_function(
                 querytext=querytext,
                 history=history,
                 retriever=retriever,
@@ -634,87 +659,6 @@ async def fn(
         return
 
     return
-
-
-async def fn_checked(
-    querytext: str, history: list[dict[str, str]], request: gr.Request
-) -> AsyncGenerator[str, None]:
-    """
-    This function is called by the gradio framework each time the
-    user posts a new message in the chatbot. The user message is the
-    querytext, the history the list of previous exchanges.
-    request is a wrapper around FastAPI information, used to write a
-    session ID in the logs. Note we collect IP address.
-
-    This version checks the content of the stream before releasing it
-    using the refactored chat_function_with_validation from lmm_education.query.
-    """
-
-    # Get validated iterator from refactored chat_function_with_validation
-    buffer: str = ""
-    if chat_settings is None:
-        raise ValueError("Unreachable code reached")
-    try:
-        if settings is None:  # for the type checker
-            raise ValueError("Unreacheable code reached.")
-        response_iter: AsyncIterator[BaseMessageChunk] = (
-            await chat_function_with_validation(
-                querytext=querytext,
-                history=history,
-                retriever=retriever,
-                llm=llm,
-                chat_settings=chat_settings,
-                system_msg=chat_settings.SYSTEM_MESSAGE,
-                allowed_content=settings.check_response.allowed_content,
-                initial_buffer_size=settings.check_response.initial_buffer_size,
-                max_retries=2,
-                logger=logger,
-            )
-        )
-
-        # Stream and yield for Gradio
-        async for item in response_iter:
-            buffer += _preproc_for_markdown(item.text())
-            yield buffer
-
-        # Non-blocking logging hook - fires after streaming completes
-        record_id: str = generate_random_string(8)
-        model_name: str = settings.major.get_model_name()  # type: ignore
-        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
-            async_log(
-                record_id=record_id,
-                client_host=request.client.host,  # type: ignore
-                session_hash=request.session_hash or 'unknown',
-                timestamp=datetime.now(),
-                interaction_type="MESSAGE",
-                history=history,
-                query=querytext,
-                response=buffer,
-                model_name=model_name,
-            )
-        )
-        active_logs.add(logtask)
-        logtask.add_done_callback(active_logs.discard)
-
-    except Exception as e:
-        logger.error(
-            f"{request.client.host}: "  # type: ignore (dynamic properties)
-            f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
-        )
-        buffer = str(e)
-        yield chat_settings.MSG_ERROR_QUERY
-        return
-
-    return
-
-
-# centralize used latex style, perhaps depending
-# on model.
-from lmm_education.apputils import preproc_markdown_factory
-
-_preproc_for_markdown: Callable[[str], str] = (
-    preproc_markdown_factory(settings.major)
-)
 
 
 async def vote(data: gr.LikeData, request: gr.Request):
@@ -860,11 +804,7 @@ with gr.Blocks() as videocast:
             )
             chat.like(vote, None, None)
             gr.ChatInterface(
-                (
-                    fn_checked
-                    if settings.check_response.check_response
-                    else fn
-                ),
+                gradio_callback_fn,
                 type="messages",
                 theme="default",
                 api_name=False,

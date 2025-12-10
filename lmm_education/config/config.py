@@ -258,34 +258,6 @@ class RAGSettings(BaseModel):
         )
 
 
-class CheckResponse(BaseModel):
-    """
-    Settings to check appropriateness of chat.
-    """
-
-    check_response: bool = Field(default=False)
-    allowed_content: list[str] = Field(default=[])
-    initial_buffer_size: int = Field(
-        default=320,
-        ge=120,
-        le=12000,
-        description="buffer size to send to model to check content",
-    )
-
-    @model_validator(mode='after')
-    def validate_allowed_content(self) -> Self:
-        """Validate that allowed_content is not empty when check_response is True."""
-        if self.check_response and not self.allowed_content:
-            raise ValueError(
-                "allowed_content must not be empty when check_response is True"
-            )
-        if "general knowledge" in self.allowed_content:
-            raise ValueError(
-                "'general knowledge' cannot be included in allowed content"
-            )
-        return self
-
-
 # By inheriting from LMMSettings, we add the functionality to read
 # these specifications from a config file.
 class ConfigSettings(LMMSettings):
@@ -327,12 +299,6 @@ class ConfigSettings(LMMSettings):
     RAG: RAGSettings = Field(
         default_factory=RAGSettings,
         description="RAG settings",
-    )
-
-    # thematic control of interaction
-    check_response: CheckResponse = Field(
-        default_factory=CheckResponse,
-        description="Check thematic appropriateness of chat",
     )
 
     textSplitter: TextSplitters = Field(

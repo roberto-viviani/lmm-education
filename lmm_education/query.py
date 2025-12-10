@@ -230,7 +230,6 @@ async def chat_function_with_validation(
     retriever: BaseRetriever | None = None,
     *,
     llm: BaseChatModel,
-    allowed_content: list[str],
     chat_settings: ChatSettings,
     system_msg: str = "You are a helpful assistant",
     context_print: bool = False,
@@ -280,6 +279,11 @@ async def chat_function_with_validation(
     # Perform basic validation checks before calling chat_function
     # This ensures error iterators are returned directly without wrapping
     MAX_QUERY_LENGTH: int = chat_settings.max_query_word_count
+
+    # The allowed content is read from chat settings
+    allowed_content: list[str] = (
+        chat_settings.check_response.allowed_content
+    )
 
     # Check for empty query
     if not querytext:
@@ -501,9 +505,7 @@ def query(
             return ""
 
     if validate_content and not allowed_content:
-        allowed_content = (
-            config_settings.check_response.allowed_content
-        )
+        allowed_content = chat_settings.check_response.allowed_content
         if not allowed_content:
             logger.error(
                 "A request to validate content was made, but there is"
@@ -533,7 +535,6 @@ def query(
                     retriever=retriever,
                     llm=llm,
                     chat_settings=chat_settings,
-                    allowed_content=allowed_content,
                     context_print=context_print,
                     logger=logger,
                 )
