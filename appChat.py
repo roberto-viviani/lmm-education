@@ -417,7 +417,8 @@ if __name__ == "__main__":
         loop = None
 
     if loop and loop.is_running():
-        import nest_asyncio
-        nest_asyncio.apply(loop)
-    
+        import nest_asyncio  # type: ignore[reportMissingTypeStubs]
+
+        nest_asyncio.apply(loop)  # type: ignore
+
     asyncio.run(shutdown())
