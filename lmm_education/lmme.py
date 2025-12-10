@@ -2,6 +2,7 @@
 
 from qdrant_client import QdrantClient
 import typer
+import sys
 
 from pydantic import ValidationError
 
@@ -287,13 +288,16 @@ def ingest(
 
     # this is a workaround for the qdrant bug when clients
     # are closed during garbage collection. We close all
-    # clients explicitly prior to exiting, as this routine
+    # clients explicitly prior to exiting when this routine
     # is called from the CLI, i.e. here Python is exiting.
-    from lmm_education.stores.vector_store_qdrant_context import (
-        qdrant_clients,
-    )
+    if hasattr(sys, 'ps1'):
+        return
+    else:
+        from lmm_education.stores.vector_store_qdrant_context import (
+            qdrant_clients,
+        )
 
-    qdrant_clients.clear()
+        qdrant_clients.clear()
 
 
 @app.command()
@@ -332,6 +336,18 @@ def ingest_folder(
         logger.error(str(e))
         raise typer.Exit(1)
 
+    # this is a workaround for the qdrant bug when clients
+    # are closed during garbage collection. We close all
+    # clients explicitly prior to exiting when this routine
+    # is called from the CLI, i.e. here Python is exiting.
+    if hasattr(sys, 'ps1'):
+        return
+    else:
+        from lmm_education.stores.vector_store_qdrant_context import (
+            qdrant_clients,
+        )
+
+        qdrant_clients.clear()
 
 @app.command()
 def querydb(
@@ -353,6 +369,19 @@ def querydb(
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
+
+    # this is a workaround for the qdrant bug when clients
+    # are closed during garbage collection. We close all
+    # clients explicitly prior to exiting when this routine
+    # is called from the CLI, i.e. here Python is exiting.
+    if hasattr(sys, 'ps1'):
+        return
+    else:
+        from lmm_education.stores.vector_store_qdrant_context import (
+            qdrant_clients,
+        )
+
+        qdrant_clients.clear()
 
 
 @app.command()
@@ -486,6 +515,18 @@ def query(
         logger.error(str(e))
         raise typer.Exit(1)
 
+    # this is a workaround for the qdrant bug when clients
+    # are closed during garbage collection. We close all
+    # clients explicitly prior to exiting when this routine
+    # is called from the CLI, i.e. here Python is exiting.
+    if hasattr(sys, 'ps1'):
+        return
+    else:
+        from lmm_education.stores.vector_store_qdrant_context import (
+            qdrant_clients,
+        )
+
+        qdrant_clients.clear()
 
 @app.command()
 def property_values(
@@ -501,14 +542,14 @@ def property_values(
     from lmm_education.stores.vector_store_qdrant_utils import (
         list_property_values,
     )
-    from lmm_education.stores.vector_store_qdrant import (
-        client_from_config,
+    from lmm_education.stores.vector_store_qdrant_context import (
+        global_client_from_config,
     )
     from lmm_education.config.config import ConfigSettings
 
+    settings = ConfigSettings()
     if collection is None:
         try:
-            settings = ConfigSettings()
             if settings.database.companion_collection:
                 collection = settings.database.companion_collection
             else:
@@ -517,16 +558,30 @@ def property_values(
             logger.error(f"Could not load settings: {e}")
             raise typer.Exit(1)
 
-    client: QdrantClient | None = client_from_config(logger=logger)
-    if client is None:
+    client: QdrantClient
+    try:
+        client = global_client_from_config(settings.storage)
+    except Exception as e:
+        logger.error(f"Could not load database: {e}")
         raise typer.Exit(1)
     values: list[tuple[str, int]] = list_property_values(
         client, property, collection, logger=logger
     )
-    client.close()
     for item in values:
         print(f"{item[0]}\t{item[1]}")
 
+    # this is a workaround for the qdrant bug when clients
+    # are closed during garbage collection. We close all
+    # clients explicitly prior to exiting when this routine
+    # is called from the CLI, i.e. here Python is exiting.
+    if hasattr(sys, 'ps1'):
+        return
+    else:
+        from lmm_education.stores.vector_store_qdrant_context import (
+            qdrant_clients,
+        )
+
+        qdrant_clients.clear()
 
 @app.command()
 def database_info() -> None:
@@ -548,7 +603,6 @@ def database_info() -> None:
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
-
 
 @app.command()
 def config_info() -> None:
