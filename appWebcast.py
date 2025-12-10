@@ -1032,11 +1032,13 @@ if __name__ == "__main__":
             # auth=('accesstoken', 'hackerbrücke'),
         )
 
-    # cleanup. Here, the concern is spawned tasks that were not awaited.
+    # cleanup - await any spawned tasks that weren't awaited
     async def shutdown() -> None:
         if active_logs:
+            # Create snapshot to avoid set modification during iteration
+            tasks = list(active_logs)
             results = await asyncio.gather(
-                *active_logs, return_exceptions=True
+                *tasks, return_exceptions=True
             )
             # The only exceptions here are those raised by logging itself,
             # because the coroutines are written to handle all exceptions
@@ -1045,17 +1047,18 @@ if __name__ == "__main__":
                 if isinstance(result, Exception):
                     print(f"Logging failed: {result}")
 
-    # If a loop is running, we cannot just create a task and exit,
-    # because the script might finish before the task runs.
-    # We must use nest_asyncio to allow re-entrant blocking wait.
+    # Check if there's a running loop
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
+        # No running loop - just use asyncio.run()
+        asyncio.run(shutdown())
+    else:
+        # Loop is running - use it directly
+        if loop.is_running():
+            import nest_asyncio  # type: ignore[reportMissingTypeStubs]
 
-    if loop and loop.is_running():
-        import nest_asyncio  # type: ignore[reportMissingTypeStubs]
-
-        nest_asyncio.apply(loop)  # type: ignore
-
-    asyncio.run(shutdown())
+            nest_asyncio.apply()  # type: ignore
+            loop.run_until_complete(shutdown())
+        else:
+            asyncio.run(shutdown())
