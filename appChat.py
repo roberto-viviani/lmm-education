@@ -332,33 +332,21 @@ if __name__ == "__main__":
             auth=('accesstoken', 'hackerbrücke'),
         )
 
-    # cleanup - await any spawned tasks that weren't awaited
-    async def shutdown() -> None:
-        if active_logs:
-            # Create snapshot to avoid set modification during iteration
-            tasks = list(active_logs)
-            results = await asyncio.gather(
-                *tasks, return_exceptions=True
-            )
-            # The only exceptions here are those raised by logging itself,
-            # because the coroutines are written to handle all exceptions
-            # and write them to the log.
-            for result in results:
-                if isinstance(result, Exception):
-                    print(f"Logging failed: {result}")
+    # cleanup - asyncio diagnostics after Gradio closes
+    from lmm_education.apputils import shutdown
 
     # Check if there's a running loop
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         # No running loop - just use asyncio.run()
-        asyncio.run(shutdown())
+        asyncio.run(shutdown(active_logs))
     else:
         # Loop is running - use it directly
         if loop.is_running():
             import nest_asyncio  # type: ignore[reportMissingTypeStubs]
 
             nest_asyncio.apply()  # type: ignore
-            loop.run_until_complete(shutdown())
+            loop.run_until_complete(shutdown(active_logs))
         else:
-            asyncio.run(shutdown())
+            asyncio.run(shutdown(active_logs))
