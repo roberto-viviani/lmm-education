@@ -7,7 +7,7 @@ from lmm.scan.scan_rag import (
     ScanOpts,
 )
 from lmm.utils.logging import ConsoleLogger, LoggerBase
-from .config.config import ConfigSettings
+from .config.config import ConfigSettings, load_settings
 
 logger = ConsoleLogger()
 
@@ -18,9 +18,13 @@ def markdown_rag(
     config: ConfigSettings | None = None,
     logger: LoggerBase = logger,
 ) -> None:
+    """Call scan_markdown_rag with default config settings."""
 
     if config is None:
-        config = ConfigSettings()
+        config = load_settings(logger=logger)
+    if config is None:
+        logger.error("Could not load settings.")
+        return
 
     scan_markdown_rag(
         sourcefile,
@@ -33,5 +37,20 @@ def markdown_rag(
             language_model_settings=config.major,
         ),
         save=True,
+        logger=logger,
+    )
+
+
+async def amarkdown_rag(
+    sourcefile: str | Path,
+    *,
+    config: ConfigSettings | None = None,
+    logger: LoggerBase = logger,
+) -> None:
+    """Call scan_markdown_rag with default config settings."""
+
+    return markdown_rag(
+        sourcefile=sourcefile,
+        config=config,
         logger=logger,
     )
