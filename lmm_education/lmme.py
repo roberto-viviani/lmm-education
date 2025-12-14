@@ -349,6 +349,7 @@ def ingest_folder(
 
         qdrant_clients.clear()
 
+
 @app.command()
 def querydb(
     query_text: str = typer.Argument(..., help="Query text"),
@@ -427,7 +428,7 @@ def query(
     """
     Carries out a RAG query with the language model.
     """
-    from lmm_education.query import query
+    from lmm_education.query import query_sync
     from lmm_education.config.config import ConfigSettings
     from lmm_education.config.appchat import ChatSettings
     from lmm.config.config import LanguageModelSettings
@@ -500,17 +501,16 @@ def query(
         raise typer.Exit(1)
 
     try:
-        # when console_print is true, query will stream the output
-        # to the console itself.
-        query(
+        for text in query_sync(
             query_text,
             model_settings=model_settings,
             chat_settings=chat_settings,
-            console_print=True,
             validate_content=validate_content,
             context_print=print_context,
             logger=logger,
-        )
+        ):
+            print(text, end="", flush=True)
+        print()
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
@@ -527,6 +527,7 @@ def query(
         )
 
         qdrant_clients.clear()
+
 
 @app.command()
 def property_values(
@@ -583,6 +584,7 @@ def property_values(
 
         qdrant_clients.clear()
 
+
 @app.command()
 def database_info() -> None:
     """
@@ -603,6 +605,7 @@ def database_info() -> None:
     except Exception as e:
         logger.error(str(e))
         raise typer.Exit(1)
+
 
 @app.command()
 def config_info() -> None:

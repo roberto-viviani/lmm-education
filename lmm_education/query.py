@@ -36,11 +36,10 @@ python -m lmm_education.query 'what is logistic regression?'
 
 import asyncio
 from lmm.language_models.langchain.runnables import RunnableType
-from pydantic import validate_call
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 # Langchain
-from langchain_core.messages import BaseMessageChunk
+from langchain_core.messages import BaseMessageChunk, AIMessageChunk
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -76,7 +75,6 @@ async def _error_message_iterator(
     Creates an async iterator that yields a single error message as a BaseMessageChunk.
     This allows error messages to be returned in the same format as LLM responses.
     """
-    from langchain_core.messages import AIMessageChunk
 
     yield AIMessageChunk(content=message)
 
@@ -457,28 +455,96 @@ async def consume_chat_stream(
     return buffer
 
 
-@validate_call(config={'arbitrary_types_allowed': True})
-def query(
+def query_sync(
     querystr: str,
-    model_settings: LanguageModelSettings | str | None = None,
     *,
+    model_settings: LanguageModelSettings | str | None = None,
     chat_settings: ChatSettings | None = None,
-    console_print: bool = False,
     context_print: bool = False,
     validate_content: bool = False,
     allowed_content: list[str] = [],
     logger: LoggerBase = ConsoleLogger(),
-) -> str:
+) -> Iterator[str]:
+    """
+    Synchronous generator that yields text strings from the query() async function.
 
-    if not querystr:
-        return ""
+    This is a convenience wrapper that allows synchronous code to consume
+    the streaming response from the language model. It creates an event loop
+    internally to bridge the async/sync boundary.
+
+    Args:
+        querystr: The query text to send to the language model
+        model_settings: Language model settings (or 'major', 'minor', 'aux')
+        chat_settings: Chat settings for the query
+        context_print: If True, print the RAG context to the logger
+        validate_content: If True, validate response content
+        allowed_content: List of allowed content types for validation
+        logger: Logger instance for error reporting
+
+    Yields:
+        str: Text chunks from the language model response
+
+    Example:
+        for text in query_sync("What is logistic regression?"):
+            print(text, end="", flush=True)
+        print()
+    """
+    from .asyncutils import async_gen_to_sync_iter
+
+    # Create the async generator object
+    async_gen = query(
+        querystr,
+        model_settings=model_settings,
+        chat_settings=chat_settings,
+        context_print=context_print,
+        validate_content=validate_content,
+        allowed_content=allowed_content,
+        logger=logger,
+    )
+
+    # Iterate synchronously and yield text from each chunk
+    for chunk in async_gen_to_sync_iter(async_gen):
+        yield chunk
+
+
+async def query(
+    querystr: str,
+    *,
+    model_settings: LanguageModelSettings | str | None = None,
+    chat_settings: ChatSettings | None = None,
+    context_print: bool = False,
+    validate_content: bool = False,
+    allowed_content: list[str] = [],
+    logger: LoggerBase = ConsoleLogger(),
+) -> AsyncIterator[str]:
+    """
+    Asynchronous generator that yields text strings from the query() async function.
+
+    Args:
+        querystr: The query text to send to the language model
+        model_settings: Language model settings (or 'major', 'minor', 'aux')
+        chat_settings: Chat settings for the query
+        context_print: If True, print the RAG context to the logger
+        validate_content: If True, validate response content
+        allowed_content: List of allowed content types for validation
+        logger: Logger instance for error reporting
+
+    Yields:
+        str: Text chunks from the language model response
+
+    Example:
+        async for text in query("What is logistic regression?"):
+            print(text, end="", flush=True)
+        print()
+    """
 
     config_settings: ConfigSettings | None = load_settings(
         logger=logger
     )
     if config_settings is None:
         logger.error("Could not load settings.")
-        return ""
+        await consume_chat_stream(_error_message_iterator(""))
+        return
     if model_settings is None:
         model_settings = config_settings.major
     elif isinstance(model_settings, str):
@@ -490,11 +556,13 @@ def query(
         elif model_settings == "aux":
             model_settings = config.aux
         else:
-            logger.error(
+            errmsg: str = (
                 f"Invalid language model settings: {model_settings}\nShould"
                 " be one of 'major', 'minor', 'aux'"
             )
-            return ""
+            logger.error(errmsg)
+            yield errmsg
+            return
 
     llm: BaseChatModel = create_model_from_settings(model_settings)
 
@@ -502,62 +570,51 @@ def query(
         chat_settings = load_chat_settings(logger=logger)
         if chat_settings is None:
             logger.error("Could not load chat settings")
-            return ""
+            return
 
     if validate_content and not allowed_content:
         allowed_content = chat_settings.check_response.allowed_content
         if not allowed_content:
-            logger.error(
+            errmsg = (
                 "A request to validate content was made, but there is"
                 " no allowed content value in the configuration file."
                 "\nAdd a list of allowed contents in the "
                 "[check_response] section of " + DEFAULT_CONFIG_FILE
             )
-            return ""
-
-    if len(querystr.split()) < 3:
-        print("Please enter a complete query.")
-        return ""
+            logger.error(errmsg)
+            yield errmsg
+            return
 
     try:
         retriever = AsyncQdrantRetriever.from_config_settings()
     except Exception as e:
         logger.error(f"Could not load retriever: {e}")
-        return ""
+        return
 
     # Get the iterator and consume it
-    async def run_query() -> str:
-        if validate_content:
-            iterator: AsyncIterator[BaseMessageChunk] = (
-                await chat_function_with_validation(
-                    querystr,
-                    [],
-                    retriever=retriever,
-                    llm=llm,
-                    chat_settings=chat_settings,
-                    context_print=context_print,
-                    logger=logger,
-                )
-            )
-        else:
-            iterator = await chat_function(
+    if validate_content:
+        iterator: AsyncIterator[BaseMessageChunk] = (
+            await chat_function_with_validation(
                 querystr,
                 [],
+                retriever=retriever,
                 llm=llm,
                 chat_settings=chat_settings,
                 context_print=context_print,
                 logger=logger,
             )
-        result: str = ""
-        async for chunk in iterator:
-            content: str = chunk.text()
-            if console_print:
-                print(content, end="", flush=True)
-            result += content
-        print()  # New line after completion
-        return result
-
-    return asyncio.run(run_query())
+        )
+    else:
+        iterator = await chat_function(
+            querystr,
+            [],
+            llm=llm,
+            chat_settings=chat_settings,
+            context_print=context_print,
+            logger=logger,
+        )
+    async for chunk in iterator:
+        yield chunk.text()
 
 
 if __name__ == "__main__":
@@ -566,11 +623,12 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 2:
         try:
-            query(
+            for text in query_sync(
                 sys.argv[1],
-                console_print=True,
                 validate_content=True,
-            )
+            ):
+                print(text, end="", flush=True)
+            print()  # New line at end
         except ConnectionError as e:
             print("Cannot form embeddings due a connection error")
             print(e)

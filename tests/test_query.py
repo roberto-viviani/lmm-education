@@ -199,6 +199,9 @@ class TestErrorMessageIterator(unittest.IsolatedAsyncioTestCase):
         print("✓ Passed\n")
 
 
+from lmm_education.config.appchat import CheckResponse
+
+
 class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
@@ -212,12 +215,17 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
     async def test_validation_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query with validation")
+        chat_settings = ChatSettings(
+            check_response=CheckResponse(
+                check_response=True,
+                allowed_content=['statistics'],
+            )
+        )
         iterator = await chat_function_with_validation(
             "",
             [],
-            chat_settings=ChatSettings(),
+            chat_settings=chat_settings,
             llm=self.llm,
-            allowed_content=["statistics"],
         )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
@@ -227,14 +235,19 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
     async def test_validation_long_query(self):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query with validation")
+
         logger: LoggerBase = LoglistLogger()
         long_query = " ".join(["word"] * 200)
+        chat_settings = ChatSettings(
+            check_response=CheckResponse(
+                check_response=True, allowed_content=['statistics']
+            )
+        )
         iterator = await chat_function_with_validation(
             long_query,
             [],
             llm=self.llm,
-            chat_settings=ChatSettings(),
-            allowed_content=["statistics"],
+            chat_settings=chat_settings,
             logger=logger,
         )
         if logger.count_logs(level=logging.WARNING) > 0:
@@ -249,13 +262,18 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         """Test a normal query with validation (if LLM is available)."""
         print("Test 3: Normal query with validation")
         try:
+            chat_settings = ChatSettings(
+                check_response=CheckResponse(
+                    check_response=True,
+                    allowed_content=['statistics'],
+                )
+            )
             iterator = await chat_function_with_validation(
                 "What is a linear model?",
                 [],
-                chat_settings=ChatSettings(),
+                chat_settings=chat_settings,
                 llm=self.llm,
                 initial_buffer_size=50,  # Use smaller buffer for testing
-                allowed_content=["statistics"],
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
