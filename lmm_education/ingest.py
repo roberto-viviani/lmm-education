@@ -150,6 +150,7 @@ from .stores.vector_store_qdrant import (
     ainitialize_collection_from_config,
     ainitialize_collection,
     upload,
+    aupload,
     chunks_to_points,
 )
 from .stores.vector_store_qdrant_context import (
@@ -502,18 +503,144 @@ async def amarkdown_upload(
     config_opts: ConfigSettings | None = None,
     save_files: bool | io.TextIOBase = False,
     ingest: bool = True,
-    client: QdrantClient | None = None,
+    client: AsyncQdrantClient | None = None,
     logger: LoggerBase = logger,
 ) -> list[tuple[str] | tuple[str, str]]:
-    """Async wrapper of markdown_upload_sync"""
-    return markdown_upload(
-        sources,
-        config_opts=config_opts,
-        save_files=save_files,
-        ingest=ingest,
-        client=client,
-        logger=logger,
-    )
+    """
+    Upload a list of markdown files in the vector database (async
+    version).
+
+    Args:
+        sources: a list of file names containing the markdown files
+        config_opts: a ConfigSettings object declaring the schema;
+            if None, will be read from config.toml
+        ingest: Whether to ingest documents into the vector database
+            (default: True)
+        save_files: Whether to save processed blocks to files for
+            human inspection (default: False)
+        client: if None (default) a QdrantClient will be initialized
+            from the config_opts spec.
+        logger: a logger object
+
+    Returns:
+        A list of strings, or string tuples, representing the
+            processed content.
+
+    Note:
+        This function makes use of the following other functions in
+        this same module:
+            initialize_client: to get a QdrantClient object
+                initialized to a database with the collections for
+                the ingestion
+            blocklist_encode: transforms markdown files into the chunks
+                that will be ingested, creating the annotations with
+                a language model if they are still missing
+            blocklist_upload: takes the chunks, forms the embeddings,
+                and loads the whole lot into the database.
+    """
+
+    if config_opts is None:
+        config_opts = load_settings(logger=logger)
+        if config_opts is None:
+            return []
+
+    if client is None:
+        client = await ainitialize_client(config_opts, logger)
+    if not client:
+        logger.error("Database could not be initialized.")
+        return []
+
+    if not bool(sources):
+        logger.warning("No documents for ingestion in the database.")
+        return []
+    if isinstance(sources, str):
+        sources = [sources]
+    error_sources: dict[str, list[ErrorBlock]] = {}
+    logger_level: int = logger.get_level()
+    for source in sources:
+        blocks: list[Block] = markdown_scan(
+            source, False, logger=logger
+        )
+        if not bool(blocks):
+            error_sources[str(source)] = [
+                ErrorBlock(
+                    content=f"Empty or nonexistent file: {source}"
+                )
+            ]
+        elif blocklist_haserrors(blocks):
+            error_sources[str(source)] = blocklist_errors(blocks)
+    if error_sources:
+        logger.error(
+            "Problems in markdowns, fix before continuing:\n\t"
+            + "\n\t".join(error_sources.keys())
+        )
+        return []
+    logger.set_level(logger_level)
+
+    ids: list[tuple[str] | tuple[str, str]] = []
+    for source in sources:
+        SAVE_FILE = False
+        blocks = markdown_scan(source, SAVE_FILE, logger=logger)
+        chunks, comp_chunks = blocklist_encode(
+            blocks, config_opts, logger
+        )
+        if not bool(chunks):
+            logger.warning(f"{source} could not be encoded.")
+            continue
+        # Ingestion.
+        idss: list[tuple[str] | tuple[str, str]] = (
+            await ablocklist_upload(
+                client,
+                chunks,
+                comp_chunks,
+                config_opts,
+                ingest=ingest,
+                logger=logger,
+            )
+        )
+        # Feedback and cumulate idss
+        if bool(idss):
+            if ingest:
+                storage_location: str = database_name(client)
+                logger.info(f"{source} added to {storage_location}.")
+            ids.extend(idss)
+        else:
+            logger.warning(f"{source} could not be ingested.")
+            continue
+
+        # this allows users to inspect the annotations that were
+        # used to encode the document
+        if bool(save_files) and bool(idss):
+            chunk_blocks: list[Block] = chunks_to_blocks(
+                chunks, '+++++'
+            )
+            comp_blocks: list[Block] = chunks_to_blocks(
+                comp_chunks, "....."
+            )
+            if isinstance(save_files, bool):
+                out_file: str = append_postfix_to_filename(
+                    str(source), "_chunks"
+                )
+                save_markdown(out_file, chunk_blocks, logger)
+                if bool(comp_blocks):
+                    out_file = append_postfix_to_filename(
+                        str(source), "_documents"
+                    )
+                    save_markdown(out_file, comp_blocks, logger)
+            else:  # it's a stream
+                from lmm.markdown.parse_markdown import TextBlock
+
+                if bool(comp_blocks):
+                    chunk_blocks.append(
+                        TextBlock(
+                            content="-----------------------------------------"
+                        )
+                    )
+                save_markdown(
+                    save_files, chunk_blocks + comp_blocks, logger
+                )
+
+    return ids
 
 
 # This is the function that does the actual processing of the
@@ -761,6 +888,107 @@ def blocklist_upload(
                 f"Ingesting companion collection ({len(companion_chunks)} chunks.)"
             )
             docpoints: list[PointStruct] = upload(
+                client,
+                collection_name=doc_coll,
+                qdrant_model=QdrantEmbeddingModel.UUID,
+                embedding_settings=opts.embeddings,
+                chunks=companion_chunks,
+                logger=logger,
+            )
+        else:
+            docpoints = chunks_to_points(
+                chunks, QdrantEmbeddingModel.UUID, opts.embeddings
+            )
+        if not bool(docpoints):
+            logger.error("Could not upload documents to " + doc_coll)
+            return []
+
+        return [
+            (
+                str(p.id),
+                (
+                    p.payload.get(GROUP_UUID_KEY, "")
+                    if p.payload
+                    else ""
+                ),
+            )
+            for p in points
+        ]
+
+    else:
+        return [(str(p.id),) for p in points]
+
+
+async def ablocklist_upload(
+    client: AsyncQdrantClient,
+    chunks: list[Chunk],
+    companion_chunks: list[Chunk],
+    opts: ConfigSettings,
+    *,
+    logger: LoggerBase,
+    ingest: bool = True,
+) -> list[tuple[str] | tuple[str, str]]:
+    """
+    Upload a list of preprocessed chunks (including document chunks)
+    to the database. Uses the encoding strategy specified in the
+    ConfigSettings object opts.
+
+    Args:
+        client: the QdrantClient
+        chunks: list of chunks to be uploaded
+        companion_chunks: list of chunks for the companion collection
+        opts: the ConfigSettings object
+        ingest: Whether to ingest documents into the vector database
+            (default: True)
+        logger: a logger object
+
+    Returns:
+        A list of tuples containing the id's of the ingested objects,
+        If document_collection is True, the second element of the
+        tuples contains the id's of pooled text documents. The first
+        element always contains the id of the chunk.
+    """
+
+    # ingestion of the chunks
+    dbOpts: DatabaseSettings = opts.database
+    model: QdrantEmbeddingModel = encoding_to_embedding_model(
+        opts.RAG.encoding_model
+    )
+
+    if ingest:
+        points: list[PointStruct] = await aupload(
+            client,
+            collection_name=dbOpts.collection_name,
+            qdrant_model=model,
+            embedding_settings=opts.embeddings,
+            chunks=chunks,
+            logger=logger,
+        )
+    else:
+        points = chunks_to_points(chunks, model, opts.embeddings)
+    if not bool(points):
+        logger.error("Could not upload documents")
+        return []
+    else:
+        if ingest:
+            logger.info(
+                f"Ingested {len(points)} chunks in main collection."
+            )
+
+    # ingestion of the document collection (if specified)
+    if bool(dbOpts.companion_collection):
+        if not (bool(companion_chunks)):
+            logger.error(
+                "Companion collection specified, but no "
+                + "document chunks generated."
+            )
+            return []
+        doc_coll: str = dbOpts.companion_collection
+        if ingest:
+            logger.info(
+                f"Ingesting companion collection ({len(companion_chunks)} chunks.)"
+            )
+            docpoints: list[PointStruct] = await aupload(
                 client,
                 collection_name=doc_coll,
                 qdrant_model=QdrantEmbeddingModel.UUID,

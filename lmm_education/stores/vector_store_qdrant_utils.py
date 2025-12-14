@@ -462,6 +462,8 @@ def database_info(
 
 async def adatabase_info(
     client: AsyncQdrantClient | None = None,
+    *,
+    logger: LoggerBase = default_logger,
 ) -> dict[str, object]:
     """
     Utility to extract information on the database. The utility looks
@@ -546,7 +548,8 @@ async def adatabase_info(
 
         return info
     except Exception as e:
-        return {'ERROR': str(e)}
+        logger.error(f"Could not read database: {e}")
+        return {}
     finally:
         if create_flag and client:
             await client.close()

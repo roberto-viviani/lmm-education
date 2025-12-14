@@ -52,6 +52,7 @@ from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
+from qdrant_client import AsyncQdrantClient
 
 # LM markdown for education
 from .config.config import load_settings
@@ -515,6 +516,7 @@ async def aquery(
     context_print: bool = False,
     validate_content: bool = False,
     allowed_content: list[str] = [],
+    client: AsyncQdrantClient | None = None,
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncIterator[str]:
     """
@@ -586,7 +588,9 @@ async def aquery(
             return
 
     try:
-        retriever = AsyncQdrantRetriever.from_config_settings()
+        retriever = AsyncQdrantRetriever.from_config_settings(
+            client=client
+        )
     except Exception as e:
         logger.error(f"Could not load retriever: {e}")
         return
