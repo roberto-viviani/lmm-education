@@ -455,7 +455,7 @@ async def consume_chat_stream(
     return buffer
 
 
-def query_sync(
+def query(
     querystr: str,
     *,
     model_settings: LanguageModelSettings | str | None = None,
@@ -492,7 +492,7 @@ def query_sync(
     from .asyncutils import async_gen_to_sync_iter
 
     # Create the async generator object
-    async_gen = query(
+    async_gen = aquery(
         querystr,
         model_settings=model_settings,
         chat_settings=chat_settings,
@@ -507,7 +507,7 @@ def query_sync(
         yield chunk
 
 
-async def query(
+async def aquery(
     querystr: str,
     *,
     model_settings: LanguageModelSettings | str | None = None,
@@ -623,7 +623,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 2:
         try:
-            for text in query_sync(
+            for text in query(
                 sys.argv[1],
                 validate_content=True,
             ):

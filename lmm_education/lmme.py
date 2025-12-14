@@ -428,7 +428,7 @@ def query(
     """
     Carries out a RAG query with the language model.
     """
-    from lmm_education.query import query_sync
+    from lmm_education.query import query
     from lmm_education.config.config import ConfigSettings
     from lmm_education.config.appchat import ChatSettings
     from lmm.config.config import LanguageModelSettings
@@ -501,7 +501,7 @@ def query(
         raise typer.Exit(1)
 
     try:
-        for text in query_sync(
+        for text in query(
             query_text,
             model_settings=model_settings,
             chat_settings=chat_settings,

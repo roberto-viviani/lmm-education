@@ -189,7 +189,7 @@ if not Path(DEFAULT_CONFIG_FILE).exists():
 # schema of the database. This function returns a QdrantClient object
 # that may be called directly in further code, if required.
 @validate_call(config={'arbitrary_types_allowed': True})
-def initialize_client(
+def initialize_client_sync(
     opts: ConfigSettings | None = None,
     logger: LoggerBase = logger,
 ) -> QdrantClient | None:
@@ -255,12 +255,20 @@ def initialize_client(
     return client
 
 
+async def initialize_client(
+    opts: ConfigSettings | None = None,
+    logger: LoggerBase = logger,
+) -> QdrantClient | None:
+    """Async wrappter of initialize_client_sync"""
+    return initialize_client_sync(opts, logger)
+
+
 # This is the function to be called to upload a list of markdown files
 # specified as a list of path names. It calls initialize_client on the
 # specified qdrant database, loads and parses the markdown files, and
 # passes them to the upload_blocks function for further processing.
 @validate_call(config={'arbitrary_types_allowed': True})
-def markdown_upload(
+def markdown_upload_sync(
     sources: list[str] | list[Path] | str,
     *,
     config_opts: ConfigSettings | None = None,
@@ -313,7 +321,7 @@ def markdown_upload(
     # corresponds to the encoding model applied to the documents. If
     # the database does not exist, it will be created.
     if client is None:
-        client = initialize_client(config_opts, logger)
+        client = initialize_client_sync(config_opts, logger)
     if not client:
         logger.error("Database could not be initialized.")
         return []
@@ -421,6 +429,26 @@ def markdown_upload(
                 )
 
     return ids
+
+
+async def markdown_upload(
+    sources: list[str] | list[Path] | str,
+    *,
+    config_opts: ConfigSettings | None = None,
+    save_files: bool | io.TextIOBase = False,
+    ingest: bool = True,
+    client: QdrantClient | None = None,
+    logger: LoggerBase = logger,
+) -> list[tuple[str] | tuple[str, str]]:
+    """Async wrapper of markdown_upload_sync"""
+    return markdown_upload_sync(
+        sources,
+        config_opts=config_opts,
+        save_files=save_files,
+        ingest=ingest,
+        client=client,
+        logger=logger,
+    )
 
 
 # This is the function that does the actual processing of the
