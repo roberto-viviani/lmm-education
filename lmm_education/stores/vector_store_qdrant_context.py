@@ -91,7 +91,6 @@ def _client_destructor(client: QdrantClient) -> None:
 
 def _async_client_destructor(client: AsyncQdrantClient) -> None:
     """Destructor: sync wrapper of async close coroutine"""
-    print("_async_client_destructor running")
     try:
         # these functions should run ok even if client closed
         source: str = database_name(client)
