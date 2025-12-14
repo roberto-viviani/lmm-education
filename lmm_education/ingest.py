@@ -64,6 +64,11 @@ python -m lmm_education.ingest MyMarkdown.md False True
 ```
 
 See also the lmme module for the CLI interface to ingestion.
+
+Note:
+    The implementation of these functions is promarily synchronous.
+    The main use is consistent with blocking until a whole ingestion
+    has been completed.
 """
 
 import io
@@ -142,11 +147,14 @@ from .stores.vector_store_qdrant import (
     encoding_to_qdrantembedding_model as encoding_to_embedding_model,
     initialize_collection_from_config,
     initialize_collection,
+    ainitialize_collection_from_config,
+    ainitialize_collection,
     upload,
     chunks_to_points,
 )
 from .stores.vector_store_qdrant_context import (
     global_client_from_config,
+    global_async_client_from_config,
 )
 from .stores.vector_store_qdrant_utils import database_name
 
@@ -158,7 +166,7 @@ from langchain_text_splitters import (
 
 
 # qdrant, vector database implementation
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, AsyncQdrantClient
 
 # We import from utils a logger to the console
 from lmm.utils import logger
@@ -189,7 +197,7 @@ if not Path(DEFAULT_CONFIG_FILE).exists():
 # schema of the database. This function returns a QdrantClient object
 # that may be called directly in further code, if required.
 @validate_call(config={'arbitrary_types_allowed': True})
-def initialize_client_sync(
+def initialize_client(
     opts: ConfigSettings | None = None,
     logger: LoggerBase = logger,
 ) -> QdrantClient | None:
@@ -255,12 +263,69 @@ def initialize_client_sync(
     return client
 
 
-async def initialize_client(
+async def ainitialize_client(
     opts: ConfigSettings | None = None,
     logger: LoggerBase = logger,
-) -> QdrantClient | None:
-    """Async wrappter of initialize_client_sync"""
-    return initialize_client_sync(opts, logger)
+) -> AsyncQdrantClient | None:
+    """
+    Initialize QDRANT database. Will open or create the specified
+    database and open or create the collection specified in opts,
+    a settings object that reads the specifications in the
+    configuration file.
+
+    Args:
+        opts: a ConfigurationSettings object. If None, an object will
+            be created from config.toml.
+        logger: a logger object. Defaults to a console logger.
+
+    Returns:
+        an async Qdrant client object
+    """
+    # Load and checks configuration settings.
+    if opts is None:
+        opts = load_settings(logger=logger)
+        if opts is None:
+            return None
+
+    dbOpts: DatabaseSettings = opts.database
+    collection_name: str = dbOpts.collection_name
+    if not collection_name:
+        return None
+    dbSource: DatabaseSource = opts.storage
+
+    # Obtain a QdrantClient object using the config file settings.
+    # We use the sync client here so we block during load
+    client: AsyncQdrantClient
+    try:
+        client = global_async_client_from_config(dbSource)
+    except Exception as e:
+        logger.error(f"Could not load database: {e}")
+        return None
+
+    # Initialize the database or check it for the presence of
+    # the collections used in LMM for education, as specified
+    # in the config file.
+    flag: bool = await ainitialize_collection_from_config(
+        client,
+        collection_name,
+        opts,
+        logger=logger,
+    )
+    if not flag:
+        return None
+
+    if bool(dbOpts.companion_collection):
+        flag = await ainitialize_collection(
+            client,
+            dbOpts.companion_collection,
+            QdrantEmbeddingModel.UUID,
+            opts.embeddings,
+            logger=logger,
+        )
+        if not flag:
+            return None
+
+    return client
 
 
 # This is the function to be called to upload a list of markdown files
@@ -268,7 +333,7 @@ async def initialize_client(
 # specified qdrant database, loads and parses the markdown files, and
 # passes them to the upload_blocks function for further processing.
 @validate_call(config={'arbitrary_types_allowed': True})
-def markdown_upload_sync(
+def markdown_upload(
     sources: list[str] | list[Path] | str,
     *,
     config_opts: ConfigSettings | None = None,
@@ -321,7 +386,7 @@ def markdown_upload_sync(
     # corresponds to the encoding model applied to the documents. If
     # the database does not exist, it will be created.
     if client is None:
-        client = initialize_client_sync(config_opts, logger)
+        client = initialize_client(config_opts, logger)
     if not client:
         logger.error("Database could not be initialized.")
         return []
@@ -431,7 +496,7 @@ def markdown_upload_sync(
     return ids
 
 
-async def markdown_upload(
+async def amarkdown_upload(
     sources: list[str] | list[Path] | str,
     *,
     config_opts: ConfigSettings | None = None,
@@ -441,7 +506,7 @@ async def markdown_upload(
     logger: LoggerBase = logger,
 ) -> list[tuple[str] | tuple[str, str]]:
     """Async wrapper of markdown_upload_sync"""
-    return markdown_upload_sync(
+    return markdown_upload(
         sources,
         config_opts=config_opts,
         save_files=save_files,
