@@ -42,7 +42,7 @@ database exclusively.
 
 from pydantic import validate_call
 
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, AsyncQdrantClient
 from qdrant_client.models import GroupsResult, ScoredPoint
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
@@ -52,12 +52,15 @@ from lmm_education.config.config import ConfigSettings
 from .stores.vector_store_qdrant import (
     query,
     query_grouped,
+    aquery,
+    aquery_grouped,
     encoding_to_qdrantembedding_model,
     groups_to_points,
     points_to_text,
 )
-from .stores.vector_store_qdrant import (
-    client_from_config,
+from .stores.vector_store_qdrant_context import (
+    global_client_from_config,
+    global_async_client_from_config,
 )
 from .config.config import load_settings
 
@@ -94,16 +97,12 @@ def querydb(
         logger.error("Could not read settings")
         return ""
 
-    # do not use the global client here, as it will raise an
-    # error at garbage collection. The downside is that the
-    # database is open with exclusive access.
-    create_flag: bool = False
     if client is None:
-        client = client_from_config(settings.storage, logger=logger)
-        if client is None:
-            logger.error("Failed to initialize qdrant client")
+        try:
+            client = global_client_from_config(settings.storage)
+        except Exception as e:
+            logger.error(f"Could not create client: {e}")
             return ""
-        create_flag = True
 
     points: list[ScoredPoint] = []
     if settings.database.companion_collection:
@@ -130,8 +129,76 @@ def querydb(
             query_text,
             logger=logger,
         )
-    if create_flag:
-        client.close()
+
+    if not points:
+        return "No results, please check connection/database."
+
+    return "\n-------\n".join(points_to_text(points))
+
+
+async def aquerydb(
+    query_text: str,
+    *,
+    client: AsyncQdrantClient | None = None,
+    logger: LoggerBase = ConsoleLogger(),
+) -> str:
+    """
+    Execute a query on the database using the settings in
+    config.toml.
+
+    Args:
+        query_text: a text to use as query.
+        client: a QdrantClient object
+        logger: a logger object. Defaults to the console.
+
+    Returns:
+        a string concatenating the results of the query.
+    """
+    if not query_text:
+        logger.info("No query text provided")
+        return ""
+
+    if len(query_text.split()) < 3:
+        logger.info("Invalid query? " + query_text)
+        return ""
+
+    settings: ConfigSettings | None = load_settings(logger=logger)
+    if not settings:
+        logger.error("Could not read settings")
+        return ""
+
+    if client is None:
+        try:
+            client = global_async_client_from_config(settings.storage)
+        except Exception as e:
+            logger.error(f"Could not create client: {e}")
+            return ""
+
+    points: list[ScoredPoint] = []
+    if settings.database.companion_collection:
+        results: GroupsResult = await aquery_grouped(
+            client,
+            settings.database.collection_name,
+            settings.database.companion_collection,
+            encoding_to_qdrantembedding_model(
+                settings.RAG.encoding_model
+            ),
+            settings.embeddings,
+            query_text,
+            logger=logger,
+        )
+        points = groups_to_points(results)
+    else:
+        points = await aquery(
+            client,
+            settings.database.collection_name,
+            encoding_to_qdrantembedding_model(
+                settings.RAG.encoding_model
+            ),
+            settings.embeddings,
+            query_text,
+            logger=logger,
+        )
 
     if not points:
         return "No results, please check connection/database."
