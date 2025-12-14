@@ -385,6 +385,8 @@ async def aget_schema(
 
 def database_info(
     client: QdrantClient | None = None,
+    *,
+    logger: LoggerBase = default_logger,
 ) -> dict[str, object]:
     from lmm_education.config.config import (
         ConfigSettings,
@@ -451,7 +453,8 @@ def database_info(
 
         return info
     except Exception as e:
-        return {'ERROR': str(e)}
+        logger.error(f"Could not read database: {e}")
+        return {}
     finally:
         if create_flag and client:
             client.close()
