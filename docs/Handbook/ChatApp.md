@@ -1,6 +1,6 @@
 # Configuring and starting the chat app
 
-To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environent. Then start the app:
+To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environment. Then start the app:
 
 ```bash
 python -m appChat

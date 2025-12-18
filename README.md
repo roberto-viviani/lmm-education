@@ -2,14 +2,24 @@ LM markdown for education is a system that allows faculty to record their conten
 
 The vision is to craft a system where, starting from one own's notes, pdfs, or videos, or from authoring one's own markdown, one can produce an interactive chatbot with one own's content, or interactive videos of one's lectures.
 
-To install the system after pulling it from gitlab, use poetry:
+To install the system after cloning it from gitlab, use poetry:
 
+```bash
 poetry install
+```
 
-The documentation can be displayed in a web server. Type
+The documentation can be displayed in a web browser. Type
 
+```bash
 poetry shell
 mkdocs serve
+```
 
+The project uses settings that can be configured through the files config.toml and appchat.toml. Using the programme (such as starting the web server) will at some point create these files with default values, so that they can be further modified. These files can also be created explicitly from the terminal:
+
+```bash
+poetry shell
+lmme create-default-config-file
+```
 
 LM markdown for education is developed at the Institute of Psychology of the University of Innsbruck.
