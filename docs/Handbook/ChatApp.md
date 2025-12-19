@@ -1,6 +1,6 @@
 # Configuring and starting the chat app
 
-To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environment. Then start the app:
+To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environment (when using poetry, this may be done with `poetry shell`). Then start the app:
 
 ```bash
 python -m appChat
@@ -51,11 +51,11 @@ port = 61543
 host = "localhost"
 ```
 
-If you want to offer the server over the internet, change `local` into `remote`. You can also change the port to which the app is listening. The host parameter is not used at present.
+If you want to offer the server over the internet, change `local` into `remote`. You can also change the port to which the app is listening. The host parameter may be set to your internet address.
 
 ### Instructing the server to check the chat content
 
-You can instruct the language model to check that the chat is taking place within the topic of the course. LM Markdown for Education uses a secondary language model to classify the response of the model before releasing it to the chat. In the following, the chat is configured to be limited to statistics and software programming.
+You can instruct the language model to check that the chat is taking place within the topic of the course. LM Markdown for Education uses a language model to classify the response of the model before releasing it to the chat. In the following, the chat is configured to be limited to statistics and software programming.
 
 ```ini
 [check_response]
@@ -63,7 +63,7 @@ check_response = true
 allowed_content = ['statistics', 'software programming']
 ```
 
-Put your topics within the square brackets. For example, if you have only one topic, code `allowed_content = ['statistics']`.
+Put your topics within the square brackets. For example, if you have only one topic, code `allowed_content = ['statistics']`. To switch off content checking, set `check_response = false`.
 
 ## Other settings
 
