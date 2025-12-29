@@ -1,8 +1,9 @@
 """Utility functions for app modules"""
 
 from datetime import datetime
-from collections.abc import Callable, Awaitable
-from typing import TextIO
+from collections.abc import Callable, Coroutine
+from typing import TextIO, Any
+from io import IOBase
 import asyncio
 
 from lmm.utils.logging import LoggerBase
@@ -13,7 +14,7 @@ from lmm.language_models.langchain.runnables import (
 )
 
 # a type alias helper with factories of coroutines
-AsyncLogfuncType = Callable[..., Awaitable[None]]
+AsyncLogfuncType = Callable[..., Coroutine[Any, Any, None]]
 
 
 def async_log_factory(
@@ -84,7 +85,7 @@ def async_log_factory(
             if rejection:
                 interaction_type = "REJECTION"
                 response = rejection[0]
-            if isinstance(DATABASE_FILE, TextIO):
+            if isinstance(DATABASE_FILE, IOBase | TextIO):
                 DATABASE_FILE.write(
                     f'{record_id},{client_host},{session_hash},'
                     f'{timestamp},{len(history)},'
@@ -121,7 +122,7 @@ def async_log_factory(
                     )
                     validation = "<failed>"
 
-                if isinstance(CONTEXT_DATABASE_FILE, TextIO):
+                if isinstance(CONTEXT_DATABASE_FILE, IOBase | TextIO):
                     CONTEXT_DATABASE_FILE.write(
                         f'{record_id},{validation},'
                         f'"{fmat_for_csv(context[0])}",NA\n'
