@@ -1106,7 +1106,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         chunk = chunks[0]
         self.assertEqual(
             chunk.dense_encoding,
-            chunk.annotations + ": " + text.get_content(),
+            chunk.annotations + ". " + text.get_content(),
         )
         encoding_model = EncodingModel.MERGED
         embedding_model = encoding_to_qdrantembedding_model(
@@ -1247,7 +1247,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         self.assertEqual(chunk.sparse_encoding, chunk.annotations)
         self.assertEqual(
             chunk.dense_encoding,
-            chunk.annotations + ": " + text.get_content(),
+            chunk.annotations + ". " + text.get_content(),
         )
         encoding_model = EncodingModel.SPARSE_MERGED
         embedding_model = encoding_to_qdrantembedding_model(

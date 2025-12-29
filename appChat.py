@@ -157,7 +157,8 @@ _preproc_for_markdown: Callable[[str], str] = (
 
 # Callback for Gradio to call when a chat message is sent.
 async def gradio_callback_fn(
-    querytext: str, history: list[dict[str, str]], request: gr.Request
+    querytext: str, history: list[dict[str, str]], request: gr.Request,
+    async_log: AsyncLogfuncType=async_log,
 ) -> AsyncGenerator[str, None]:
     """
     This function is called by the gradio framework each time the
