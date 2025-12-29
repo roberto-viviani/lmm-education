@@ -1,7 +1,9 @@
 """Utility functions for app modules"""
 
 from datetime import datetime
-from collections.abc import Callable, Awaitable
+from collections.abc import Callable, Coroutine
+from typing import TextIO, Any
+from io import IOBase
 import asyncio
 
 from lmm.utils.logging import LoggerBase
@@ -12,14 +14,16 @@ from lmm.language_models.langchain.runnables import (
 )
 
 # a type alias helper with factories of coroutines
-AsyncLogfuncType = Callable[..., Awaitable[None]]
+AsyncLogfuncType = Callable[..., Coroutine[Any, Any, None]]
 
 
 def async_log_factory(
-    DATABASE_FILE: str, CONTEXT_DATABASE_FILE: str, logger: LoggerBase
+    DATABASE_FILE: str | TextIO,
+    CONTEXT_DATABASE_FILE: str | TextIO,
+    logger: LoggerBase,
 ) -> AsyncLogfuncType:
     """Create a coroutine that logs to DATABASE_FILE and
-    CONTEXT_DATABASE_FILE.
+    CONTEXT_DATABASE_FILE, which can be file paths or stream objects.
     See appChat.py for an example of use of factory and coroutine."""
 
     def fmat_for_csv(text: str) -> str:
@@ -81,13 +85,21 @@ def async_log_factory(
             if rejection:
                 interaction_type = "REJECTION"
                 response = rejection[0]
-            with open(DATABASE_FILE, "a", encoding='utf-8') as f:
-                f.write(
+            if isinstance(DATABASE_FILE, IOBase | TextIO):
+                DATABASE_FILE.write(
                     f'{record_id},{client_host},{session_hash},'
                     f'{timestamp},{len(history)},'
                     f'{model_name},{interaction_type},'
                     f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
                 )
+            else:
+                with open(DATABASE_FILE, "a", encoding='utf-8') as f:
+                    f.write(
+                        f'{record_id},{client_host},{session_hash},'
+                        f'{timestamp},{len(history)},'
+                        f'{model_name},{interaction_type},'
+                        f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
+                    )
 
             # Log context if available (from context role in history). We also
             # record relevance of context for further monitoring.
@@ -110,13 +122,19 @@ def async_log_factory(
                     )
                     validation = "<failed>"
 
-                with open(
-                    CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
-                ) as f:
-                    f.write(
+                if isinstance(CONTEXT_DATABASE_FILE, IOBase | TextIO):
+                    CONTEXT_DATABASE_FILE.write(
                         f'{record_id},{validation},'
-                        '"{fmat_for_csv(context[0])},NA"\n'
+                        f'"{fmat_for_csv(context[0])}",NA\n'
                     )
+                else:
+                    with open(
+                        CONTEXT_DATABASE_FILE, "a", encoding='utf-8'
+                    ) as f:
+                        f.write(
+                            f'{record_id},{validation},'
+                            f'"{fmat_for_csv(context[0])}",NA\n'
+                        )
 
         except Exception as e:
             logger.error(f"Async logging failed: {e}")

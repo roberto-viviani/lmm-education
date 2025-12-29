@@ -154,7 +154,10 @@ _preproc_for_markdown: Callable[[str], str] = (
 
 # Callback for Gradio to call when a chat message is sent.
 async def gradio_callback_fn(
-    querytext: str, history: list[dict[str, str]], request: gr.Request
+    querytext: str,
+    history: list[dict[str, str]],
+    request: gr.Request,
+    async_log: AsyncLogfuncType = async_log,
 ) -> AsyncGenerator[str, None]:
     """
     This function is called by the gradio framework each time the
@@ -166,6 +169,12 @@ async def gradio_callback_fn(
     The content of the response is streamed using the appropriate
     chat_function from lmm_education.query.
     """
+
+    # Safely extract client host and session hash
+    client_host = getattr(
+        getattr(request, "client", None), "host", "unknown"
+    )
+    session_hash = getattr(request, "session_hash", "unknown")
 
     # Get iterator from refactored chat_function
     # Note: chat_function is now an async generator that returns
@@ -191,14 +200,14 @@ async def gradio_callback_fn(
             buffer += _preproc_for_markdown(item.text)
             yield buffer
 
-        # Non-blocking logging hook - fires after streaming completes
+        # Non-blocking logging hook - fires after streaming completes´
         record_id: str = generate_random_string(8)
         model_name: str = settings.major.get_model_name()  # type: ignore
         logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
             async_log(
                 record_id=record_id,
-                client_host=request.client.host,  # type: ignore
-                session_hash=request.session_hash or 'unknown',
+                client_host=client_host,
+                session_hash=session_hash,
                 timestamp=datetime.now(),
                 interaction_type="MESSAGE",
                 history=history,
@@ -212,7 +221,7 @@ async def gradio_callback_fn(
 
     except Exception as e:
         logger.error(
-            f"{request.client.host}: "  # type: ignore (dynamic properties)
+            f"{client_host}: "
             f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
         )
         buffer = str(e)
@@ -222,18 +231,28 @@ async def gradio_callback_fn(
     return
 
 
-async def vote(data: gr.LikeData, request: gr.Request):
+async def vote(
+    data: gr.LikeData,
+    request: gr.Request,
+    async_log: AsyncLogfuncType = async_log,
+):
     """
     Async function to log user reactions (like/dislike) to messages.
     """
     record_id = generate_random_string(8)
     reaction = "approved" if data.liked else "disapproved"
 
+    # Safely extract client host and session hash
+    client_host = getattr(
+        getattr(request, "client", None), "host", "unknown"
+    )
+    session_hash = getattr(request, "session_hash", "unknown")
+
     task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
         async_log(
             record_id=record_id,
-            client_host=request.client.host,  # type: ignore
-            session_hash=request.session_hash or 'unknown',
+            client_host=client_host,
+            session_hash=session_hash,
             timestamp=datetime.now(),
             interaction_type="USER REACTION",
             history=[],
@@ -250,17 +269,27 @@ def clearchat() -> None:
     pass
 
 
-async def postcomment(comment: object, request: gr.Request):
+async def postcomment(
+    comment: object,
+    request: gr.Request,
+    async_log: AsyncLogfuncType = async_log,
+):
     """
     Async function to log user comments.
     """
     record_id = generate_random_string(8)
 
+    # Safely extract client host and session hash
+    client_host = getattr(
+        getattr(request, "client", None), "host", "unknown"
+    )
+    session_hash = getattr(request, "session_hash", "unknown")
+
     task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
         async_log(
             record_id=record_id,
-            client_host=request.client.host,  # type: ignore
-            session_hash=request.session_hash or 'unknown',
+            client_host=client_host,
+            session_hash=session_hash,
             timestamp=datetime.now(),
             interaction_type="USER COMMENT",
             history=[],
