@@ -29,7 +29,7 @@ for item in async_gen_to_sync_iter(async_gen):
 # For async operations, use aioitertools:
 async def example():
     chunks = query("hello")
-    texts = aiter.map(lambda c: c.text(), chunks)
+    texts = aiter.map(lambda c: c.text, chunks)
     async for text in texts:
         print(text)
 ```

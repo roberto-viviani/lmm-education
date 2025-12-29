@@ -133,12 +133,9 @@ from lmm_education.query import (
     chat_function,
     chat_function_with_validation,
 )
-from typing import Any
-from collections.abc import Coroutine
 
-AsyncChatfuncType = Callable[
-    ..., Coroutine[Any, Any, AsyncIterator[BaseMessageChunk]]
-]
+# Type for async generator chat functions (now returns AsyncIterator directly)
+AsyncChatfuncType = Callable[..., AsyncIterator[BaseMessageChunk]]
 _chat_function: AsyncChatfuncType
 
 if chat_settings.check_response.check_response:
@@ -171,12 +168,14 @@ async def gradio_callback_fn(
     """
 
     # Get iterator from refactored chat_function
+    # Note: chat_function is now an async generator that returns
+    # AsyncIterator directly, not a coroutine
     buffer: str = ""
     if chat_settings is None:
         raise ValueError("Unreachable code reached")
     try:
         response_iter: AsyncIterator[BaseMessageChunk] = (
-            await _chat_function(
+            _chat_function(
                 querytext=querytext,
                 history=history,
                 retriever=retriever,
@@ -189,7 +188,7 @@ async def gradio_callback_fn(
 
         # Stream and yield for Gradio
         async for item in response_iter:
-            buffer += _preproc_for_markdown(item.text())
+            buffer += _preproc_for_markdown(item.text)
             yield buffer
 
         # Non-blocking logging hook - fires after streaming completes

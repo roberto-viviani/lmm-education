@@ -12,7 +12,6 @@ from lmm_education.query import (
     chat_function_with_validation,
     consume_chat_stream,
     chat_function,
-    _error_message_iterator,
 )
 from lmm_education.config.config import (
     ConfigSettings,
@@ -31,10 +30,10 @@ def setUpModule():
         major={'model': "Debug/debug"},
         minor={'model': "Debug/debug"},
         aux={'model': "Debug/debug"},
-        embeddings={
-            'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
-            'sparse_model': "Qdrant/bm25",
-        },
+        # embeddings={
+        #     'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+        #     'sparse_model': "Qdrant/bm25",
+        # },
     )
     export_settings(settings)
 
@@ -56,7 +55,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
     async def test_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query")
-        iterator = await chat_function(
+        # chat_function is async generator - call directly without await
+        iterator = chat_function(
             "",
             [],
             self.retriever,
@@ -72,7 +72,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query")
         long_query = " ".join(["word"] * 200)
-        iterator = await chat_function(
+        # chat_function is async generator - call directly without await
+        iterator = chat_function(
             long_query,
             [],
             self.retriever,
@@ -88,7 +89,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test a normal query (if LLM is available)."""
         print("Test 3: Normal query")
         try:
-            iterator = await chat_function(
+            # chat_function is async generator - call directly without await
+            iterator = chat_function(
                 "What is a linear model?",
                 llm=self.llm,
                 chat_settings=ChatSettings(),
@@ -110,7 +112,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         try:
             # explicit retirever, that may be re-used
             retriever = AsyncQdrantRetriever.from_config_settings()
-            iterator = await chat_function(
+            # chat_function is async generator - call directly without await
+            iterator = chat_function(
                 "What is a linear model?",
                 retriever=retriever,
                 llm=self.llm,
@@ -120,7 +123,8 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             self.assertTrue(len(result) > 0)
-            iterator = await chat_function(
+            # chat_function is async generator - call directly without await
+            iterator = chat_function(
                 "What is a logistic regression?",
                 retriever=retriever,
                 llm=self.llm,
@@ -147,58 +151,6 @@ from lmm.utils.logging import (
 )
 
 
-class TestErrorMessageIterator(unittest.IsolatedAsyncioTestCase):
-    """Test the _error_message_iterator helper function."""
-
-    def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
-        self.retriever: BaseRetriever = (
-            AsyncQdrantRetriever.from_config_settings()
-        )
-
-    async def test_error_message_iterator(self):
-        """Test that _error_message_iterator creates an async iterator that streams the error message."""
-        print("Test: Error message iterator")
-
-        # Test message
-        test_message = "This is a test error message"
-
-        # Create the iterator by calling _error_message_iterator
-        iterator = _error_message_iterator(test_message)
-
-        # Consume the iterator
-        result = await consume_chat_stream(iterator)
-
-        # Verify that the streamed content matches the intended message
-        print(f"Expected: {test_message}")
-        print(f"Result: {result}")
-        self.assertEqual(result, test_message)
-        print("✓ Passed\n")
-
-    async def test_error_message_iterator_with_special_chars(self):
-        """Test that _error_message_iterator handles special characters correctly."""
-        print("Test: Error message iterator with special characters")
-
-        # Test message with special characters
-        test_message = (
-            "Error: Invalid input! Please try again.\n(Code: 400)"
-        )
-
-        # Create the iterator
-        iterator = _error_message_iterator(test_message)
-
-        # Consume the iterator
-        result = await consume_chat_stream(iterator)
-
-        # Verify the content
-        print(f"Expected: {repr(test_message)}")
-        print(f"Result: {repr(result)}")
-        self.assertEqual(result, test_message)
-        print("✓ Passed\n")
-
-
 from lmm_education.config.appchat import CheckResponse
 
 
@@ -221,7 +173,8 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                 allowed_content=['statistics'],
             )
         )
-        iterator = await chat_function_with_validation(
+        # chat_function_with_validation is async generator - call directly without await
+        iterator = chat_function_with_validation(
             "",
             [],
             chat_settings=chat_settings,
@@ -243,7 +196,8 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                 check_response=True, allowed_content=['statistics']
             )
         )
-        iterator = await chat_function_with_validation(
+        # chat_function_with_validation is async generator - call directly without await
+        iterator = chat_function_with_validation(
             long_query,
             [],
             llm=self.llm,
@@ -268,7 +222,8 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                     allowed_content=['statistics'],
                 )
             )
-            iterator = await chat_function_with_validation(
+            # chat_function_with_validation is async generator - call directly without await
+            iterator = chat_function_with_validation(
                 "What is a linear model?",
                 [],
                 chat_settings=chat_settings,

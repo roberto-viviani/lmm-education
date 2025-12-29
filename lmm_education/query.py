@@ -34,24 +34,30 @@ python -m lmm_education.query 'what is logistic regression?'
 ```
 """
 
-import asyncio
-from lmm.language_models.langchain.runnables import RunnableType
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, AsyncGenerator
+from typing import Any
 
 # Langchain
-from langchain_core.messages import BaseMessageChunk, AIMessageChunk
-from langchain_core.documents import Document
+from langchain_core.messages import (
+    BaseMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    AIMessage,
+    AIMessageChunk,
+)
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
 
 # LM markdown
 from lmm.utils.logging import ConsoleLogger, LoggerBase
-from lmm.utils.ioutils import check_allowed_content
 from lmm.config.config import LanguageModelSettings
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
-from lmm.markdown.ioutils import convert_backslash_latex_delimiters
+from lmm.language_models.langchain.runnables import (
+    create_runnable,
+    RunnableType,
+)
 from qdrant_client import AsyncQdrantClient
 
 # LM markdown for education
@@ -65,197 +71,218 @@ from .config.appchat import (
     load_settings as load_chat_settings,
 )
 
-from langchain_core.prompts import PromptTemplate # fmt: skip
+# New imports for refactored architecture
+from .chat_graph import (
+    ChatStateGraphType,
+    ChatState,
+    ChatWorkflowContext,
+    workflow_library,
+)
+from .stream_adapters import validation_stream_adapter
 
 
-# Helper function to create error message iterators
-async def _error_message_iterator(
-    message: str,
-) -> AsyncIterator[BaseMessageChunk]:
-    """
-    Creates an async iterator that yields a single error message as a BaseMessageChunk.
-    This allows error messages to be returned in the same format as LLM responses.
-    """
-
-    yield AIMessageChunk(content=message)
-
-
-# Internal facility to format messages in chat exchanges.
-def _prepare_messages(
-    query: str,
+def history_to_messages(
     history: list[dict[str, str]],
-    system_message: str = "",
-) -> list[tuple[str, str]]:
+) -> list[HumanMessage | AIMessage | BaseMessage]:
     """
-    Customized message history for stateless interaction. The first
-    element is always the system message. We append to this the last
-    four interactions (i.e. user and assistant messages).
+    Convert Gradio history format to LangChain messages.
+
+    Filters out non-message entries (context, message, rejection) that
+    were previously stuffed into history for metadata transport.
+
+    Args:
+        history: Gradio-format history list
+
+    Returns:
+        List of LangChain message objects
     """
-    # Note that the context is not contained in the history. The
-    # Gradio chat app keeps a list of what the user typed in the web
-    # app as a query, and what the app displayed as a response. In
-    # this system, the first message if modified by code to include
-    # context, but the following messages are not.
-
-    messages: list[tuple[str, str]] = []
-    if system_message:
-        messages.append(('system', system_message))
-
-    if history:
-        for m in history[-4:]:
-            if m['role'] in ("context", "message", "rejection"):
-                continue
-            messages.append((m['role'], m['content']))
-
-    messages.append(('user', query))
-
+    messages: list[HumanMessage | AIMessage | BaseMessage] = []
+    for m in history:
+        role = m.get("role", "")
+        content = m.get("content", "")
+        # Skip metadata entries that were misused in history
+        if role in ("context", "message", "rejection"):
+            continue
+        if role == "user":
+            messages.append(HumanMessage(content=content))
+        elif role == "assistant":
+            messages.append(AIMessage(content=content))
     return messages
+
+
+def create_initial_state(
+    querytext: str,
+    history: list[dict[str, str]] | None = None,
+) -> ChatState:
+    """
+    Create initial ChatState from query and optional history.
+
+    Args:
+        querytext: The user's query text
+        history: Optional Gradio-format conversation history
+
+    Returns:
+        ChatState initialized for the workflow
+    """
+    messages: list[HumanMessage | AIMessage | BaseMessage] = (
+        history_to_messages(history) if history else []
+    )
+
+    return ChatState(
+        messages=messages,
+        query_text=querytext,
+        original_query=querytext,
+        query_status="valid",  # Will be validated by workflow
+        context="",
+        documents=[],
+        error_message="",
+        log_data={},
+    )
 
 
 async def chat_function(
     querytext: str,
-    history: list[dict[str, str]] = [],
+    history: list[dict[str, str]] | None = None,
     retriever: BaseRetriever | None = None,
     *,
     llm: BaseChatModel,
     chat_settings: ChatSettings,
     system_msg: str = "You are a helpful assistant",
-    context_print: bool = False,
+    print_context: bool = False,
     logger: LoggerBase = ConsoleLogger(),
-) -> AsyncIterator[BaseMessageChunk]:
+) -> AsyncGenerator[BaseMessageChunk, None]:
     """
-    Returns an async iterator that yields BaseMessageChunk objects.
+    Async generator that yields BaseMessageChunk objects.
 
-    This function processes a user query and returns an iterator that streams
-    the LLM response. In case of validation errors or retrieval failures,
-    it returns an iterator that yields an appropriate error message.
+    This function uses LangGraph's native streaming to process a user query.
+    The workflow handles query validation, context retrieval, query formatting,
+    and LLM response generation in a single streaming call.
+
+    Note: This is an async generator function that may be called drectly:
+        stream = chat_function(...)
+        async for chunk in stream:
+            ...
 
     Args:
         querytext: The user's query text
-        history: List of previous message exchanges
+        history: List of previous message exchanges (Gradio format)
         retriever: Optional document retriever for RAG
-        llm: Optional Langchain language model object
+        llm: Langchain language model object
+        chat_settings: Chat configuration settings
         system_msg: System message for the conversation
-        prompt: Prompt template for formatting context and query
-        context_print: Prints the results of the query to the logger
+        print_context: Prints the results of the query to the logger
         logger: Logger instance for info and error reporting
 
-    Returns:
-        AsyncIterator[BaseMessageChunk]: Iterator yielding response chunks
+    Yields:
+        BaseMessageChunk objects from the LLM stream
     """
-    # Implementation note: history is passed by the gradio framework
-    # with the responses of the language model and what the user
-    # tipped into the interface -- it is not what the model got.
-    # Here history is used also to store the context that was sent
-    # to the model and information about other conditions. This
-    # is used upstream to log these interactions (subject to revision)
+
+    # Utility function to process error messages
+    def _error_chunk(message: str) -> AIMessageChunk:
+        logger.error(message)
+        return AIMessageChunk(content="Error: " + message)
 
     config_settings: ConfigSettings | None = load_settings(
         logger=logger
     )
     if config_settings is None:
-        logger.error("Could not load settings")
-        return _error_message_iterator("Could not load settings")
+        yield _error_chunk("Could not load settings")
+        return
 
-    # prompt and the max allowed number of words in the user's
-    # query are in chat settings.
-    prompt: PromptTemplate = PromptTemplate.from_template(
-        chat_settings.PROMPT_TEMPLATE
-    )
-    MAX_QUERY_LENGTH: int = chat_settings.max_query_word_count
-
-    # checks
-    if not querytext:
-        history.append({'role': 'message', 'content': "EMPTYQUERY"})
-        return _error_message_iterator(chat_settings.MSG_EMPTY_QUERY)
-
-    if len(querytext.split()) > MAX_QUERY_LENGTH:
-        history.append({'role': 'message', 'content': "LONGQUERY"})
-        return _error_message_iterator(chat_settings.MSG_LONG_QUERY)
-
-    querytext = querytext.replace(
-        "the textbook", "the context provided"
-    )
-
-    # if the history is empty, retrieve the context. The context
-    # will be contained in the history thereafter.
-    if not history:
-        if retriever is None:
-            try:
-                retriever = AsyncQdrantRetriever.from_config_settings(
-                    config_settings  # type: ignore (checked above)
-                )
-            except Exception as e:
-                logger.error(f"Could not open vector database: {e}")
-                return _error_message_iterator(
-                    "System currently not available."
-                )
-
+    # Set up retriever if not provided
+    if retriever is None:
         try:
-            documents: list[Document] = await retriever.ainvoke(
-                querytext,
-                # limit=6,
+            retriever = AsyncQdrantRetriever.from_config_settings(
+                config_settings
             )
         except Exception as e:
-            logger.error(
-                f"Error retrieving from vector database:\n{e}"
+            yield _error_chunk(
+                f"Could not open vector database: {e}. "
+                "The system is not available."
             )
-            return _error_message_iterator(
-                chat_settings.MSG_ERROR_QUERY
-            )
-        context: str = "\n-----\n".join(
-            [d.page_content for d in documents]
-        )
+            return
 
-        history.append({'role': 'context', 'content': context})
-
-        context = convert_backslash_latex_delimiters(context)
-        if context_print:
-            logger.info(
-                "CONTEXT:\n" + context + "\nEND CONTEXT------\n\n"
-            )
-        querytext = prompt.format(context=context, query=querytext)
-
-    # Query language model
-    query: list[tuple[str, str]] = _prepare_messages(
-        querytext, history, system_msg
+    # Create workflow configuration
+    workflow_config = ChatWorkflowContext(
+        llm=llm,
+        retriever=retriever,
+        system_message=system_msg,
+        chat_settings=chat_settings,
+        print_context=print_context,
+        logger=logger,
     )
-    return llm.astream(query)
+
+    # Create and compile workflow
+    workflow: ChatStateGraphType = workflow_library['query']
+
+    # Create initial state
+    initial_state: ChatState = create_initial_state(
+        querytext,
+        history if history else None,
+    )
+
+    # Stream from workflow using LangGraph's native streaming
+    # stream_mode="messages" emits (chunk, metadata) tuples
+    event: tuple[AIMessageChunk, dict[str, Any]]
+    try:
+        async for event in workflow.astream(  # type: ignore
+            initial_state,
+            stream_mode="messages",
+            context=workflow_config,
+        ):
+            # event is a tuple: (chunk, metadata)
+            if not isinstance(event, tuple) and len(event) == 2:  # type: ignore
+                raise ValueError(
+                    "Unreachable code reached, invalid "
+                    "event in LangGraph stream"
+                )
+
+            chunk, metadata = event
+            node_name: str = metadata.get("langgraph_node", "")
+
+            # Filter chunks from required nodes
+            if node_name in {"validate_query", "generate"}:
+                yield chunk
+
+            if print_context and node_name == "retrieve_context":
+                yield chunk
+
+    except Exception as e:
+        yield _error_chunk(f"Workflow streaming failed: {e}")
+        return
 
 
 async def chat_function_with_validation(
     querytext: str,
-    history: list[dict[str, str]],
+    history: list[dict[str, str]] | None = None,
     retriever: BaseRetriever | None = None,
     *,
     llm: BaseChatModel,
     chat_settings: ChatSettings,
     system_msg: str = "You are a helpful assistant",
-    context_print: bool = False,
+    print_context: bool = False,
     logger: LoggerBase = ConsoleLogger(),
     initial_buffer_size: int = 320,
     max_retries: int = 2,
-) -> AsyncIterator[BaseMessageChunk]:
+) -> AsyncGenerator[BaseMessageChunk, None]:
     """
     Returns an async iterator that yields BaseMessageChunk objects with
     content validation.
 
-    This function extends chat_function by adding content validation. It
-    buffers the initial response, validates it using a separate LLM, and
-    only streams the content if validation passes. This is useful for
-    ensuring responses meet certain content criteria before being shown
-    to users.
+    This function extends chat_function by wrapping the output stream
+    with a validation adapter. The adapter buffers initial response
+    content, validates it using a separate LLM, and only streams
+    the content if validation passes.
 
     Args:
         querytext: The user's query text
         history: List of previous message exchanges
         retriever: Optional document retriever for RAG
-        llm: Optional language model to use
+        llm: Language model to use
+        chat_settings: Chat configuration settings
         system_msg: System message for the conversation
-        prompt: Prompt template for formatting context and query
-        context_print: Prints to logger the results of the query
+        print_context: Prints to logger the results of the query
         logger: Logger instance for error reporting
-        validation_config: Config name for the validation runnable
         initial_buffer_size: Number of characters to buffer before
             validation
         max_retries: Maximum number of validation retry attempts
@@ -264,173 +291,57 @@ async def chat_function_with_validation(
         AsyncIterator[BaseMessageChunk]: Iterator yielding validated
             response chunks
     """
-    # Implementation note: history is passed by the gradio framework
-    # with the responses of the language model and what the user
-    # tipped into the interface -- it is not what the model got.
-    # Here history is used also to store the context that was sent
-    # to the model and information about other conditions. This
-    # is used upstream to log these interactions (subject to revision)
 
-    from lmm.language_models.langchain.runnables import (
-        create_runnable,
-    )
+    # Utility function to process error messages
+    def _error_chunk(message: str) -> AIMessageChunk:
+        logger.error(message)
+        return AIMessageChunk(content="Error: " + message)
 
-    # Perform basic validation checks before calling chat_function
-    # This ensures error iterators are returned directly without wrapping
-    MAX_QUERY_LENGTH: int = chat_settings.max_query_word_count
-
-    # The allowed content is read from chat settings
+    # Get allowed content from settings
     allowed_content: list[str] = (
         chat_settings.check_response.allowed_content
     )
 
-    # Check for empty query
-    if not querytext:
-        history.append({'role': 'message', 'content': "EMPTYQUERY"})
-        return _error_message_iterator(chat_settings.MSG_EMPTY_QUERY)
-
-    # Check for overly long query
-    if len(querytext.split()) > MAX_QUERY_LENGTH:
-        history.append({'role': 'message', 'content': "LONGQUERY"})
-        return _error_message_iterator(chat_settings.MSG_LONG_QUERY)
-
     # Initialize the validation model
     try:
-        query_model: RunnableType = create_runnable(
-            "allowed_content_validator", allowed_content=allowed_content  # type: ignore
+        validator_model: RunnableType = create_runnable(
+            "allowed_content_validator",
+            allowed_content=allowed_content,  # type: ignore
         )
     except Exception as e:
-        logger.error(f"Could not initialize validation model: {e}")
-        return _error_message_iterator(chat_settings.MSG_ERROR_QUERY)
+        err_msg = f"Could not initialize validation model: {e}"
+        yield _error_chunk(err_msg)
+        return
 
-    # Get the base chat iterator
-    base_iterator: AsyncIterator[BaseMessageChunk] = (
-        await chat_function(
-            querytext=querytext,
-            history=history,
-            retriever=retriever,
-            llm=llm,
-            chat_settings=chat_settings,
-            system_msg=system_msg,
-            context_print=context_print,
+    # Get the base chat stream
+    base_stream: AsyncIterator[BaseMessageChunk] = chat_function(
+        querytext=querytext,
+        history=history,
+        retriever=retriever,
+        llm=llm,
+        chat_settings=chat_settings,
+        system_msg=system_msg,
+        print_context=print_context,
+        logger=logger,
+    )
+
+    # Wrap with validation adapter
+    validated_stream: AsyncIterator[BaseMessageChunk] = (
+        validation_stream_adapter(
+            base_stream,
+            querytext,
+            validator_model=validator_model,
+            allowed_content=allowed_content,
+            buffer_size=initial_buffer_size,
+            error_message=chat_settings.MSG_WRONG_CONTENT,
+            max_retries=max_retries,
             logger=logger,
         )
     )
 
-    # Content validation function with retry logic
-    async def _check_content(response: str) -> tuple[bool, str]:
-        """
-        Check content with retry logic and proper error handling.
-        Returns (is_valid, error_message) tuple.
-        """
-        for attempt in range(max_retries + 1):
-            try:
-                check: str = await query_model.ainvoke(
-                    {'text': response}
-                )
-                logger.info(
-                    "Model content classification: "
-                    + check.replace("\n", " ")
-                    + "\n"
-                )
-
-                if check_allowed_content(
-                    check,
-                    allowed_content
-                    + ['apology', 'human interaction'],
-                ):
-                    return True, ""
-                else:
-                    history.append(
-                        {'role': 'rejection', 'content': check}
-                    )
-                    return False, chat_settings.MSG_WRONG_CONTENT
-
-            except Exception as e:
-                logger.warning(
-                    f"Content check attempt {attempt + 1}/{max_retries + 1} failed: {e}"
-                )
-
-                if attempt == max_retries:
-                    # All retries exhausted - fail-open strategy
-                    logger.error(
-                        f"Content checker failed after {max_retries + 1} attempts: {e}"
-                    )
-                    return (
-                        True,
-                        "Content validation temporarily unavailable",
-                    )
-
-                # Wait before retry with exponential backoff
-                await asyncio.sleep(0.5 * (attempt + 1))
-
-        # Should never reach here, but for safety
-        return True, "Content validation system error"
-
-    # Wrapper generator that implements validation logic
-    async def _validated_iterator() -> (
-        AsyncIterator[BaseMessageChunk]
-    ):
-        """
-        Buffers initial chunks, validates content, then streams the rest.
-        """
-        from langchain_core.messages import AIMessageChunk
-
-        buffer_chunks: list[BaseMessageChunk] = []
-        buffer_text: str = ""
-        check_complete: bool = False
-
-        async for chunk in base_iterator:
-            chunk_text: str = chunk.text()
-
-            # Buffering phase
-            if not check_complete:
-                buffer_chunks.append(chunk)
-                buffer_text += chunk_text
-
-                # Check if we've buffered enough
-                if len(buffer_text) >= initial_buffer_size:
-                    flag, error_message = await _check_content(
-                        querytext + "\n\n" + buffer_text + "..."
-                    )
-
-                    if not flag:
-                        # Validation failed - yield error and stop
-                        yield AIMessageChunk(content=error_message)
-                        return
-
-                    # Validation passed - mark complete and yield buffered content
-                    check_complete = True
-                    if error_message:
-                        logger.warning(
-                            "LLM exchange without content check (aux failure)"
-                        )
-
-                    # Yield all buffered chunks
-                    for buffered_chunk in buffer_chunks:
-                        yield buffered_chunk
-
-            else:
-                # Streaming phase - validation already passed
-                yield chunk
-
-        # If stream ended before buffer was full, validate what we have
-        if not check_complete:
-            flag, error_message = await _check_content(buffer_text)
-
-            if not flag:
-                # Validation failed - yield error
-                yield AIMessageChunk(content=error_message)
-            else:
-                if error_message:
-                    logger.warning(
-                        f"LLM exchange without check: {buffer_text}"
-                    )
-                # Validation passed - yield all buffered chunks
-                for buffered_chunk in buffer_chunks:
-                    yield buffered_chunk
-
-    return _validated_iterator()
+    # Yield from validated stream
+    async for chunk in validated_stream:
+        yield chunk
 
 
 async def consume_chat_stream(
@@ -452,7 +363,7 @@ async def consume_chat_stream(
     """
     buffer: str = ""
     async for chunk in iterator:
-        buffer += chunk.text()
+        buffer += chunk.text
     return buffer
 
 
@@ -461,9 +372,9 @@ def query(
     *,
     model_settings: LanguageModelSettings | str | None = None,
     chat_settings: ChatSettings | None = None,
-    context_print: bool = False,
+    print_context: bool = False,
     validate_content: bool = False,
-    allowed_content: list[str] = [],
+    allowed_content: list[str] | None = None,
     logger: LoggerBase = ConsoleLogger(),
 ) -> Iterator[str]:
     """
@@ -477,7 +388,7 @@ def query(
         querystr: The query text to send to the language model
         model_settings: Language model settings (or 'major', 'minor', 'aux')
         chat_settings: Chat settings for the query
-        context_print: If True, print the RAG context to the logger
+        print_context: If True, print the RAG context to the logger
         validate_content: If True, validate response content
         allowed_content: List of allowed content types for validation
         logger: Logger instance for error reporting
@@ -493,13 +404,13 @@ def query(
     from .asyncutils import async_gen_to_sync_iter
 
     # Create the async generator object
-    async_gen = aquery(
+    async_gen: AsyncIterator[str] = aquery(
         querystr,
         model_settings=model_settings,
         chat_settings=chat_settings,
-        context_print=context_print,
+        print_context=print_context,
         validate_content=validate_content,
-        allowed_content=allowed_content,
+        allowed_content=allowed_content or [],
         logger=logger,
     )
 
@@ -513,9 +424,9 @@ async def aquery(
     *,
     model_settings: LanguageModelSettings | str | None = None,
     chat_settings: ChatSettings | None = None,
-    context_print: bool = False,
+    print_context: bool = False,
     validate_content: bool = False,
-    allowed_content: list[str] = [],
+    allowed_content: list[str] | None = None,
     client: AsyncQdrantClient | None = None,
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncIterator[str]:
@@ -526,9 +437,10 @@ async def aquery(
         querystr: The query text to send to the language model
         model_settings: Language model settings (or 'major', 'minor', 'aux')
         chat_settings: Chat settings for the query
-        context_print: If True, print the RAG context to the logger
+        print_context: If True, print the RAG context to the logger
         validate_content: If True, validate response content
         allowed_content: List of allowed content types for validation
+        client: Optional pre-configured Qdrant client
         logger: Logger instance for error reporting
 
     Yields:
@@ -539,14 +451,17 @@ async def aquery(
             print(text, end="", flush=True)
         print()
     """
+    if allowed_content is None:
+        allowed_content = []
 
     config_settings: ConfigSettings | None = load_settings(
         logger=logger
     )
     if config_settings is None:
         logger.error("Could not load settings.")
-        await consume_chat_stream(_error_message_iterator(""))
+        yield "Could not load settings."
         return
+
     if model_settings is None:
         model_settings = config_settings.major
     elif isinstance(model_settings, str):
@@ -572,6 +487,7 @@ async def aquery(
         chat_settings = load_chat_settings(logger=logger)
         if chat_settings is None:
             logger.error("Could not load chat settings")
+            yield "Could not load chat settings."
             return
 
     if validate_content and not allowed_content:
@@ -588,37 +504,39 @@ async def aquery(
             return
 
     try:
-        retriever = AsyncQdrantRetriever.from_config_settings(
-            client=client
+        retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings(client=client)
         )
     except Exception as e:
         logger.error(f"Could not load retriever: {e}")
+        yield f"Could not load retriever: {e}"
         return
 
     # Get the iterator and consume it
     if validate_content:
         iterator: AsyncIterator[BaseMessageChunk] = (
-            await chat_function_with_validation(
+            chat_function_with_validation(
                 querystr,
-                [],
+                None,  # No history for standalone queries
                 retriever=retriever,
                 llm=llm,
                 chat_settings=chat_settings,
-                context_print=context_print,
+                print_context=print_context,
                 logger=logger,
             )
         )
     else:
-        iterator = await chat_function(
+        iterator = chat_function(
             querystr,
-            [],
+            None,  # No history for standalone queries
             llm=llm,
             chat_settings=chat_settings,
-            context_print=context_print,
+            print_context=print_context,
             logger=logger,
         )
+
     async for chunk in iterator:
-        yield chunk.text()
+        yield chunk.text
 
 
 if __name__ == "__main__":

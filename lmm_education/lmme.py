@@ -506,7 +506,7 @@ def query(
             model_settings=model_settings,
             chat_settings=chat_settings,
             validate_content=validate_content,
-            context_print=print_context,
+            print_context=print_context,
             logger=logger,
         ):
             print(text, end="", flush=True)

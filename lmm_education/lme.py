@@ -471,7 +471,7 @@ async def cmd_query(engine: LMMEngine, args: list[str]):
             query_text,
             model_settings=model_settings,
             chat_settings=chat_settings,
-            context_print=parsed.print_context,
+            print_context=parsed.print_context,
             validate_content=parsed.validate_content,
             client=global_async_client_from_config(),
             logger=engine.logger,

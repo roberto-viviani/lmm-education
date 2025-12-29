@@ -9,7 +9,6 @@ readme = "README.md"
 requires-python = ">=3.11.0,<3.14"
 dependencies = [
     "pydantic (>=2.11.7,<3.0.0)",
-    "langchain (>=0.3.27,<0.4.0)",
     "qdrant-client (>=1.15.1,<2.0.0)",
     "lmm @ git+https://c7201031:FZkqlscljWaqtQ_ZCT3lwm86MQp1OjNvMQk.01.0z0nnrty0@git.uibk.ac.at/c7201031/lmm.git",
     "fastembed (>=0.7.1,<0.8.0)",
@@ -24,6 +23,7 @@ dependencies = [
     "moviepy (>=2.2.1,<3.0.0)",
     "prompt-toolkit (>=3.0.52,<4.0.0)",
     "aioitertools (>=0.13.0,<0.14.0)",
+    "langgraph (>=1.0.5,<2.0.0)",
 ]
 
 
