@@ -134,8 +134,11 @@ from lmm_education.query import (
     chat_function_with_validation,
 )
 
-# Type for async generator chat functions (now returns AsyncIterator directly)
-AsyncChatfuncType = Callable[..., AsyncIterator[BaseMessageChunk]]
+# Fetch the chat function that will be used in the
+# Gradio callback
+AsyncChatfuncType = Callable[
+    ..., Coroutine[Any, Any, AsyncIterator[BaseMessageChunk]]
+]
 _chat_function: AsyncChatfuncType
 
 if chat_settings.check_response.check_response:
@@ -171,10 +174,10 @@ async def gradio_callback_fn(
     """
 
     # Safely extract client host and session hash
-    client_host = getattr(
+    client_host: str = getattr(
         getattr(request, "client", None), "host", "unknown"
     )
-    session_hash = getattr(request, "session_hash", "unknown")
+    session_hash: str = getattr(request, "session_hash", "unknown")
 
     # Get iterator from refactored chat_function
     # Note: chat_function is now an async generator that returns
@@ -202,8 +205,8 @@ async def gradio_callback_fn(
 
         # Non-blocking logging hook - fires after streaming completes´
         record_id: str = generate_random_string(8)
-        model_name: str = settings.major.get_model_name()  # type: ignore
-        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
+        model_name: str = settings.major.get_model_name()  # type: ignore (checked)
+        logtask: asyncio.Task[None] = asyncio.create_task(
             async_log(
                 record_id=record_id,
                 client_host=client_host,
@@ -243,12 +246,12 @@ async def vote(
     reaction = "approved" if data.liked else "disapproved"
 
     # Safely extract client host and session hash
-    client_host = getattr(
+    client_host: str = getattr(
         getattr(request, "client", None), "host", "unknown"
     )
-    session_hash = getattr(request, "session_hash", "unknown")
+    session_hash: str = getattr(request, "session_hash", "unknown")
 
-    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
+    task: asyncio.Task[None] = asyncio.create_task(
         async_log(
             record_id=record_id,
             client_host=client_host,
@@ -280,12 +283,12 @@ async def postcomment(
     record_id = generate_random_string(8)
 
     # Safely extract client host and session hash
-    client_host = getattr(
+    client_host: str = getattr(
         getattr(request, "client", None), "host", "unknown"
     )
-    session_hash = getattr(request, "session_hash", "unknown")
+    session_hash: str = getattr(request, "session_hash", "unknown")
 
-    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
+    task: asyncio.Task[None] = asyncio.create_task(
         async_log(
             record_id=record_id,
             client_host=client_host,
