@@ -19,7 +19,6 @@ conflated in the history parameter.
 # pyright: reportUnknownMemberType=false
 
 from typing import TypedDict, Literal, Annotated, Any
-from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
@@ -29,7 +28,6 @@ from langchain_core.messages import (
     HumanMessage,
     AIMessage,
 )
-from langchain_core.messages import BaseMessageChunk
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -126,20 +124,20 @@ def create_chat_workflow() -> ChatStateGraphType:
                               END
 
     The generate node uses llm.astream() to produce streaming output.
-    Use workflow.astream(state, stream_mode="messages") to consume the stream.
-
-    Args:
-        config: Workflow configuration with LLM, retriever, and settings
+    Dependency injection handled at the level of streaming call
+    through context argument. Use
+    workflow.astream(state, stream_mode="messages", context=workflow_context)
+    to consume the stream.
 
     Returns:
-        Compiled StateGraph ready for streaming invocation
+        Compiled StateGraph ready for streaming
     """
 
     def validate_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> ChatState:
         """Validate the user's query for length and content."""
-        query = state.get("query_text", "")
+        query: str = state.get("query_text", "")
         settings: ChatSettings = runtime.context.chat_settings
 
         if not query or not query.strip():
@@ -186,14 +184,14 @@ def create_chat_workflow() -> ChatStateGraphType:
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> ChatState:
         """Retrieve relevant documents from vector store."""
-        query = state["query_text"]
+        query: str = state["query_text"]
         config: ChatWorkflowContext = runtime.context
 
         try:
             documents: list[Document] = (
                 await config.retriever.ainvoke(query)
             )
-            context = "\n-----\n".join(
+            context: str = "\n-----\n".join(
                 [d.page_content for d in documents]
             )
 
@@ -219,6 +217,10 @@ def create_chat_workflow() -> ChatStateGraphType:
                     "context": context,
                 },
             }
+            # this copies context to messages channel so that it will
+            # be streamed to output. This has the downside that the
+            # message list is messed up. The alternative is to stream
+            # the state and filter it, moving the logic to the caller.
             if config.print_context:
                 message: list[BaseMessage] = [
                     AIMessage(
@@ -251,8 +253,8 @@ def create_chat_workflow() -> ChatStateGraphType:
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> ChatState:
         """Format the query with retrieved context using prompt template."""
-        context = state.get("context", "")
-        query = state["query_text"]
+        context: str = state.get("context", "")
+        query: str = state["query_text"]
         settings: ChatSettings = runtime.context.chat_settings
 
         # Convert LaTeX delimiters for display
@@ -323,7 +325,7 @@ def create_chat_workflow() -> ChatStateGraphType:
             return "retrieve"
         return "error"
 
-    # Build the graph
+    # Build the graph------------------------------------------------
     workflow: StateGraph[
         ChatState, ChatWorkflowContext, ChatState, ChatState
     ] = StateGraph(ChatState, ChatWorkflowContext)
@@ -352,6 +354,10 @@ def create_chat_workflow() -> ChatStateGraphType:
 
 
 def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
+    """
+    Factory function to store chat agents in global library using
+    a LazyLoadingDict.
+    """
 
     match workflow_name:
         case "query":  # only query at first chat
@@ -403,29 +409,3 @@ def prepare_messages_for_llm(
     messages.append(("user", state["query_text"]))
 
     return messages
-
-
-async def generate_response_stream(
-    state: ChatState,
-    llm: BaseChatModel,
-    system_message: str = "",
-) -> AsyncIterator[BaseMessageChunk]:
-    """
-    Generate streaming response from LLM using prepared state.
-
-    This function is called after the graph completes to stream
-    the actual LLM response. It's kept separate from the graph
-    to maintain clean streaming semantics.
-
-    Args:
-        state: Completed chat state from graph
-        llm: Language model for generation
-        system_message: System message for the conversation
-
-    Yields:
-        BaseMessageChunk objects from the LLM stream
-    """
-    messages = prepare_messages_for_llm(state, system_message)
-
-    async for chunk in llm.astream(messages):
-        yield chunk

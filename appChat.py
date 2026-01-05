@@ -6,7 +6,11 @@ Entry point for the RAG model chat application.
 
 from datetime import datetime
 import os
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Callable,
+)
 import asyncio
 
 
@@ -137,7 +141,7 @@ from lmm_education.query import (
 # Fetch the chat function that will be used in the
 # Gradio callback
 AsyncChatfuncType = Callable[
-    ..., Coroutine[Any, Any, AsyncIterator[BaseMessageChunk]]
+    ..., AsyncGenerator[BaseMessageChunk, None]
 ]
 _chat_function: AsyncChatfuncType
 
@@ -180,8 +184,6 @@ async def gradio_callback_fn(
     session_hash: str = getattr(request, "session_hash", "unknown")
 
     # Get iterator from refactored chat_function
-    # Note: chat_function is now an async generator that returns
-    # AsyncIterator directly, not a coroutine
     buffer: str = ""
     if chat_settings is None:
         raise ValueError("Unreachable code reached")
