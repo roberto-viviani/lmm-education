@@ -4,7 +4,11 @@ import unittest
 from pydantic import ValidationError
 
 from lmm_education.config.appchat import CheckResponse
-from lmm_education.config.appchat import ChatSettings, ServerSettings
+from lmm_education.config.appchat import (
+    ChatSettings,
+    ServerSettings,
+    ChatDatabase,
+)
 
 
 class TestCheckResponseValidator(unittest.TestCase):
@@ -55,6 +59,22 @@ class TestCheckResponseValidator(unittest.TestCase):
         check = CheckResponse()
         self.assertFalse(check.check_response)
         self.assertEqual(check.allowed_content, [])
+
+
+class TestChatDatabaseSettings(unittest.TestCase):
+
+    def test_defaults(self):
+        settings = ChatDatabase()
+        self.assertTrue(settings.messages_database_file)
+        self.assertTrue(settings.context_database_file)
+
+    def test_invalid_database_name(self):
+        with self.assertRaises(ValidationError):
+            ChatDatabase(messages_database_file="")
+
+    def test_none_database_name(self):
+        with self.assertRaises(ValidationError):
+            ChatDatabase(messages_database_file=None)
 
 
 class TestChatSettings(unittest.TestCase):

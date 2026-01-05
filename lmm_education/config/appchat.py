@@ -43,6 +43,21 @@ class CheckResponse(BaseModel):
         return self
 
 
+class ChatDatabase(BaseModel):
+    """Names of databases to log queries and responses."""
+
+    messages_database_file: str = Field(
+        default="messages.csv",
+        min_length=1,
+        description="Database of message exchanges",
+    )
+    context_database_file: str = Field(
+        default="queries.csv",
+        min_length=1,
+        description="Database for retrieved context",
+    )
+
+
 class ChatSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
@@ -133,6 +148,11 @@ QUERY: "{query}"
     check_response: CheckResponse = Field(
         default_factory=CheckResponse,
         description="Check thematic appropriateness of chat",
+    )
+
+    chat_database: ChatDatabase = Field(
+        default_factory=ChatDatabase,
+        description="Database of chat exchanges",
     )
 
     server: ServerSettings = Field(
