@@ -58,7 +58,12 @@ def _client_constructor(
     the dbsource argument"""
     client: QdrantClient | None = client_from_config(dbsource, logger)
     if client is None:
-        raise ValueError("Could not create global client.")
+        # provide feedback on client type, as trying to access the
+        # database with the wrong (synchronous) type of client is the
+        # most common source of problems
+        raise ValueError(
+            "Could not create synchronous global client."
+        )
     return client
 
 
@@ -71,7 +76,12 @@ def _async_client_constructor(
         dbsource, logger
     )
     if client is None:
-        raise ValueError("Could not create global client.")
+        # provide feedback on client type, as trying to access the
+        # database with the wrong (asynchronous) type of client is the
+        # most common source of problems
+        raise ValueError(
+            "Could not create asynchronous global client."
+        )
     return client
 
 

@@ -346,6 +346,20 @@ def client_from_config(
             f"Could not initialize qdrant client due to API error: {e}"
         )
         return None
+    except RuntimeError as e:
+        # This often caused by accessing qdrant with sync client after
+        # prior acces with async client
+        if "aready accessed" in str(e):
+            logger.error(
+                f"Could not initialize qdrant client due to "
+                f"previous async initialization?\n{e}"
+            )
+        else:
+            logger.error(
+                f"Could not initialize qdrant client due to "
+                f"runtime error:\n{e}"
+            )
+        return None
     except Exception as e:
         logger.error(f"Could not initialize qdrant client:\n{e}")
         return None
@@ -408,7 +422,22 @@ def async_client_from_config(
             f"Could not initialize qdrant client due to API error: {e}"
         )
         return None
+    except RuntimeError as e:
+        # This often caused by accessing qdrant with async client after
+        # prior acces with sync client
+        if "aready accessed" in str(e):
+            logger.error(
+                f"Could not initialize qdrant client due to "
+                f"previous sync initialization?\n{e}"
+            )
+        else:
+            logger.error(
+                f"Could not initialize qdrant client due to "
+                f"runtime error:\n{e}"
+            )
+        return None
     except Exception as e:
+        print(type(e))
         logger.error(f"Could not initialize qdrant client:\n{e}")
         return None
 
