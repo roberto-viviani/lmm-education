@@ -18,7 +18,7 @@ conflated in the history parameter.
 # pyright: reportUnknownParameterType=false
 # pyright: reportUnknownMemberType=false
 
-from typing import TypedDict, Literal, Annotated, Any
+from typing import TypedDict, Literal, Annotated
 
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
@@ -44,7 +44,7 @@ from lmm_education.config.appchat import ChatSettings
 
 
 # Type aliases
-QueryStatus = Literal["valid", "empty", "too_long", "error"]
+ChatStatus = Literal["valid", "empty_query", "long_query", "error"]
 ValidationStatus = Literal["pending", "passed", "failed", "skipped"]
 
 
@@ -57,37 +57,31 @@ class ChatState(TypedDict):
 
     Attributes:
         messages: Conversation history as LangChain messages
+        status: status of the graph
         query_text: The current user query (possibly formatted with context)
-        original_query: The original, unmodified user query
-        query_status: Validation status of the query
         context: Retrieved context from vector store
-        documents: Retrieved document metadata for logging
-        error_message: Error message to display if query_status != "valid"
-        log_data: Metadata for logging (replaces history abuse)
     """
 
     # Conversation messages (uses LangGraph's message reducer)
     messages: Annotated[list[BaseMessage], add_messages]
+    status: ChatStatus
 
     # Query processing - required field
     query_text: str
 
-    # Optional fields with defaults handled in code
-    original_query: str
-    query_status: QueryStatus
-
     # RAG context
-    context: str
-    documents: list[dict[str, Any]]
-
-    # Error handling
-    error_message: str
-
-    # Logging metadata (replaces history abuse)
-    log_data: dict[str, Any]
+    context: str  # TODO: check this is not a list
 
 
-# dataclass cannot be used for context
+def create_initial_state(query: str) -> ChatState:
+    """Creates a default initial state, set to a user query."""
+
+    return ChatState(
+        messages=[], status="valid", query_text=query, context=""
+    )
+
+
+# (inherit from BaseModel as dataclass cannot be used for context)
 class ChatWorkflowContext(BaseModel):
     """
     Configuration for the chat workflow.
@@ -101,11 +95,14 @@ class ChatWorkflowContext(BaseModel):
     system_message: str = "You are a helpful assistant"
     chat_settings: ChatSettings = Field(default_factory=ChatSettings)
     print_context: bool = False
+    client_host: str = "<unknown>"
+    session_hash: str = "<unknown>"
     logger: LoggerBase = Field(default_factory=ConsoleLogger)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+# graph alias type
 ChatStateGraphType = CompiledStateGraph[
     ChatState, ChatWorkflowContext, ChatState, ChatState
 ]
@@ -143,29 +140,19 @@ def create_chat_workflow() -> ChatStateGraphType:
         if not query or not query.strip():
             return {
                 **state,
-                "query_status": "empty",
-                "error_message": settings.MSG_EMPTY_QUERY,
+                "status": "empty_query",
                 "messages": [
                     AIMessage(content=settings.MSG_EMPTY_QUERY)
                 ],
-                "log_data": {
-                    **state.get("log_data", {}),
-                    "status": "EMPTYQUERY",
-                },
             }
 
         if len(query.split()) > settings.max_query_word_count:
             return {
                 **state,
-                "query_status": "too_long",
-                "error_message": settings.MSG_LONG_QUERY,
+                "status": "long_query",
                 "messages": [
                     AIMessage(content=settings.MSG_LONG_QUERY)
                 ],
-                "log_data": {
-                    **state.get("log_data", {}),
-                    "status": "LONGQUERY",
-                },
             }
 
         # Normalize query text
@@ -176,8 +163,7 @@ def create_chat_workflow() -> ChatStateGraphType:
         return {
             **state,
             "query_text": normalized_query,
-            "original_query": query,
-            "query_status": "valid",
+            "status": "valid",
         }
 
     async def retrieve_context(
@@ -196,26 +182,22 @@ def create_chat_workflow() -> ChatStateGraphType:
             )
 
             # Store document metadata for logging
-            doc_metadata: list[dict[str, Any]] = [
-                {
-                    "content": (
-                        d.page_content[:200] + "..."
-                        if len(d.page_content) > 200
-                        else d.page_content
-                    ),
-                    "metadata": d.metadata,
-                }
-                for d in documents
-            ]
+            # doc_metadata: list[dict[str, Any]] = [
+            #     {
+            #         "content": (
+            #             d.page_content[:200] + "..."
+            #             if len(d.page_content) > 200
+            #             else d.page_content
+            #         ),
+            #         "metadata": d.metadata,
+            #     }
+            #     for d in documents
+            # ]
 
             new_state: ChatState = {
                 **state,
+                "status": "valid",
                 "context": context,
-                "documents": doc_metadata,
-                "log_data": {
-                    **state.get("log_data", {}),
-                    "context": context,
-                },
             }
             # this copies context to messages channel so that it will
             # be streamed to output. This has the downside that the
@@ -240,13 +222,11 @@ def create_chat_workflow() -> ChatStateGraphType:
             settings: ChatSettings = config.chat_settings
             return {
                 **state,
-                "query_status": "error",
-                "error_message": settings.MSG_ERROR_QUERY,
+                "status": "error",
                 "messages": [
                     AIMessage(content=settings.MSG_ERROR_QUERY)
                 ],
                 "context": "",
-                "documents": [],
             }
 
     def format_query(
@@ -321,7 +301,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     def should_retrieve(state: ChatState) -> str:
         """Conditional edge: check if query is valid."""
-        if state.get("query_status") == "valid":
+        if state.get("status") == "valid":
             return "retrieve"
         return "error"
 

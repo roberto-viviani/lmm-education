@@ -131,12 +131,8 @@ def create_initial_state(
     return ChatState(
         messages=messages,
         query_text=querytext,
-        original_query=querytext,
-        query_status="valid",  # Will be validated by workflow
+        status="valid",  # Will be validated by workflow
         context="",
-        documents=[],
-        error_message="",
-        log_data={},
     )
 
 
@@ -177,7 +173,8 @@ async def chat_function(
         BaseMessageChunk objects from the LLM stream
     """
 
-    # Utility function to process error messages
+    # Utility function to process error messages. The chunks here are
+    # shown in the chat output, the logger is for internal use.
     def _error_chunk(message: str) -> AIMessageChunk:
         logger.error(message)
         return AIMessageChunk(content="Error: " + message)
@@ -212,8 +209,12 @@ async def chat_function(
         logger=logger,
     )
 
-    # Create and compile workflow
-    workflow: ChatStateGraphType = workflow_library['query']
+    # Fetch workflow from workflow library
+    try:
+        workflow: ChatStateGraphType = workflow_library['query']
+    except Exception as e:
+        yield _error_chunk(f"Could not create workflow:\n{e}")
+        return
 
     # Create initial state
     initial_state: ChatState = create_initial_state(
@@ -237,15 +238,14 @@ async def chat_function(
                     "event in LangGraph stream"
                 )
 
-            chunk, metadata = event
-            node_name: str = metadata.get("langgraph_node", "")
+            chunk, metadata = event  # type: ignore
 
-            # Filter chunks from required nodes
-            if node_name in {"validate_query", "generate"}:
-                yield chunk
+            # at present, we just stream anything since the graph
+            # determines the stream content.
+            # node_name: str = metadata.get("langgraph_node", "")
+            # if node_name in {"generate"} ...
 
-            if print_context and node_name == "retrieve_context":
-                yield chunk
+            yield chunk
 
     except Exception as e:
         yield _error_chunk(f"Workflow streaming failed: {e}")
@@ -437,7 +437,7 @@ async def aquery(
         querystr: The query text to send to the language model
         model_settings: Language model settings (or 'major', 'minor', 'aux')
         chat_settings: Chat settings for the query
-        print_context: If True, print the RAG context to the logger
+        print_context: If True, print the RAG context in the output
         validate_content: If True, validate response content
         allowed_content: List of allowed content types for validation
         client: Optional pre-configured Qdrant client
