@@ -346,7 +346,7 @@ def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
             raise ValueError(f"Invalid workflow: {workflow_name}")
 
 
-from lmm.language_models.lazy_dict import LazyLoadingDict
+from lmm.language_models.lazy_dict import LazyLoadingDict  # noqa: E402
 
 workflow_library: LazyLoadingDict[str, ChatStateGraphType] = (
     LazyLoadingDict(_workflow_factory)
