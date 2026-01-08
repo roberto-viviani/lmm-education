@@ -1,4 +1,38 @@
-from typing import TypeVar, Generic, Mapping, Any, override
+"""
+Defines the infrastructure to implement logging to a database a
+LangGraph stream.
+
+The GraphLogger class implements a log function that delegates
+logging to a separate task, thus avoiding to block streaming
+when logging the interaction to the language model to a database.
+
+How to use: first, define a co-routine that handles the logging
+to a stream, a state, and a context. You will have defined a graph
+state (from TypedDict) and a context object (from BaseModel):
+
+```python
+async def logging(
+    stream: TextIOBase,
+    state: GraphState,
+    context: Context,
+    interaction_type: str,
+    timestamp: datetime | None = None,
+    record_id: str = "") -> str:
+    ... implementation goes here
+```
+
+You then define the logger:
+
+```python
+with open("logger.csv", 'a', encoding = 'utf-8') as f:
+    logger = GraphLogger(logging)
+    logger.log(f, state, context, "")
+```
+
+"""
+
+from typing import TypeVar, Generic, Any, override
+from collections.abc import Mapping, Coroutine, Callable
 from datetime import datetime
 from io import TextIOBase
 import asyncio
@@ -16,10 +50,11 @@ StateType = TypeVar("StateType", bound=Mapping[str, Any])
 # Context must be or derive from Pydantic's BaseModel
 ContextType = TypeVar("ContextType", bound=BaseModel)
 
+
 class DatabaseLoggerBase(Generic[StateType, ContextType]):
     """Definition of the database log interface. This
     class definition returns a functional object that does
-    nothing. 
+    nothing.
     """
 
     def log(
@@ -40,7 +75,7 @@ class DatabaseLoggerBase(Generic[StateType, ContextType]):
             state: the state (TypedDict) to log
             context: the dependency injection object (Pydantic Model)
             interaction_type: the interaction type
-            timestamp: Timestamp of the interaction. Defaults to 
+            timestamp: Timestamp of the interaction. Defaults to
                 current time if None.
             record_id: Unique identifier for this record
 
@@ -60,14 +95,15 @@ class DatabaseLoggerBase(Generic[StateType, ContextType]):
 
 
 # Type Alias for the coroutine for better readability
-from collections.abc import Callable, Awaitable
 LogCoroutine = Callable[
-    [TextIOBase, StateType, ContextType, str, datetime, str], 
-    Awaitable[None]
+    [TextIOBase, StateType, ContextType, str, datetime, str],
+    Coroutine[Any, Any, None],
 ]
 
 # module-level collection of task objects.
 active_logs: set[asyncio.Task[None]] = set()
+
+
 async def _shutdown() -> None:
     if active_logs:
         print(
@@ -76,8 +112,8 @@ async def _shutdown() -> None:
         )
         # Create snapshot to avoid set modification during iteration
         tasks: list[asyncio.Task[None]] = list(active_logs)
-        results: list[BaseException | None] = (
-            await asyncio.gather(*tasks, return_exceptions=True)
+        results: list[BaseException | None] = await asyncio.gather(
+            *tasks, return_exceptions=True
         )
 
         # The only exceptions raised by code are those raised by
@@ -112,15 +148,15 @@ async def _shutdown() -> None:
 
 class GraphLogger(DatabaseLoggerBase[StateType, ContextType]):
     """Implementation of the DatabaseLogger interface. We wrap here
-    an async log function to implement a 'fire and forget' strategy 
+    an async log function to implement a 'fire and forget' strategy
     to avoid blocking responses when streaming the graph.
 
     Note: an asyncio loop must be running to use this object."""
 
     def __init__(
-        self, 
-        stream: TextIOBase, 
-        log_coro: LogCoroutine[StateType, ContextType]
+        self,
+        stream: TextIOBase,
+        log_coro: LogCoroutine[StateType, ContextType],
     ):
         self._stream = stream
         self._log_coro = log_coro
@@ -147,8 +183,8 @@ class GraphLogger(DatabaseLoggerBase[StateType, ContextType]):
                 context,
                 interaction_type,
                 timestamp,
-                record_id
-            )  
+                record_id,
+            )
         )
         active_logs.add(logtask)
         logtask.add_done_callback(active_logs.discard)
@@ -171,9 +207,7 @@ class GraphLogger(DatabaseLoggerBase[StateType, ContextType]):
                 import nest_asyncio
 
                 nest_asyncio.apply()  # type: ignore
-                loop.run_until_complete(
-                    _shutdown()
-                )
+                loop.run_until_complete(_shutdown())
             else:
                 asyncio.run(_shutdown())
 
