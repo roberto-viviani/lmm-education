@@ -2,9 +2,9 @@
 Defines the infrastructure to implement logging to a database a
 LangGraph stream.
 
-The GraphLogger class implements a log function that delegates
-logging to a separate task, thus avoiding to block streaming
-when logging the interaction to the language model to a database.
+This module provides a factory function that creates fire-and-forget
+async logging functions, avoiding blocking streaming when logging
+interactions to a database.
 
 How to use: first, define a co-routine that handles the logging
 to a stream, a state, and a context. You will have defined a graph
@@ -16,26 +16,31 @@ async def logging(
     state: GraphState,
     context: Context,
     interaction_type: str,
-    timestamp: datetime | None = None,
-    record_id: str = "") -> str:
+    timestamp: datetime,
+    record_id: str) -> None:
     ... implementation goes here
 ```
 
-You then define the logger:
+Then create a logger using the factory function:
 
 ```python
-with open("logger.csv", 'a', encoding = 'utf-8') as f:
-    logger = GraphLogger(logging)
-    logger.log(f, state, context, "")
+with open("logger.csv", 'a', encoding='utf-8') as f:
+    log = create_graph_logger(f, logging)
+    log(state, context, "MESSAGE")
 ```
+
+Note: The caller is responsible for keeping the stream open while
+logging tasks are pending. Pending tasks are automatically awaited
+at application exit via an atexit handler.
 
 """
 
-from typing import TypeVar, Generic, Any, override
+from typing import TypeVar, Any
 from collections.abc import Mapping, Coroutine, Callable
 from datetime import datetime
 from io import TextIOBase
 import asyncio
+import atexit
 
 from pydantic import BaseModel
 
@@ -50,66 +55,33 @@ StateType = TypeVar("StateType", bound=Mapping[str, Any])
 # Context must be or derive from Pydantic's BaseModel
 ContextType = TypeVar("ContextType", bound=BaseModel)
 
-
-class DatabaseLoggerBase(Generic[StateType, ContextType]):
-    """Definition of the database log interface. This
-    class definition returns a functional object that does
-    nothing.
-    """
-
-    def log(
-        self,
-        state: StateType,
-        context: ContextType,
-        interaction_type: str = "MESSAGE",
-        timestamp: datetime | None = None,
-        record_id: str = "",
-    ) -> str:
-        """
-        Logging function for CSV files.
-
-        When the interaction_type is "MESSAGE", also logs the
-        context in the context table.
-
-        Args:
-            state: the state (TypedDict) to log
-            context: the dependency injection object (Pydantic Model)
-            interaction_type: the interaction type
-            timestamp: Timestamp of the interaction. Defaults to
-                current time if None.
-            record_id: Unique identifier for this record
-
-        Returns:
-            the record_id used for the record.
-        """
-        # handle mutable default argument safety
-        if timestamp is None:
-            timestamp = datetime.now()
-
-        return ""
-
-    def close(self) -> None:
-        """Flushes logs buffer, if required by the implementation,
-        and releases resources."""
-        pass
-
-
 # Type Alias for the coroutine for better readability
 LogCoroutine = Callable[
     [TextIOBase, StateType, ContextType, str, datetime, str],
     Coroutine[Any, Any, None],
 ]
 
-# module-level collection of task objects.
+# Module-level collection of task objects.
 active_logs: set[asyncio.Task[None]] = set()
 
 
+def _shutdown_sync() -> None:
+    """Synchronous atexit handler for cleanup."""
+    if not active_logs:
+        return
+
+    try:
+        asyncio.get_running_loop()
+        print("Warning: Event loop still running at shutdown")
+    except RuntimeError:
+        # No running loop - use asyncio.run()
+        asyncio.run(_shutdown())
+
+
 async def _shutdown() -> None:
+    """Await all pending log tasks."""
     if active_logs:
-        print(
-            f"App exited without loop cleanup? Awaiting "
-            f"{len(active_logs)} logging tasks..."
-        )
+        print(f"Awaiting {len(active_logs)} pending logging tasks...")
         # Create snapshot to avoid set modification during iteration
         tasks: list[asyncio.Task[None]] = list(active_logs)
         results: list[BaseException | None] = await asyncio.gather(
@@ -146,39 +118,76 @@ async def _shutdown() -> None:
                 print(f"Logging failed: {result}")
 
 
-class GraphLogger(DatabaseLoggerBase[StateType, ContextType]):
-    """Implementation of the DatabaseLogger interface. We wrap here
-    an async log function to implement a 'fire and forget' strategy
-    to avoid blocking responses when streaming the graph.
+# Register cleanup handler at module load
+atexit.register(_shutdown_sync)
 
-    Note: an asyncio loop must be running to use this object."""
 
-    def __init__(
-        self,
-        stream: TextIOBase,
-        log_coro: LogCoroutine[StateType, ContextType],
-    ):
-        self._stream = stream
-        self._log_coro = log_coro
+def create_graph_logger(
+    stream: TextIOBase,
+    log_coro: LogCoroutine[StateType, ContextType],
+) -> Callable[
+    [StateType, ContextType, str, datetime | None, str], str
+]:
+    """
+    Factory that returns a fire-and-forget log function.
 
-    @override
+    The returned function creates async tasks for logging operations,
+    adding them to the module-level active_logs set for tracking.
+    All pending tasks are automatically awaited at application exit.
+
+    Args:
+        stream: The text stream to write logs to. The caller is
+            responsible for keeping this stream open while logging
+            tasks are pending.
+        log_coro: The async coroutine that performs the actual logging.
+
+    Returns:
+        A logging function with signature:
+            (state, context, interaction_type, timestamp, record_id) -> str
+
+        The function returns the record_id used for the log entry.
+
+    Example:
+        ```python
+        with open("logger.csv", 'a', encoding='utf-8') as f:
+            log = create_graph_logger(f, my_logging_coroutine)
+            record_id = log(state, context, "MESSAGE")
+        ```
+
+    Note: An asyncio loop must be running to use the returned function.
+    """
+
     def log(
-        self,
         state: StateType,
         context: ContextType,
         interaction_type: str = "MESSAGE",
         timestamp: datetime | None = None,
         record_id: str = "",
     ) -> str:
+        """
+        Log an interaction to the database asynchronously.
+
+        Args:
+            state: The state (TypedDict) to log
+            context: The dependency injection object (Pydantic Model)
+            interaction_type: The interaction type (default: "MESSAGE")
+            timestamp: Timestamp of the interaction. Defaults to
+                current time if None.
+            record_id: Unique identifier for this record. Generated
+                if not provided.
+
+        Returns:
+            The record_id used for the record.
+        """
         if timestamp is None:
             timestamp = datetime.now()
 
         if not record_id:
             record_id = generate_random_string(8)
 
-        logtask: asyncio.Task[None] = asyncio.create_task(
-            self._log_coro(
-                self._stream,
+        task: asyncio.Task[None] = asyncio.create_task(
+            log_coro(
+                stream,
                 state,
                 context,
                 interaction_type,
@@ -186,30 +195,40 @@ class GraphLogger(DatabaseLoggerBase[StateType, ContextType]):
                 record_id,
             )
         )
-        active_logs.add(logtask)
-        logtask.add_done_callback(active_logs.discard)
+        active_logs.add(task)
+        task.add_done_callback(lambda t: active_logs.discard(t))
 
         return record_id
 
-    @override
-    def close(self) -> None:
-        # Check if there's a running loop
-        try:
-            loop: asyncio.AbstractEventLoop = (
-                asyncio.get_running_loop()
-            )
-        except RuntimeError:
-            # No running loop - just use asyncio.run()
-            asyncio.run(_shutdown())
-        else:
-            # Loop is running - use it directly
-            if loop.is_running():
-                import nest_asyncio
+    return log
 
-                nest_asyncio.apply()  # type: ignore
-                loop.run_until_complete(_shutdown())
-            else:
-                asyncio.run(_shutdown())
 
-    def __del__(self):
-        self.close()
+def create_null_logger() -> (
+    Callable[[Any, Any, str, datetime | None, str], str]
+):
+    """
+    Factory that returns a no-op logger function.
+
+    Useful for testing or when logging is disabled.
+
+    Returns:
+        A function that accepts the same arguments as a regular
+        logger but does nothing and returns an empty string.
+
+    Example:
+        ```python
+        log = create_null_logger()
+        record_id = log(state, context, "MESSAGE")  # Does nothing
+        ```
+    """
+
+    def null_log(
+        state: Any,
+        context: Any,
+        interaction_type: str = "MESSAGE",
+        timestamp: datetime | None = None,
+        record_id: str = "",
+    ) -> str:
+        return ""
+
+    return null_log
