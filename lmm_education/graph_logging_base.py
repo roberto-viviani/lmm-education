@@ -10,13 +10,13 @@ into a non-blocking function immediately returning to the caller. The
 actual logging is coded in this co-routine.
 
 How to use: first, define a co-routine that handles the logging
-to a stream, a state, and a context (you will have defined a graph
-state - from TypedDict - and a context object - from BaseModel - when
-defining the graph itself):
+to a stream or a list of streams (for multiple tables), a state, and
+a context (you will have defined a graph state - from TypedDict - and
+a context object - from BaseModel - when defining the graph itself):
 
 ```python
 async def logging(
-    stream: TextIOBase,
+    streams: TextIOBase,
     state: GraphState,
     context: Context,
     interaction_type: str,
@@ -61,7 +61,14 @@ ContextType = TypeVar("ContextType", bound=BaseModel)
 
 # Type Alias for the coroutine for better readability
 LogCoroutine = Callable[
-    [TextIOBase, StateType, ContextType, str, datetime, str],
+    [
+        TextIOBase | list[TextIOBase],
+        StateType,
+        ContextType,
+        str,
+        datetime,
+        str,
+    ],
     Coroutine[Any, Any, None],
 ]
 
@@ -127,7 +134,7 @@ atexit.register(_shutdown_sync)
 
 
 def create_graph_logger(
-    stream: TextIOBase,
+    streams: TextIOBase | list[TextIOBase],
     context: ContextType,
     log_coro: LogCoroutine[StateType, ContextType],
 ) -> Callable[
@@ -141,9 +148,9 @@ def create_graph_logger(
     All pending tasks are automatically awaited at application exit.
 
     Args:
-        stream: The text stream to write logs to. The caller is
-            responsible for keeping this stream open while logging
-            tasks are pending.
+        stream: The text streams to write logs to. The caller is
+            responsible for keeping these streams open while logging
+            tasks are pending (one stream per table)
         log_coro: The async coroutine that performs the actual
             logging.
 
@@ -196,7 +203,7 @@ def create_graph_logger(
 
         task: asyncio.Task[None] = asyncio.create_task(
             log_coro(
-                stream,
+                streams,
                 state,
                 context,
                 interaction_type,

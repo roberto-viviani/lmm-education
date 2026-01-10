@@ -12,12 +12,11 @@ The state object (ChatState) cleanly separates concerns that were previously
 conflated in the history parameter.
 """
 
+# LangGraph missing type stubs
 # pyright: reportMissingTypeStubs=false
-# pyright: reportMissingTypeArgument=false
-# pyright: reportUnknownArgumentType=false
-# pyright: reportUnknownParameterType=false
 # pyright: reportUnknownMemberType=false
 
+from io import TextIOBase
 from typing import TypedDict, Literal, Annotated
 
 from pydantic import BaseModel, Field
@@ -44,7 +43,9 @@ from lmm_education.config.appchat import ChatSettings
 
 
 # Type aliases
-ChatStatus = Literal["valid", "empty_query", "long_query", "error"]
+ChatStatus = Literal[
+    "valid", "empty_query", "long_query", "rejected", "error"
+]
 
 
 class ChatState(TypedDict):
@@ -203,10 +204,12 @@ def create_chat_workflow() -> ChatStateGraphType:
                 "status": "valid",
                 "context": context,
             }
+            # TODO:
             # this copies context to messages channel so that it will
             # be streamed to output. This has the downside that the
             # message list is messed up. The alternative is to stream
             # the state and filter it, moving the logic to the caller.
+            # At present, this is never called within a chat.
             if config.print_context:
                 message: list[BaseMessage] = [
                     AIMessage(
@@ -286,11 +289,8 @@ def create_chat_workflow() -> ChatStateGraphType:
             if hasattr(chunk, 'text') and callable(chunk.text):
                 response_chunks.append(chunk.text)
             elif hasattr(chunk, 'content'):
-                content = chunk.content  # type: ignore
-                if isinstance(content, str):
-                    response_chunks.append(content)
-                else:
-                    response_chunks.append(str(content))
+                content: str = str(chunk.content)  # type: ignore (arg type)
+                response_chunks.append(content)
             else:
                 response_chunks.append(str(chunk))
 
@@ -386,12 +386,185 @@ def prepare_messages_for_llm(
     # Add recent conversation history
     state_messages: list[BaseMessage] = state.get("messages", [])
     for msg in state_messages[-history_window:]:
-        if isinstance(msg, HumanMessage):
-            messages.append(("user", str(msg.content)))
-        elif isinstance(msg, AIMessage):
-            messages.append(("assistant", str(msg.content)))
+        role: str = (
+            "user" if isinstance(msg, HumanMessage) else "assistant"
+        )
+        content: str = ""
+        try:
+            content = str(msg.content)  # type: ignore (dict type)
+        except Exception:
+            pass
+        messages.append((role, content))
 
     # Add the current formatted query
     messages.append(("user", state["query_text"]))
 
     return messages
+
+
+# -----------------------------------------------------------------
+# Logging for this graph, using its specific information
+from datetime import datetime
+from lmm.language_models.langchain.runnables import (
+    RunnableType,
+    create_runnable,
+)
+
+
+def databaselog_create(
+    database_file: str, database_context_file: str
+) -> None:
+    """Creates the database files with the correct headers."""
+
+    import os
+
+    # Initialize CSV database files with headers if they don't exist
+    if not os.path.exists(database_file):
+        with open(database_file, "w", encoding='utf-8') as f:
+            f.write(
+                "record_id,client_host,session_hash,timestamp,history_length,model_name,interaction_type,query,response\n"
+            )
+
+    if not os.path.exists(database_context_file):
+        with open(database_context_file, "w", encoding='utf-8') as f:
+            f.write("record_id,evaluation,context,classification\n")
+
+
+async def logging(
+    streams: TextIOBase | list[TextIOBase],
+    state: ChatState,
+    context: ChatWorkflowContext,
+    interaction_type: str,
+    timestamp: datetime,
+    record_id: str,
+) -> None:
+    """
+    Log to CSV files function.
+
+    When the interaction_type is "MESSAGE", also logs the
+    context in the context table (from context config)
+
+    Args:
+        streams: a TextIOBase list of 2 to log messages
+        state: the ChatState to log
+        context: the dependency injection object
+        interaction_type: the interaction type
+        timestamp: Timestamp of the interaction
+        record_id: Unique identifier for this record
+    """
+
+    def fmat_for_csv(text: str) -> str:
+        """Format text for CSV storage by escaping quotes and newlines."""
+
+        # Replace double quotation marks with single quotation marks
+        modified_text = text.replace('"', "'")
+        # Replace newline characters with " | "
+        modified_text = modified_text.replace('\n', ' | ')
+        return modified_text
+
+    stream: TextIOBase
+    context_stream: TextIOBase | None
+    if isinstance(streams, list):
+        if len(streams) < 2:
+            raise ValueError(
+                "logging, when stream list given, mut contain 2 streams"
+            )
+        stream, context_stream = streams[0], streams[1]
+    else:
+        stream = streams
+        context_stream = None
+
+    logger: LoggerBase = context.logger
+
+    # info from state and context
+    client_host: str = context.client_host or "<unknwon>"
+    session_hash: str = context.session_hash or "<unknwon>"
+    model_name: str = context.llm.name or "<unknwon>"
+    messages: list[BaseMessage] = state['messages']
+    status: ChatStatus = state['status']
+    response: str = (
+        str(messages[-1].content) if messages else ""  # type: ignore (langchain)
+    )
+    query: str = state["query_text"]
+    classification: str = state["query_classification"]
+
+    try:
+        match status:
+            case 'valid':
+                # Log main interaction to messages.csv
+                stream.write(
+                    f'{record_id},{client_host},{session_hash},'
+                    f'{timestamp},{len(messages)},'
+                    f'{model_name},{interaction_type},'
+                    f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
+                )
+
+                # Log context if available (from context role in history). We also
+                # record relevance of context for further monitoring.
+                if interaction_type == "MESSAGE" and state["context"]:
+                    query_context: str = state[
+                        "context"
+                    ]  # TODO: check this is not a list
+                    # we evaluate consistency of context prior to saving
+                    try:
+                        lmm_validator: RunnableType = create_runnable(
+                            'context_validator'  # this will be a dict lookup
+                        )
+                        validation: str = await lmm_validator.ainvoke(
+                            {
+                                'query': f"{query}. {response}",
+                                'context': query_context,
+                            }
+                        )
+                        validation = validation.upper()
+                    except Exception as e:
+                        logger.error(
+                            f'Could not connect to aux model to validate context: {e}'
+                        )
+                        validation = "<failed>"
+
+                    if context_stream is None:
+                        context_database_file = (
+                            context.chat_settings.chat_database.context_database_file
+                        )
+                        with open(
+                            context_database_file,
+                            "a",
+                            encoding='utf-8',
+                        ) as f:
+                            f.write(
+                                f'{record_id},{validation},'
+                                f'"{fmat_for_csv(query_context)}",{classification}\n'
+                            )
+                    else:
+                        context_stream.write(
+                            f'{record_id},{validation},'
+                            f'"{fmat_for_csv(query_context)}",{classification}\n'
+                        )
+            case "empty_query":
+                stream.write(
+                    f'{record_id},{client_host},{session_hash},'
+                    f'{timestamp},{len(messages)},'
+                    f',EMPTYQUERY,"",""\n'
+                )
+
+            case "long_query":
+                stream.write(
+                    f'{record_id},{client_host},{session_hash},'
+                    f'{timestamp},{len(messages)},'
+                    f',LONGQUERY,"{fmat_for_csv(query)}",""\n'
+                )
+
+            case "rejected":
+                stream.write(
+                    f'{record_id},{client_host},{session_hash},'
+                    f'{timestamp},{len(messages)},'
+                    f'{model_name},REJECTED,'
+                    f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
+                )
+
+            case _:  # ignore all others (errors logged to logger)
+                pass
+
+    except Exception as e:
+        logger.error(f"Async logging failed: {e}")

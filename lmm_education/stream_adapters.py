@@ -248,7 +248,7 @@ async def stateful_validation_adapter(
                         modified_state: ChatState = {
                             **captured_state,
                             "query_classification": classification,
-                            "status": "rejected",  # type: ignore
+                            "status": "rejected",
                         }
                         yield ("values", modified_state)
 
