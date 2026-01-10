@@ -1,14 +1,18 @@
 """
 Defines the infrastructure to implement logging to a database a
-LangGraph stream.
+LangGraph stream based on its state and context.
 
 This module provides a factory function that creates fire-and-forget
 async logging functions, avoiding blocking streaming when logging
-interactions to a database.
+interactions to a database. This function wraps a logging co-routine
+that is provided as an argument to the factory, thus transforming it
+into a non-blocking function immediately returning to the caller. The
+actual logging is coded in this co-routine.
 
 How to use: first, define a co-routine that handles the logging
-to a stream, a state, and a context. You will have defined a graph
-state (from TypedDict) and a context object (from BaseModel):
+to a stream, a state, and a context (you will have defined a graph
+state - from TypedDict - and a context object - from BaseModel - when
+defining the graph itself):
 
 ```python
 async def logging(
@@ -26,7 +30,7 @@ Then create a logger using the factory function:
 ```python
 with open("logger.csv", 'a', encoding='utf-8') as f:
     log = create_graph_logger(f, logging)
-    log(state, context, "MESSAGE")
+    record_id: str = log(state, context, "MESSAGE")
 ```
 
 Note: The caller is responsible for keeping the stream open while
@@ -139,7 +143,8 @@ def create_graph_logger(
         stream: The text stream to write logs to. The caller is
             responsible for keeping this stream open while logging
             tasks are pending.
-        log_coro: The async coroutine that performs the actual logging.
+        log_coro: The async coroutine that performs the actual
+            logging.
 
     Returns:
         A logging function with signature:
@@ -154,7 +159,8 @@ def create_graph_logger(
             record_id = log(state, context, "MESSAGE")
         ```
 
-    Note: An asyncio loop must be running to use the returned function.
+    Note:
+        An asyncio loop must be running to use the returned function.
     """
 
     def log(
@@ -218,7 +224,7 @@ def create_null_logger() -> (
     Example:
         ```python
         log = create_null_logger()
-        record_id = log(state, context, "MESSAGE")  # Does nothing
+        log(state, context, "MESSAGE")  # Does nothing
         ```
     """
 
