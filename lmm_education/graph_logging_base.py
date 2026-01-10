@@ -29,8 +29,8 @@ Then create a logger using the factory function:
 
 ```python
 with open("logger.csv", 'a', encoding='utf-8') as f:
-    log = create_graph_logger(f, logging)
-    record_id: str = log(state, context, "MESSAGE")
+    log = create_graph_logger(f, context, logging)
+    record_id: str = log(state, "MESSAGE")
 ```
 
 Note: The caller is responsible for keeping the stream open while
@@ -128,9 +128,10 @@ atexit.register(_shutdown_sync)
 
 def create_graph_logger(
     stream: TextIOBase,
+    context: ContextType,
     log_coro: LogCoroutine[StateType, ContextType],
 ) -> Callable[
-    [StateType, ContextType, str, datetime | None, str], str
+    [StateType, str | None, datetime | None, str | None], str
 ]:
     """
     Factory that returns a fire-and-forget log function.
@@ -165,10 +166,9 @@ def create_graph_logger(
 
     def log(
         state: StateType,
-        context: ContextType,
-        interaction_type: str = "MESSAGE",
+        interaction_type: str | None = None,
         timestamp: datetime | None = None,
-        record_id: str = "",
+        record_id: str | None = None,
     ) -> str:
         """
         Log an interaction to the database asynchronously.
@@ -185,6 +185,9 @@ def create_graph_logger(
         Returns:
             The record_id used for the record.
         """
+        if interaction_type is None:
+            interaction_type = "MESSAGE"
+
         if timestamp is None:
             timestamp = datetime.now()
 
@@ -210,7 +213,7 @@ def create_graph_logger(
 
 
 def create_null_logger() -> (
-    Callable[[Any, Any, str, datetime | None, str], str]
+    Callable[[Any, str | None, datetime | None, str | None], str]
 ):
     """
     Factory that returns a no-op logger function.
@@ -230,10 +233,9 @@ def create_null_logger() -> (
 
     def null_log(
         state: Any,
-        context: Any,
-        interaction_type: str = "MESSAGE",
+        interaction_type: str | None = None,
         timestamp: datetime | None = None,
-        record_id: str = "",
+        record_id: str | None = None,
     ) -> str:
         return ""
 

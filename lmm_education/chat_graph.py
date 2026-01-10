@@ -45,7 +45,6 @@ from lmm_education.config.appchat import ChatSettings
 
 # Type aliases
 ChatStatus = Literal["valid", "empty_query", "long_query", "error"]
-ValidationStatus = Literal["pending", "passed", "failed", "skipped"]
 
 
 class ChatState(TypedDict):
@@ -68,6 +67,7 @@ class ChatState(TypedDict):
 
     # Query processing - required field
     query_text: str
+    query_classification: str
 
     # RAG context
     context: str  # TODO: check this is not a list
@@ -77,7 +77,11 @@ def create_initial_state(query: str) -> ChatState:
     """Creates a default initial state, set to a user query."""
 
     return ChatState(
-        messages=[], status="valid", query_text=query, context=""
+        messages=[],
+        status="valid",
+        query_text=query,
+        query_classification="",
+        context="",
     )
 
 
@@ -346,7 +350,9 @@ def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
             raise ValueError(f"Invalid workflow: {workflow_name}")
 
 
-from lmm.language_models.lazy_dict import LazyLoadingDict  # noqa: E402
+from lmm.language_models.lazy_dict import (
+    LazyLoadingDict,
+)  # noqa: E402
 
 workflow_library: LazyLoadingDict[str, ChatStateGraphType] = (
     LazyLoadingDict(_workflow_factory)
@@ -378,7 +384,7 @@ def prepare_messages_for_llm(
         messages.append(("system", system_message))
 
     # Add recent conversation history
-    state_messages = state.get("messages", [])
+    state_messages: list[BaseMessage] = state.get("messages", [])
     for msg in state_messages[-history_window:]:
         if isinstance(msg, HumanMessage):
             messages.append(("user", str(msg.content)))

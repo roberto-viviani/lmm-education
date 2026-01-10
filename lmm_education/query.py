@@ -130,8 +130,9 @@ def create_initial_state(
 
     return ChatState(
         messages=messages,
-        query_text=querytext,
         status="valid",  # Will be validated by workflow
+        query_text=querytext,
+        query_classification="",
         context="",
     )
 
@@ -209,11 +210,14 @@ async def chat_function(
         logger=logger,
     )
 
-    # Fetch workflow from workflow library
+    # Fetch graph from workflow library
+    wfname = "query"
     try:
-        workflow: ChatStateGraphType = workflow_library['query']
+        workflow: ChatStateGraphType = workflow_library[wfname]
     except Exception as e:
-        yield _error_chunk(f"Could not create workflow:\n{e}")
+        yield _error_chunk(
+            f"Could not create workflow {wfname}:\n{e}"
+        )
         return
 
     # Create initial state
@@ -221,6 +225,9 @@ async def chat_function(
         querytext,
         history if history else None,
     )
+
+    # TODO: replace with stream composition depending on
+    # logging and validation
 
     # Stream from workflow using LangGraph's native streaming
     # stream_mode="messages" emits (chunk, metadata) tuples

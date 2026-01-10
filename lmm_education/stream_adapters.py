@@ -1,5 +1,5 @@
 """
-Stream adapters for processing LLM response streams.
+Stream adapters for processing LangGraph response streams.
 
 This module provides composable stream adapters that can wrap and transform
 async iterators of BaseMessageChunk objects. The primary use case is
@@ -8,10 +8,21 @@ using a separate LLM, and either passes through or rejects the stream.
 
 Architecture:
 - Generic components work with any LangGraph workflow
-- Domain-specific components (e.g., validation) use ChatState explicitly
+- Domain-specific components (e.g., validation) use ChatState
+    explicitly
 - Two-tier adapter system:
   * Tier 1: Multi-mode adapters (operate on (mode, event) tuples)
   * Tier 2: Message-only adapters (operate on BaseMessageChunk)
+
+Tier 1 adapters work on graphs that are streamed via stream_mode =
+["messages", "state"]. Tier 2 adapters work on streams from
+stream_mode = "messages". A stream may be filtered from tier 1 to tier
+2, but not in the opposite direction, as state is lost from the
+stream. The `terminal_demux_adapter` converts a tier 1 to tier 2
+stream, while also optionally calling a callback with the state at the
+end of streaming.
+
+The callback is given the final state as an argument.
 """
 
 import asyncio
@@ -236,6 +247,7 @@ async def stateful_validation_adapter(
                     if captured_state:
                         modified_state: ChatState = {
                             **captured_state,
+                            "query_classification": classification,
                             "status": "rejected",  # type: ignore
                         }
                         yield ("values", modified_state)
@@ -247,6 +259,20 @@ async def stateful_validation_adapter(
                     logger.warning(
                         "LLM exchange without content check (validation unavailable)"
                     )
+                    if captured_state:
+                        modified_state: ChatState = {
+                            **captured_state,
+                            "query_classification": "NA",
+                        }
+                        yield ("values", modified_state)
+                else:
+                    # record classification
+                    if captured_state:
+                        modified_state: ChatState = {
+                            **captured_state,
+                            "query_classification": classification,
+                        }
+                        yield ("values", modified_state)
 
                 for buffered_mode, buffered_event in buffer_chunks:
                     yield (buffered_mode, buffered_event)
@@ -305,16 +331,17 @@ async def terminal_demux_adapter(
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         on_terminal_state: Optional callback for terminal state
-            (e.g., for logging). Called fire-and-forget style.
+            (e.g., for logging). The function takes one StateT
+            argument, which will contain the terminal state.
 
     Yields:
-        BaseMessageChunk objects only
+        BaseMessageChunk objects
 
     Example:
         ```python
         messages = terminal_demux_adapter(
             multi_mode_stream,
-            on_terminal_state=lambda s: logger.log(s, context, "MESSAGE"),
+            on_terminal_state=lambda s: logger.log(s, "MESSAGE"),
         )
 
         async for chunk in messages:
