@@ -434,7 +434,6 @@ async def logging(
     streams: TextIOBase | list[TextIOBase],
     state: ChatState,
     context: ChatWorkflowContext,
-    interaction_type: str,
     timestamp: datetime,
     record_id: str,
 ) -> None:
@@ -495,13 +494,13 @@ async def logging(
                 stream.write(
                     f'{record_id},{client_host},{session_hash},'
                     f'{timestamp},{len(messages)},'
-                    f'{model_name},{interaction_type},'
+                    f'{model_name},MESSAGES,'
                     f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
                 )
 
                 # Log context if available (from context role in history). We also
                 # record relevance of context for further monitoring.
-                if interaction_type == "MESSAGE" and state["context"]:
+                if state["context"]:
                     query_context: str = state[
                         "context"
                     ]  # TODO: check this is not a list

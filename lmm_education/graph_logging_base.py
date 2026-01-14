@@ -65,12 +65,13 @@ LogCoroutine = Callable[
         TextIOBase | list[TextIOBase],
         StateType,
         ContextType,
-        str,
         datetime,
         str,
     ],
     Coroutine[Any, Any, None],
 ]
+
+# Type alias for the function returned by
 
 # Module-level collection of task objects.
 active_logs: set[asyncio.Task[None]] = set()
@@ -137,9 +138,7 @@ def create_graph_logger(
     streams: TextIOBase | list[TextIOBase],
     context: ContextType,
     log_coro: LogCoroutine[StateType, ContextType],
-) -> Callable[
-    [StateType, str | None, datetime | None, str | None], str
-]:
+) -> Callable[[StateType, datetime | None, str | None], str]:
     """
     Factory that returns a fire-and-forget log function.
 
@@ -151,20 +150,21 @@ def create_graph_logger(
         stream: The text streams to write logs to. The caller is
             responsible for keeping these streams open while logging
             tasks are pending (one stream per table)
+        context: a dependency injection object used by log_coro
         log_coro: The async coroutine that performs the actual
             logging.
 
     Returns:
         A logging function with signature:
-            (state, context, interaction_type, timestamp, record_id) -> str
-
-        The function returns the record_id used for the log entry.
+        (state, datetime | None, str | None) -> str
+        The logging function returns the record_id used for the
+        log entry.
 
     Example:
         ```python
         with open("logger.csv", 'a', encoding='utf-8') as f:
-            log = create_graph_logger(f, my_logging_coroutine)
-            record_id = log(state, context, "MESSAGE")
+            log = create_graph_logger(f, context, my_logging_coroutine)
+            record_id = log(state)
         ```
 
     Note:
@@ -173,7 +173,6 @@ def create_graph_logger(
 
     def log(
         state: StateType,
-        interaction_type: str | None = None,
         timestamp: datetime | None = None,
         record_id: str | None = None,
     ) -> str:
@@ -192,9 +191,6 @@ def create_graph_logger(
         Returns:
             The record_id used for the record.
         """
-        if interaction_type is None:
-            interaction_type = "MESSAGE"
-
         if timestamp is None:
             timestamp = datetime.now()
 
@@ -206,7 +202,6 @@ def create_graph_logger(
                 streams,
                 state,
                 context,
-                interaction_type,
                 timestamp,
                 record_id,
             )
@@ -220,7 +215,7 @@ def create_graph_logger(
 
 
 def create_null_logger() -> (
-    Callable[[Any, str | None, datetime | None, str | None], str]
+    Callable[[Any, datetime | None, str | None], str]
 ):
     """
     Factory that returns a no-op logger function.
@@ -240,7 +235,6 @@ def create_null_logger() -> (
 
     def null_log(
         state: Any,
-        interaction_type: str | None = None,
         timestamp: datetime | None = None,
         record_id: str | None = None,
     ) -> str:

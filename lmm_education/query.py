@@ -2,8 +2,8 @@
 This module allows interactively querying a language model, such that
 it can be tested using material ingested in the RAG database.
 
-A RAG database must have been previously created (for example, with the ingest
-module). In the following examples, we assume the existence of
+A RAG database must have been previously created (for example, with the
+ingest module). In the following examples, we assume the existence of
 a database on basic statistical modelling.
 
 Examples:
@@ -34,16 +34,21 @@ python -m lmm_education.query 'what is logistic regression?'
 ```
 """
 
-from collections.abc import AsyncIterator, Iterator, AsyncGenerator
-from typing import Any
+from collections.abc import (
+    AsyncIterator,
+    Iterator,
+    AsyncGenerator,
+    Callable,
+)
+from typing import Any, Literal
+from io import TextIOBase
+from datetime import datetime
 
 # Langchain
 from langchain_core.messages import (
-    BaseMessageChunk,
     BaseMessage,
     HumanMessage,
     AIMessage,
-    AIMessageChunk,
 )
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -58,6 +63,7 @@ from lmm.language_models.langchain.runnables import (
     create_runnable,
     RunnableType,
 )
+from lmm_education.config.appchat import CheckResponse
 from qdrant_client import AsyncQdrantClient
 
 # LM markdown for education
@@ -77,8 +83,17 @@ from .chat_graph import (
     ChatState,
     ChatWorkflowContext,
     workflow_library,
+    logging,
 )
-from .stream_adapters import validation_stream_adapter
+from .stream_adapters import (
+    tier_1_iterator,
+    tier_2_iterator,
+    astream_graph,
+    stateful_validation_adapter,
+    terminal_demux_adapter,
+    demux_adapter,
+)
+from .graph_logging_base import create_graph_logger, LogCoroutine
 
 
 def history_to_messages(
@@ -86,9 +101,6 @@ def history_to_messages(
 ) -> list[HumanMessage | AIMessage | BaseMessage]:
     """
     Convert Gradio history format to LangChain messages.
-
-    Filters out non-message entries (context, message, rejection) that
-    were previously stuffed into history for metadata transport.
 
     Args:
         history: Gradio-format history list
@@ -100,9 +112,6 @@ def history_to_messages(
     for m in history:
         role = m.get("role", "")
         content = m.get("content", "")
-        # Skip metadata entries that were misused in history
-        if role in ("context", "message", "rejection"):
-            continue
         if role == "user":
             messages.append(HumanMessage(content=content))
         elif role == "assistant":
@@ -139,23 +148,24 @@ def create_initial_state(
 
 async def chat_function(
     querytext: str,
-    history: list[dict[str, str]] | None = None,
-    retriever: BaseRetriever | None = None,
+    history: list[dict[str, str]] | None,
+    context: ChatWorkflowContext,
     *,
-    llm: BaseChatModel,
-    chat_settings: ChatSettings,
-    system_msg: str = "You are a helpful assistant",
     print_context: bool = False,
+    validate: CheckResponse | Literal[False] | None = None,
+    database_streams: list[TextIOBase] = [],
+    database_log: (
+        LogCoroutine[ChatState, ChatWorkflowContext] | bool
+    ) = False,
     logger: LoggerBase = ConsoleLogger(),
-) -> AsyncGenerator[BaseMessageChunk, None]:
+) -> AsyncGenerator[str, None]:
     """
     Async generator that yields BaseMessageChunk objects.
 
-    This function uses LangGraph's native streaming to process a user query.
-    The workflow handles query validation, context retrieval, query formatting,
-    and LLM response generation in a single streaming call.
+    This function retrieves a compiled LangGraph's graph, creates the
+    initial state, and returns a stream to process a user query.
 
-    Note: This is an async generator function that may be called drectly:
+    Note: This is an async generator function that may be called directly:
         stream = chat_function(...)
         async for chunk in stream:
             ...
@@ -163,22 +173,27 @@ async def chat_function(
     Args:
         querytext: The user's query text
         history: List of previous message exchanges (Gradio format)
-        retriever: Optional document retriever for RAG
-        llm: Langchain language model object
-        chat_settings: Chat configuration settings
-        system_msg: System message for the conversation
+        context: a ChatWorkflowContext object for dependencies
         print_context: Prints the results of the query to the logger
+        validate: if None, validates response using settings from
+            appchat.toml. If False, carries out no validation. If a
+            CheckReponse object, overrides the settings from
+            appchat.toml.
+        database_log: if False (default), carries out no database
+            logging. If True, carries out database logging with the
+            default function defined with the graph. If a logger
+            function is provided, it uses that function.
         logger: Logger instance for info and error reporting
 
     Yields:
-        BaseMessageChunk objects from the LLM stream
+        strings from the LLM stream
     """
 
     # Utility function to process error messages. The chunks here are
     # shown in the chat output, the logger is for internal use.
-    def _error_chunk(message: str) -> AIMessageChunk:
+    def _error_chunk(message: str) -> str:
         logger.error(message)
-        return AIMessageChunk(content="Error: " + message)
+        return "Error: " + message
 
     config_settings: ConfigSettings | None = load_settings(
         logger=logger
@@ -187,28 +202,39 @@ async def chat_function(
         yield _error_chunk("Could not load settings")
         return
 
-    # Set up retriever if not provided
-    if retriever is None:
-        try:
-            retriever = AsyncQdrantRetriever.from_config_settings(
-                config_settings
-            )
-        except Exception as e:
-            yield _error_chunk(
-                f"Could not open vector database: {e}. "
-                "The system is not available."
-            )
-            return
+    # Settings for print_context
+    context.print_context = print_context
 
-    # Create workflow configuration
-    workflow_config = ChatWorkflowContext(
-        llm=llm,
-        retriever=retriever,
-        system_message=system_msg,
-        chat_settings=chat_settings,
-        print_context=print_context,
-        logger=logger,
-    )
+    # Retrieve settings for validation.
+    response_settings: CheckResponse
+    match validate:
+        case None:
+            response_settings = context.chat_settings.check_response
+        case False:
+            response_settings = CheckResponse(check_response=False)
+        case CheckResponse():
+            response_settings = validate
+
+    # Settings for logging.
+    database_logger: (
+        Callable[[ChatState, datetime | None, str | None], str] | None
+    ) = None
+    match database_log:
+        case False:
+            database_logger = None
+        case True:
+            database_logger = create_graph_logger(
+                database_streams, context, logging
+            )
+        case _:
+            database_logger = create_graph_logger(
+                database_streams, context, database_log
+            )
+    if database_logger and not database_streams:
+        yield _error_chunk(
+            "chat_function: database_logger used without streams"
+        )
+        return
 
     # Fetch graph from workflow library
     wfname = "query"
@@ -226,152 +252,52 @@ async def chat_function(
         history if history else None,
     )
 
-    # TODO: replace with stream composition depending on
-    # logging and validation
-
-    # Stream from workflow using LangGraph's native streaming
-    # stream_mode="messages" emits (chunk, metadata) tuples
-    event: tuple[AIMessageChunk, dict[str, Any]]
-    try:
-        async for event in workflow.astream(  # type: ignore
-            initial_state,
-            stream_mode="messages",
-            context=workflow_config,
-        ):
-            # event is a tuple: (chunk, metadata)
-            if not isinstance(event, tuple) and len(event) == 2:  # type: ignore
-                raise ValueError(
-                    "Unreachable code reached, invalid "
-                    "event in LangGraph stream"
-                )
-
-            chunk, metadata = event  # type: ignore
-
-            # at present, we just stream anything since the graph
-            # determines the stream content.
-            # node_name: str = metadata.get("langgraph_node", "")
-            # if node_name in {"generate"} ...
-
-            yield chunk
-
-    except Exception as e:
-        yield _error_chunk(f"Workflow streaming failed: {e}")
-        return
-
-
-async def chat_function_with_validation(
-    querytext: str,
-    history: list[dict[str, str]] | None = None,
-    retriever: BaseRetriever | None = None,
-    *,
-    llm: BaseChatModel,
-    chat_settings: ChatSettings,
-    system_msg: str = "You are a helpful assistant",
-    print_context: bool = False,
-    logger: LoggerBase = ConsoleLogger(),
-    initial_buffer_size: int = 320,
-    max_retries: int = 2,
-) -> AsyncGenerator[BaseMessageChunk, None]:
-    """
-    Returns an async iterator that yields BaseMessageChunk objects with
-    content validation.
-
-    This function extends chat_function by wrapping the output stream
-    with a validation adapter. The adapter buffers initial response
-    content, validates it using a separate LLM, and only streams
-    the content if validation passes.
-
-    Args:
-        querytext: The user's query text
-        history: List of previous message exchanges
-        retriever: Optional document retriever for RAG
-        llm: Language model to use
-        chat_settings: Chat configuration settings
-        system_msg: System message for the conversation
-        print_context: Prints to logger the results of the query
-        logger: Logger instance for error reporting
-        initial_buffer_size: Number of characters to buffer before
-            validation
-        max_retries: Maximum number of validation retry attempts
-
-    Returns:
-        AsyncIterator[BaseMessageChunk]: Iterator yielding validated
-            response chunks
-    """
-
-    # Utility function to process error messages
-    def _error_chunk(message: str) -> AIMessageChunk:
-        logger.error(message)
-        return AIMessageChunk(content="Error: " + message)
-
-    # Get allowed content from settings
-    allowed_content: list[str] = (
-        chat_settings.check_response.allowed_content
+    # Set up the stream
+    raw_stream: tier_1_iterator = astream_graph(
+        workflow, initial_state, context
     )
 
-    # Initialize the validation model
-    try:
-        validator_model: RunnableType = create_runnable(
-            "allowed_content_validator",
-            allowed_content=allowed_content,  # type: ignore
-        )
-    except Exception as e:
-        err_msg = f"Could not initialize validation model: {e}"
-        yield _error_chunk(err_msg)
-        return
+    # Configure stream for validation requests
+    tier_1_stream: tier_1_iterator = raw_stream
+    if response_settings.check_response:
+        # Initialize the validation model
+        try:
+            validator_model: RunnableType = create_runnable(
+                "allowed_content_validator",
+                allowed_content=response_settings.allowed_content,  # type: ignore
+            )
+        except Exception as e:
+            err_msg = f"Could not initialize validation model: {e}"
+            yield _error_chunk(err_msg)
+            return
 
-    # Get the base chat stream
-    base_stream: AsyncIterator[BaseMessageChunk] = chat_function(
-        querytext=querytext,
-        history=history,
-        retriever=retriever,
-        llm=llm,
-        chat_settings=chat_settings,
-        system_msg=system_msg,
-        print_context=print_context,
-        logger=logger,
-    )
-
-    # Wrap with validation adapter
-    validated_stream: AsyncIterator[BaseMessageChunk] = (
-        validation_stream_adapter(
-            base_stream,
-            querytext,
+        tier_1_stream = stateful_validation_adapter(
+            raw_stream,
             validator_model=validator_model,
-            allowed_content=allowed_content,
-            buffer_size=initial_buffer_size,
-            error_message=chat_settings.MSG_WRONG_CONTENT,
-            max_retries=max_retries,
+            allowed_content=response_settings.allowed_content,
+            buffer_size=response_settings.initial_buffer_size,
             logger=logger,
         )
-    )
 
-    # Yield from validated stream
-    async for chunk in validated_stream:
-        yield chunk
+    message_stream: tier_2_iterator
+    if database_logger:
+        dblogger: Callable[[ChatState], Any] = (
+            lambda state: database_logger(state, None, None)
+        )
+        message_stream = terminal_demux_adapter(
+            tier_1_stream,
+            on_terminal_state=dblogger,
+        )
+    else:
+        message_stream = demux_adapter(tier_1_stream)
 
+    try:
+        async for chunk, _ in message_stream:
+            yield str(chunk.text)  # type: ignore
 
-async def consume_chat_stream(
-    iterator: AsyncIterator[BaseMessageChunk],
-) -> str:
-    """
-    Consumes an async iterator of BaseMessageChunk objects and returns
-    the complete response as a string.
-
-    This function is designed to work with the iterator returned by
-    chat_function. It accumulates the text content from each chunk
-    and returns the final result.
-
-    Args:
-        iterator: AsyncIterator yielding BaseMessageChunk objects
-
-    Returns:
-        str: The complete accumulated response text
-    """
-    buffer: str = ""
-    async for chunk in iterator:
-        buffer += chunk.text
-    return buffer
+    except Exception as e:
+        yield _error_chunk(f"Workflow streaming ex failed: {e}")
+        return
 
 
 def query(
@@ -519,31 +445,31 @@ async def aquery(
         yield f"Could not load retriever: {e}"
         return
 
+    # Create dependency injection object
+    context = ChatWorkflowContext(
+        llm=llm,
+        retriever=retriever,
+        chat_settings=chat_settings,
+        print_context=print_context,
+        logger=logger,
+    )
+
     # Get the iterator and consume it
-    if validate_content:
-        iterator: AsyncIterator[BaseMessageChunk] = (
-            chat_function_with_validation(
-                querystr,
-                None,  # No history for standalone queries
-                retriever=retriever,
-                llm=llm,
-                chat_settings=chat_settings,
-                print_context=print_context,
-                logger=logger,
-            )
-        )
-    else:
-        iterator = chat_function(
-            querystr,
-            None,  # No history for standalone queries
-            llm=llm,
-            chat_settings=chat_settings,
-            print_context=print_context,
-            logger=logger,
-        )
+    response_settings = CheckResponse(
+        check_response=validate_content,
+        allowed_content=allowed_content,
+    )
+    iterator: AsyncGenerator[str, None] = chat_function(
+        querystr,
+        None,
+        context,
+        print_context=print_context,
+        validate=response_settings,
+        logger=logger,
+    )
 
     async for chunk in iterator:
-        yield chunk.text
+        yield chunk
 
 
 if __name__ == "__main__":

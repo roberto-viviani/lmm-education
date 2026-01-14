@@ -26,16 +26,18 @@ The callback is given the final state as an argument.
 """
 
 import asyncio
-from typing import Protocol, TypeVar, Any
+from typing import Protocol, TypeVar, Any, Hashable, Literal
 from collections.abc import (
     AsyncIterator,
     Callable,
     Awaitable,
     Mapping,
+    Sequence,
 )
 
 from pydantic import BaseModel
 from langchain_core.messages import BaseMessageChunk, AIMessageChunk
+from langgraph.types import Command
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.language_models.langchain.runnables import RunnableType
@@ -54,8 +56,49 @@ StateT = TypeVar("StateT", bound=Mapping[str, Any])
 # ContextType for generic adapters - any Pydantic model
 ContextT = TypeVar("ContextT", bound=BaseModel)
 
+# InputStateT for contravariant protocol input positions
+InputStateT = TypeVar("InputStateT", contravariant=True)
 
-class StreamableGraph(Protocol):
+# InputContextT for contravariant protocol context parameter
+InputContextT = TypeVar(
+    "InputContextT", bound=BaseModel, contravariant=True
+)
+
+# Hashable type parameter for Command type
+N = TypeVar("N", bound=Hashable)
+
+# StreamMode type matching LangGraph's signature
+StreamMode = Literal[
+    "messages", "values", "updates", "debug", "custom"
+]
+
+
+class StreamableGraph(Protocol[InputStateT, InputContextT]):
+    """
+    Minimal protocol for LangGraph compiled graphs.
+
+    This protocol only specifies the astream() method that we actually use,
+    avoiding tight coupling to LangGraph internals.
+
+    The InputStateT and InputContextT are contravariant because they appear
+    only in input positions (parameters), allowing a graph that accepts
+    specific types (like ChatState, ChatWorkflowContext) to be compatible
+    with a protocol expecting broader types (like Mapping[str, Any], BaseModel).
+    """
+
+    def astream(
+        self,
+        input: InputStateT | Command[Any] | None,
+        *,
+        context: InputContextT | None = None,
+        stream_mode: StreamMode | Sequence[StreamMode] | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[Any]:
+        """Stream graph execution with multiple output modes."""
+        ...
+
+
+class StreamableGraphMessages(Protocol[InputStateT, InputContextT]):
     """
     Minimal protocol for LangGraph compiled graphs.
 
@@ -65,12 +108,12 @@ class StreamableGraph(Protocol):
 
     def astream(
         self,
-        input: Mapping[str, Any] | None,
+        input: InputStateT | Command[Any] | None,
         *,
-        context: BaseModel | None = None,
-        stream_mode: list[str] | None = None,
+        context: InputContextT | None = None,
+        stream_mode: StreamMode | Sequence[StreamMode] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[tuple[str, Any]]:
+    ) -> AsyncIterator[Any]:
         """Stream graph execution with multiple output modes."""
         ...
 
@@ -80,8 +123,8 @@ class StreamableGraph(Protocol):
 # ============================================================================
 
 
-def stream_graph(
-    graph: StreamableGraph,
+def astream_graph(
+    graph: StreamableGraph[Any, Any],
     initial_state: Mapping[str, Any],
     context: BaseModel,
 ) -> AsyncIterator[tuple[str, Any]]:
@@ -100,21 +143,23 @@ def stream_graph(
         context: Dependency injection context for the workflow
 
     Returns:
-        AsyncIterator yielding (mode, event) tuples where:
+        AsyncIterator yielding (mode, event) tuples (tier 1 iterator)
+        where:
         - mode is "messages" or "values"
         - event is (BaseMessageChunk, metadata) for messages
         - event is StateT for values
 
     Example:
         ```python
-        raw_stream = stream_graph(workflow, initial_state, context)
+        raw_stream = astream_graph(workflow, initial_state, context)
 
         # Apply adapters
-        validated = stateful_validation_adapter(raw_stream, ...)
-        messages = terminal_demux_adapter(validated, on_terminal_state=log_fn)
+        validated_stream = stateful_validation_adapter(raw_stream, ...)
+        message_stream = terminal_demux_adapter(validated_stream,
+            on_terminal_state=log_fn)
 
         # Consume for display
-        async for chunk in messages:
+        async for chunk in message_stream:
             print(chunk.text, end="")
         ```
     """
@@ -125,14 +170,67 @@ def stream_graph(
     )
 
 
+def astream_graph_messages(
+    graph: StreamableGraphMessages[Any, Any],
+    initial_state: Mapping[str, Any],
+    context: BaseModel,
+) -> AsyncIterator[tuple[BaseMessageChunk, dict[str, Any]]]:
+    """
+    Entry point for streaming a LangGraph workflow with messagess output.
+
+    This function configures the graph to stream only messages, enabling
+    downstream adapters to:
+    - Extract messages for display
+
+    Args:
+        graph: Compiled LangGraph workflow
+        initial_state: Initial state to start execution
+        context: Dependency injection context for the workflow
+
+    Returns:
+        AsyncIterator yielding 'event' tuples of (BaseMessageChunk,
+        metadata) for messages (tier 2 iterator)
+
+    Example:
+        ```python
+        raw_stream = astream_graph_messages(workflow, initial_state,
+            context)
+
+        # Apply adapters
+        ...
+
+        # Consume for display
+        async for chunk, _ in raw_stream:
+            print(chunk.text, end="")
+        ```
+    """
+    return graph.astream(
+        initial_state,
+        stream_mode="messages",
+        context=context,
+    )
+
+
+# define iterator type for API consumers, The tier_1_iterator returns tuples
+# arising from calling langgraph's astream with stream_mode = "values" or
+# "updates".
+tier_1_iterator = AsyncIterator[tuple[str, Any]]
+
+
+# Tier 2 iterator arise when calling astream with stream_mode = "messages".
+# They do not contain state but provide info on the calling node in the
+# metadata member of the tuple.
+tier_2_iterator = AsyncIterator[
+    tuple[BaseMessageChunk, dict[str, Any]]
+]
+
 # ============================================================================
 # Tier 1 Adapters - Multi-Mode (State-Aware)
 # ============================================================================
 
 
 async def stateful_validation_adapter(
-    multi_mode_stream: AsyncIterator[tuple[str, Any]],
-    query_text: str,
+    multi_mode_stream: tier_1_iterator,
     *,
     validator_model: RunnableType,
     allowed_content: list[str],
@@ -140,7 +238,7 @@ async def stateful_validation_adapter(
     error_message: str = "Content not allowed",
     max_retries: int = 2,
     logger: LoggerBase = ConsoleLogger(),
-) -> AsyncIterator[tuple[str, Any]]:
+) -> tier_1_iterator:
     """
     Multi-mode adapter that validates message content and modifies state.
 
@@ -175,6 +273,9 @@ async def stateful_validation_adapter(
     buffer_text: str = ""
     validation_complete: bool = False
     captured_state: ChatState | None = None
+    query_text: str = (
+        captured_state.query_text if captured_state else ""
+    )
 
     async def _validate_content(content: str) -> tuple[bool, str]:
         """Validate content with retry logic."""
@@ -314,52 +415,85 @@ async def stateful_validation_adapter(
 
 
 async def terminal_demux_adapter(
-    multi_mode_stream: AsyncIterator[tuple[str, Any]],
+    multi_mode_stream: tier_1_iterator,
     *,
-    on_terminal_state: Callable[[StateT], None] | None = None,
-) -> AsyncIterator[BaseMessageChunk]:
+    on_terminal_state: Callable[[StateT], Any] | None = None,
+) -> tier_2_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to messages only.
 
-    This is the final adapter in the Tier 1 chain. It:
-    - Extracts and yields only message chunks (for display/Gradio)
+    This is a convenience wrapper that uses the base Mapping type for the
+    callback. For type-safe usage with specific state types (like ChatState),
+    use create_terminal_demux_adapter() instead.
+
+    This adapter:
+    - Extracts and yields only message chunks and metadata
     - Captures the terminal state (last "values" event)
     - Invokes an optional callback with the terminal state
 
-    This adapter is generic - it works with any state type.
-
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
-        on_terminal_state: Optional callback for terminal state
-            (e.g., for logging). The function takes one StateT
-            argument, which will contain the terminal state.
+        on_terminal_state: Optional callback for terminal state.
+            The callback receives Mapping[str, Any] type.
 
     Yields:
-        BaseMessageChunk objects
+        BaseMessageChunk, metadata tuples (tier 2 iterator)
 
     Example:
         ```python
         messages = terminal_demux_adapter(
             multi_mode_stream,
-            on_terminal_state=lambda s: logger.log(s, "MESSAGE"),
+            on_terminal_state=lambda s: logger.log(s),
         )
 
-        async for chunk in messages:
+        async for chunk, _ in messages:
             yield chunk.text  # To Gradio
         ```
     """
-    final_state: StateT | None = None
 
+    final_state: StateT | None = None
     async for mode, event in multi_mode_stream:
         if mode == "messages":
-            chunk, _ = event  # Extract chunk, ignore metadata
-            yield chunk
-        elif mode == "values":
+            chunk, metadata = event  # Extract chunk and metadata
+            yield chunk, metadata
+        else:
             final_state = event
 
-    # After stream exhaustion, invoke callback if provided
-    if final_state is not None and on_terminal_state is not None:
+    if on_terminal_state and final_state:
         on_terminal_state(final_state)
+
+
+async def demux_adapter(
+    multi_mode_stream: tier_1_iterator,
+) -> tier_2_iterator:
+    """
+    Terminal adapter: de-multiplexes multi-mode stream to messages only.
+
+    This is the final adapter in the Tier 1 chain. It:
+    - Extracts and yields only message chunks and metadata
+
+    This adapter is generic - it works with any state type.
+
+    Args:
+        multi_mode_stream: Source stream with (mode, event) tuples
+
+    Yields:
+        BaseMessageChunk, metadata tuples (tier 2 iterator)
+
+    Example:
+        ```python
+        messages = demux_adapter(multi_mode_stream)
+
+        async for chunk, _ in messages:
+            yield chunk.text  # To Gradio
+        ```
+    """
+    async for mode, event in multi_mode_stream:
+        if mode == "messages":
+            chunk, metadata = event  # Extract chunk and metadata
+            yield chunk, metadata
+        else:
+            pass
 
 
 # ============================================================================
