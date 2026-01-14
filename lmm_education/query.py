@@ -176,9 +176,9 @@ async def chat_function(
         context: a ChatWorkflowContext object for dependencies
         print_context: Prints the results of the query to the logger
         validate: if None, validates response using settings from
-            appchat.toml. If False, carries out no validation. If a
+            context object. If False, carries out no validation. If a
             CheckReponse object, overrides the settings from
-            appchat.toml.
+            the context object.
         database_log: if False (default), carries out no database
             logging. If True, carries out database logging with the
             default function defined with the graph. If a logger

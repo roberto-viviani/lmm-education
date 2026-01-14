@@ -1,7 +1,10 @@
 """Test the refactored chat_function_with_validation."""
 
+# pyright: strict
+
 import unittest
 import logging
+from collections.abc import AsyncIterator
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.retrievers import BaseRetriever
@@ -9,20 +12,42 @@ from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
 from lmm_education.query import (
-    chat_function_with_validation,
-    consume_chat_stream,
     chat_function,
+    ChatWorkflowContext,
 )
 from lmm_education.config.config import (
     ConfigSettings,
     export_settings,
 )
-from lmm_education.config.appchat import ChatSettings
+from lmm_education.config.appchat import ChatSettings, CheckResponse
 from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
 
 original_settings = ConfigSettings()
+
+
+async def consume_chat_stream(
+    iterator: AsyncIterator[str],
+) -> str:
+    """
+    Consumes an async iterator of BaseMessageChunk objects and returns
+    the complete response as a string.
+
+    This function is designed to work with the iterator returned by
+    chat_function. It accumulates the text content from each chunk
+    and returns the final result.
+
+    Args:
+        iterator: AsyncIterator yielding BaseMessageChunk objects
+
+    Returns:
+        str: The complete accumulated response text
+    """
+    buffer: str = ""
+    async for chunk in iterator:
+        buffer += chunk
+    return buffer
 
 
 def setUpModule():
@@ -52,16 +77,27 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             AsyncQdrantRetriever.from_config_settings()
         )
 
+    def get_workflow_context(
+        self,
+        chat_settings: ChatSettings = ChatSettings(
+            check_response=CheckResponse(check_response=False)
+        ),
+    ) -> ChatWorkflowContext:
+
+        return ChatWorkflowContext(
+            llm=self.llm,
+            retriever=self.retriever,
+            chat_settings=chat_settings,
+        )
+
     async def test_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query")
-        # chat_function is async generator - call directly without await
+
         iterator = chat_function(
             "",
             [],
-            self.retriever,
-            llm=self.llm,
-            chat_settings=ChatSettings(),
+            self.get_workflow_context(),
         )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
@@ -72,13 +108,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test that overly long query returns error iterator."""
         print("Test 2: Long query")
         long_query = " ".join(["word"] * 200)
-        # chat_function is async generator - call directly without await
+
         iterator = chat_function(
             long_query,
             [],
-            self.retriever,
-            llm=self.llm,
-            chat_settings=ChatSettings(),
+            self.get_workflow_context(),
         )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
@@ -89,11 +123,11 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test a normal query (if LLM is available)."""
         print("Test 3: Normal query")
         try:
-            # chat_function is async generator - call directly without await
+
             iterator = chat_function(
                 "What is a linear model?",
-                llm=self.llm,
-                chat_settings=ChatSettings(),
+                None,
+                self.get_workflow_context(),
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
@@ -110,31 +144,32 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test a repeated query (if LLM is available)."""
         print("Test 4: Repeated query")
         try:
-            # explicit retirever, that may be re-used
-            retriever = AsyncQdrantRetriever.from_config_settings()
-            # chat_function is async generator - call directly without await
+            # explicit retriever, that may be re-used
+            context: ChatWorkflowContext = self.get_workflow_context()
+            context.retriever = (
+                AsyncQdrantRetriever.from_config_settings()
+            )
+
             iterator = chat_function(
                 "What is a linear model?",
-                retriever=retriever,
-                llm=self.llm,
-                chat_settings=ChatSettings(),
+                None,
+                context,
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             self.assertTrue(len(result) > 0)
-            # chat_function is async generator - call directly without await
+
             iterator = chat_function(
                 "What is a logistic regression?",
-                retriever=retriever,
-                llm=self.llm,
-                chat_settings=ChatSettings(),
+                [],
+                context,
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             # must be closed down
-            await retriever.close_client()  # type: ignore
+            await context.retriever.close_client()  # type: ignore
             self.assertTrue(len(result) > 0)
 
             print("✓ Passed\n")
@@ -164,6 +199,16 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
             AsyncQdrantRetriever.from_config_settings()
         )
 
+    def get_workflow_context(
+        self, chat_settings: ChatSettings = ChatSettings()
+    ) -> ChatWorkflowContext:
+
+        return ChatWorkflowContext(
+            llm=self.llm,
+            retriever=self.retriever,
+            chat_settings=chat_settings,
+        )
+
     async def test_validation_empty_query(self):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query with validation")
@@ -173,12 +218,13 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                 allowed_content=['statistics'],
             )
         )
+        context = self.get_workflow_context(chat_settings)
         # chat_function_with_validation is async generator - call directly without await
-        iterator = chat_function_with_validation(
+        iterator = chat_function(
             "",
             [],
-            chat_settings=chat_settings,
-            llm=self.llm,
+            context,
+            # validate defaults to None, which uses context
         )
         result = await consume_chat_stream(iterator)
         print(f"Result: {result}")
@@ -196,12 +242,13 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                 check_response=True, allowed_content=['statistics']
             )
         )
+        context = self.get_workflow_context(chat_settings)
         # chat_function_with_validation is async generator - call directly without await
-        iterator = chat_function_with_validation(
+        iterator = chat_function(
             long_query,
             [],
-            llm=self.llm,
-            chat_settings=chat_settings,
+            context,
+            validate=None,  # use context
             logger=logger,
         )
         if logger.count_logs(level=logging.WARNING) > 0:
@@ -220,15 +267,16 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
                 check_response=CheckResponse(
                     check_response=True,
                     allowed_content=['statistics'],
+                    initial_buffer_size=120,
                 )
             )
             # chat_function_with_validation is async generator - call directly without await
-            iterator = chat_function_with_validation(
+            context = self.get_workflow_context(chat_settings)
+            iterator = chat_function(
                 "What is a linear model?",
                 [],
-                chat_settings=chat_settings,
-                llm=self.llm,
-                initial_buffer_size=50,  # Use smaller buffer for testing
+                context,
+                validate=chat_settings.check_response,
             )
             result = await consume_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
