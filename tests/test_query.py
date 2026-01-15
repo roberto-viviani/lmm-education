@@ -437,5 +437,67 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
             ) from e
 
 
+class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        self.llm: BaseChatModel = create_model_from_settings(
+            ConfigSettings().major
+        )
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
+
+    def get_workflow_context(
+        self,
+        chat_settings: ChatSettings = ChatSettings(
+            check_response=CheckResponse(check_response=False)
+        ),
+    ) -> ChatWorkflowContext:
+
+        return ChatWorkflowContext(
+            llm=self.llm,
+            retriever=self.retriever,
+            chat_settings=chat_settings,
+        )
+
+    async def test_normal_query(self):
+        """Test a normal query (if LLM is available)."""
+        print("Test 3: Normal query")
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        try:
+
+            iterator = chat_function(
+                "What is a linear model?",
+                None,
+                self.get_workflow_context(),
+                print_context=True,
+                database_streams=[stream, stream_context],
+                database_log=True,
+            )
+            result = await consume_chat_stream(iterator)
+            self.assertTrue(len(result) > 0)
+            self.assertTrue(result.startswith("CONTEXT"))
+            self.assertIn("END CONTEXT--", result)
+
+            await asyncio.sleep(0.1)
+
+            logtext: str = stream.getvalue()
+            self.assertGreater(len(logtext), 0)
+            self.assertIn("MESSAGE", logtext)
+            logcontext: str = stream_context.getvalue()
+            self.assertGreater(len(logcontext), 0)
+
+            print("✓ Passed\n")
+
+        except Exception as e:
+            print(f"⚠ Skipped (LLM not available): {e}\n")
+            raise Exception(
+                "Error in test_validation_normal_query"
+            ) from e
+
+
 if __name__ == "__main__":
     unittest.main()
