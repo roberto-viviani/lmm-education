@@ -8,19 +8,31 @@ using a separate LLM, and either passes through or rejects the stream.
 
 Architecture:
 - Generic components work with any LangGraph workflow
-- Domain-specific components (e.g., validation) use ChatState
-    explicitly
+- Domain-specific components (e.g., validation) use ChatState explicitly
 - Two-tier adapter system:
   * Tier 1: Multi-mode adapters (operate on (mode, event) tuples)
   * Tier 2: Message-only adapters (operate on BaseMessageChunk)
 
-Tier 1 adapters work on graphs that are streamed via stream_mode =
-["messages", "state"]. Tier 2 adapters work on streams from
-stream_mode = "messages". A stream may be filtered from tier 1 to tier
-2, but not in the opposite direction, as state is lost from the
-stream. The `terminal_demux_adapter` converts a tier 1 to tier 2
-stream, while also optionally calling a callback with the state at the
-end of streaming.
+Stream Modes:
+- "messages": (BaseMessageChunk, metadata) tuples for text display
+- "values": Complete state snapshot after each node execution
+- "updates": Differential state changes {node_name: {field: value, ...}}
+
+Tier 1 adapters work on graphs streamed via stream_mode =
+["messages", "values"] or ["messages", "values", "updates"]. Tier 2
+adapters work on streams from stream_mode = "messages". A stream may be
+filtered from tier 1 to tier 2, but not in the opposite direction, as
+state is lost from the stream.
+
+Adapters:
+- `astream_graph`: Entry point with "messages" and "values" modes
+- `astream_graph_with_updates`: Entry point with "messages", "values",
+  and "updates" modes for change-reactive patterns
+- `stateful_validation_adapter`: Validates content and modifies state
+- `field_change_adapter`: Reacts to specific field changes via "updates"
+- `terminal_demux_adapter`: De-multiplexes multi-mode stream to messages
+  and calls callback with terminal state
+- `demux_adapter`: De-multiplexes multi-mode stream to messages only
 
 The callback is given the final state as an argument.
 """
@@ -71,6 +83,9 @@ N = TypeVar("N", bound=Hashable)
 StreamMode = Literal[
     "messages", "values", "updates", "debug", "custom"
 ]
+
+# Type for "updates" mode events: {node_name: {field_name: value}}
+UpdatesEvent = dict[str, dict[str, Any]]
 
 
 class StreamableGraph(Protocol[InputStateT, InputContextT]):
@@ -166,6 +181,70 @@ def astream_graph(
     return graph.astream(
         initial_state,
         stream_mode=["messages", "values"],
+        context=context,
+    )
+
+
+def astream_graph_with_updates(
+    graph: StreamableGraph[Any, Any],
+    initial_state: Mapping[str, Any],
+    context: BaseModel,
+) -> AsyncIterator[tuple[str, Any]]:
+    """
+    Entry point for streaming a LangGraph workflow with state updates.
+
+    This function configures the graph to stream messages, full state values,
+    and differential state updates. This enables:
+    - Tier 1 adapters to access and modify state
+    - Change-reactive adapters to respond to specific field updates
+    - Terminal state capture for logging
+    - Message extraction for display
+
+    The "updates" stream mode provides differential updates in the format:
+        ("updates", {node_name: {changed_field: new_value, ...}})
+
+    This is more granular than "values" (which provides the complete state)
+    and enables building adapters that react to specific state changes.
+
+    Args:
+        graph: Compiled LangGraph workflow
+        initial_state: Initial state to start execution
+        context: Dependency injection context for the workflow
+
+    Returns:
+        AsyncIterator yielding (mode, event) tuples (tier 1 iterator)
+        where:
+        - mode is "messages", "values", or "updates"
+        - event is (BaseMessageChunk, metadata) for messages
+        - event is full StateT for values
+        - event is UpdatesEvent for updates
+
+    Example:
+        ```python
+        raw_stream = astream_graph_with_updates(workflow, initial_state,
+            context)
+
+        # Apply change-reactive adapters
+        reactive_stream = field_change_adapter(
+            raw_stream,
+            on_field_change={
+                "status": handle_status_change,
+                "context": handle_context_ready,
+            }
+        )
+
+        # Apply other adapters
+        message_stream = terminal_demux_adapter(reactive_stream,
+            on_terminal_state=log_fn)
+
+        # Consume for display
+        async for chunk in message_stream:
+            print(chunk.text, end="")
+        ```
+    """
+    return graph.astream(
+        initial_state,
+        stream_mode=["messages", "values", "updates"],
         context=context,
     )
 
@@ -494,6 +573,78 @@ async def demux_adapter(
             yield chunk, metadata
         else:
             pass
+
+
+async def field_change_adapter(
+    multi_mode_stream: tier_1_iterator,
+    *,
+    on_field_change: (
+        dict[str, Callable[[Any], Awaitable[None]]] | None
+    ) = None,
+) -> tier_1_iterator:
+    """
+    Adapter that reacts to specific field changes via "updates" events.
+
+    This adapter uses the "updates" stream mode to detect when specific state
+    fields change, and invokes registered callbacks. It passes through all
+    stream events unchanged.
+
+    This enables building reactive adapters that respond to specific state
+    changes, such as:
+    - React when "status" changes to "valid"
+    - React when "context" becomes available
+    - React when "query_classification" is set
+
+    Args:
+        multi_mode_stream: Source stream with (mode, event) tuples
+        on_field_change: Dict mapping field names to async callbacks.
+            Each callback receives the new field value as its argument.
+            Callbacks are invoked when those fields are updated.
+
+    Yields:
+        All (mode, event) tuples from the stream, unchanged
+
+    Example:
+        ```python
+        async def on_context_ready(context: str):
+            logger.info(f"Context retrieved: {len(context)} chars")
+
+        async def on_status_changed(status: str):
+            logger.info(f"Status changed to: {status}")
+
+        reactive_stream = field_change_adapter(
+            multi_mode_stream,
+            on_field_change={
+                "context": on_context_ready,
+                "status": on_status_changed,
+            }
+        )
+
+        async for mode, event in reactive_stream:
+            # Process events as usual
+            ...
+        ```
+    """
+    if on_field_change is None:
+        on_field_change = {}
+
+    async for mode, event in multi_mode_stream:
+        # React to field changes via "updates" events
+        if mode == "updates" and isinstance(event, dict):
+            # event format: {node_name: {field_name: value, ...}}
+            for node_name, changes in event.items():  # type: ignore[union-attr]
+                if isinstance(changes, dict):
+                    for field, value in changes.items():  # type: ignore[union-attr]
+                        if field in on_field_change:
+                            try:
+                                await on_field_change[field](value)
+                            except Exception:
+                                # Log the error but don't interrupt the stream
+                                # Implement appropriate error handling as needed
+                                pass
+
+        # Always yield the event unchanged
+        yield (mode, event)
 
 
 # ============================================================================
