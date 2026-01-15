@@ -14,3 +14,19 @@ The design choice here was to separate the design of the graph from that of stre
 Furthermore, other aspects of the interaction with the model (like validation of content) take place at the streaming stage. The validating stream adapter needs write access to the state object to record the rejection of the interaction. This means that the state content evolution does not necessarily terminate with the graph completion, but will have been finalized when streaming terminates.
 
 Logging requires trade-offs between its intrinsic coupling to the specific content produced by the graph and the coupling to the correct adapter saving the state for logging to be executed at the end of streaming. For this reason, the logging is specified at the end of the graph definition within the same module, even if its execution depend on the caller of the graph selecting the right stream adapter and calling the logger on it. Note that, if the stream adapter changes the state, this must be considered at the logger definition stage.
+
+### Streams and stream adapters
+
+After a graph object is compiled, it may be streamed with a call to .astream(). This function takes a stream_mode argument that determined what events are streamed. The stream_mode argument may be configured to stream both messages and the state, or state changes, or only messages. This creates a classification of streams depending on the amount of information they convey. The library defines the output of these different stream types with type aliases:
+
+- tier_1_iterator: output of a stream of messages and state. These streams contain all information created durich the execution of the graph.
+- tier_2_iterator: this output contains messages and information on the node that geerated the messages.
+- tier_3_iterator: this output contains strings only, omitting any kind of metadata.
+
+The streams may be combined sequentially as long as the streams remain within the same tier, or a transformation of the stream into a higher tier (from 1 to 2, 2 to 3, or 1 to 3) takes place. Combinations in the other direction are not possible, since the relevant information has been lost at the higher tiers. Logging requires a stream of tier 1 as input.
+
+### Logging the interaction
+
+Logging is implemented on a stream that support an on_terminal_state callback. The graph_logging_base.py module supports creating a log function from an existing co-routine. The log function is synchronous and returns immediately, while the original co-routine is scheduled to run on the asyncio loop. This setup requires an asyncio loop to be running.
+
+The callback passes the final graph state to the log function.
