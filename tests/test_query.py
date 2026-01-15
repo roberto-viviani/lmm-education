@@ -3,6 +3,8 @@
 # pyright: strict
 
 import unittest
+import asyncio
+import io
 import logging
 from collections.abc import AsyncIterator
 
@@ -287,6 +289,149 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
             print(
                 f"⚠ Skipped (validation model not available): {e}\n"
             )
+            raise Exception(
+                "Error in test_validation_normal_query"
+            ) from e
+
+
+class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        self.llm: BaseChatModel = create_model_from_settings(
+            ConfigSettings().major
+        )
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
+
+    def get_workflow_context(
+        self,
+        chat_settings: ChatSettings = ChatSettings(
+            check_response=CheckResponse(check_response=False)
+        ),
+    ) -> ChatWorkflowContext:
+
+        return ChatWorkflowContext(
+            llm=self.llm,
+            retriever=self.retriever,
+            chat_settings=chat_settings,
+        )
+
+    async def test_empty_query(self):
+        """Test that empty query returns error iterator."""
+        print("Test 1: Empty query")
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        iterator = chat_function(
+            "",
+            [],
+            self.get_workflow_context(),
+            database_streams=[stream, stream_context],
+            database_log=True,
+        )
+        result = await consume_chat_stream(iterator)
+        self.assertIn("If you have questions", result)
+
+        await asyncio.sleep(0.1)
+
+        logtext: str = stream.getvalue()
+        self.assertGreater(len(logtext), 0)
+        self.assertIn("EMPTYQUERY", logtext)
+        self.assertEqual(len(stream_context.getvalue()), 0)
+
+        print("✓ Passed\n")
+
+    async def test_long_query(self):
+        """Test that overly long query returns error iterator."""
+        print("Test 2: Long query")
+        long_query = " ".join(["word"] * 200)
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        iterator = chat_function(
+            long_query,
+            [],
+            self.get_workflow_context(),
+            database_streams=[stream, stream_context],
+            database_log=True,
+        )
+        result = await consume_chat_stream(iterator)
+        self.assertIn("too long", result)
+
+        await asyncio.sleep(0.1)
+
+        logtext: str = stream.getvalue()
+        self.assertGreater(len(logtext), 0)
+        self.assertIn("LONGQUERY", logtext)
+        self.assertEqual(len(stream_context.getvalue()), 0)
+        print("✓ Passed\n")
+
+    async def test_normal_query(self):
+        """Test a normal query (if LLM is available)."""
+        print("Test 3: Normal query")
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        try:
+
+            iterator = chat_function(
+                "What is a linear model?",
+                None,
+                self.get_workflow_context(),
+                database_streams=[stream, stream_context],
+                database_log=True,
+            )
+            result = await consume_chat_stream(iterator)
+            self.assertTrue(len(result) > 0)
+
+            await asyncio.sleep(0.1)
+
+            logtext: str = stream.getvalue()
+            self.assertGreater(len(logtext), 0)
+            self.assertIn("MESSAGE", logtext)
+            logcontext: str = stream_context.getvalue()
+            self.assertGreater(len(logcontext), 0)
+
+            print("✓ Passed\n")
+
+        except Exception as e:
+            print(f"⚠ Skipped (LLM not available): {e}\n")
+            raise Exception(
+                "Error in test_validation_normal_query"
+            ) from e
+
+    async def test_normal_query_nolog(self):
+        """Test a normal query (if LLM is available)."""
+        print("Test 3: Normal query")
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        try:
+
+            iterator = chat_function(
+                "What is a linear model?",
+                None,
+                self.get_workflow_context(),
+            )
+            result = await consume_chat_stream(iterator)
+            self.assertTrue(len(result) > 0)
+
+            await asyncio.sleep(0.1)
+
+            logtext: str = stream.getvalue()
+            self.assertEqual(len(logtext), 0)
+            logcontext: str = stream_context.getvalue()
+            self.assertEqual(len(logcontext), 0)
+
+            print("✓ Passed\n")
+
+        except Exception as e:
+            print(f"⚠ Skipped (LLM not available): {e}\n")
             raise Exception(
                 "Error in test_validation_normal_query"
             ) from e
