@@ -72,5 +72,8 @@ These metadata are used in two ways. One is to allow the language model to reply
 
 ## Interaction with language models
 
-The project uses LangChain to provide a unified interface for using different large language model providers. A set of prompts are pre-packaged and created as LangChain 'runnables' that execute a predefined task. However, the agentic sophistication of these constructions is very limited at present. This is an area that may be further developed.
+The project uses LangGraph to provide a unified interface for using different large language model providers and specify workflows of chained prompted models/agents. 
 
+A set of prompts are pre-packaged and created as LangChain 'runnables' that execute a predefined task. These runnables are composed together to form the graphs. In general, the provided graphs should suffice to implement the chatbot. However, it is possible to extend the graph library with new graphs, since the interface is unified by the 'runnable' class.
+
+The functionality of the interaction with language models is split between the graphs themselves and the streams emitted by these graphs. Several properties of the applications, such as logging the exchanges to a database, streaming the retireved context, validation of content etc. take place at the level of the stream, not at the graph. The output stream of the same graph may be combined with several stream adapters that provide the desired functionality. The adapters library is generic and should be applicable to different graphs.
