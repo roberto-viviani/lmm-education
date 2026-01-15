@@ -88,7 +88,7 @@ from .chat_graph import (
 from .stream_adapters import (
     tier_1_iterator,
     tier_2_iterator,
-    astream_graph,
+    stream_graph_state,
     stateful_validation_adapter,
     terminal_demux_adapter,
     demux_adapter,
@@ -253,7 +253,7 @@ async def chat_function(
     )
 
     # Set up the stream
-    raw_stream: tier_1_iterator = astream_graph(
+    raw_stream: tier_1_iterator = stream_graph_state(
         workflow, initial_state, context
     )
 

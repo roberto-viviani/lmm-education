@@ -1,40 +1,87 @@
 """
 Stream adapters for processing LangGraph response streams.
 
-This module provides composable stream adapters that can wrap and transform
-async iterators of BaseMessageChunk objects. The primary use case is
-content validation, which buffers initial response chunks, validates them
-using a separate LLM, and either passes through or rejects the stream.
+This module provides composable stream adapters that can wrap and
+transform async iterators of BaseMessageChunk objects. For example,
+one use case is content validation, which buffers initial response
+chunks, validates them using a separate LLM, and either passes through
+or rejects the stream.
 
 Architecture:
 - Generic components work with any LangGraph workflow
-- Domain-specific components (e.g., validation) use ChatState explicitly
-- Two-tier adapter system:
+- Domain-specific components (e.g., validation) use ChatState
+    explicitly
+- Three-tier adapter system:
   * Tier 1: Multi-mode adapters (operate on (mode, event) tuples)
   * Tier 2: Message-only adapters (operate on BaseMessageChunk)
+  * Tier 3: string adapters (operate on str)
 
-Stream Modes:
+Stream Modes for tier 1 and tier 2:
 - "messages": (BaseMessageChunk, metadata) tuples for text display
 - "values": Complete state snapshot after each node execution
 - "updates": Differential state changes {node_name: {field: value, ...}}
 
+Stream mode for tier 3:
+- streams are limited to strings (any other information is lost).
+
 Tier 1 adapters work on graphs streamed via stream_mode =
 ["messages", "values"] or ["messages", "values", "updates"]. Tier 2
-adapters work on streams from stream_mode = "messages". A stream may be
-filtered from tier 1 to tier 2, but not in the opposite direction, as
-state is lost from the stream.
+adapters work on streams from stream_mode = "messages". Tier 3 streams
+arise from tier 1 or tier 2 streams, and stream simple strings. A
+stream may be filtered from tier 1 to tier 2 or tier 3, but not in the
+opposite direction, as state is lost from the stream.
 
-Adapters:
-- `astream_graph`: Entry point with "messages" and "values" modes
-- `astream_graph_with_updates`: Entry point with "messages", "values",
+A use case for tier 3 streams is to extract information from messages,
+metadata, or state and convey it into the string stream. A tier 3
+stream will always be produced at some stage to stream content to the
+chatbot.
+
+The stream output types are captures by type aliases:
+
+- `tier_1_iterator`: For tier 1 streams (multimodal)
+- `tier_2_iterator`: For tier 2 streams (messages)
+- `tier_3_iterator`: For tier 3 streams (strings)
+
+### Stream setup
+
+Tier 1 stream setup:
+
+- `stream_graph_state`: Entry point with "messages" and "values" modes
+- `stream_graph_updates`: Entry point with "messages", "values",
   and "updates" modes for change-reactive patterns
+
+Tier 1 streams may also be obtained by calling the graph .astream()
+function directly with the appropriate stream_modes (see the body of
+these functions for reference). Once initialized with the appropriate
+stream_mode, the stream type is preserved across all tier 1 adapters.
+
+Tier 2 stream setup:
+
+- `stream_graph_messages`: Entry point with "messages" streams.
+
+### Adapters
+
+Tier 1 adapters:
+
 - `stateful_validation_adapter`: Validates content and modifies state
-- `field_change_adapter`: Reacts to specific field changes via "updates"
-- `terminal_demux_adapter`: De-multiplexes multi-mode stream to messages
-  and calls callback with terminal state
+- `field_change_adapter`: Reacts to specific field changes via
+    "updates"
+
+Tier 1 to tier 2 adapters:
+
+- `terminal_demux_adapter`: De-multiplexes multi-mode stream to
+    messages and calls callback with terminal state. The callback is
+    given the final state as an argument.
 - `demux_adapter`: De-multiplexes multi-mode stream to messages only
 
-The callback is given the final state as an argument.
+Tier 1 to tier 3 adapters:
+
+- `field_change_terminal_adapter`: Reacts to specific field changes via
+    "updates", and calls a callback to insert into the string stream
+    the result of the callback. It otherwise streams messages by
+    extracting their content. It also takes a terminal state callback
+    called after streaming, which is given the final state.
+
 """
 
 import asyncio
@@ -87,6 +134,10 @@ StreamMode = Literal[
 # Type for "updates" mode events: {node_name: {field_name: value}}
 UpdatesEvent = dict[str, dict[str, Any]]
 
+# ============================================================================
+# Protocols for generics
+# ============================================================================
+
 
 class StreamableGraph(Protocol[InputStateT, InputContextT]):
     """
@@ -133,16 +184,34 @@ class StreamableGraphMessages(Protocol[InputStateT, InputContextT]):
         ...
 
 
+# define iterator type for API consumers, The tier_1_iterator returns
+# tuples arising from calling langgraph's astream with stream_mode =
+# "values" or "updates".
+tier_1_iterator = AsyncIterator[tuple[str, Any]]
+
+
+# Tier 2 iterator arise when calling astream with stream_mode =
+# "messages". They do not contain state but provide info on the
+# calling node in the metadata member of the tuple.
+tier_2_iterator = AsyncIterator[
+    tuple[BaseMessageChunk, dict[str, Any]]
+]
+
+# Tier 3 iterators arise from adapting iterators from other tiers.
+# They only stream strings.
+tier_3_iterator = AsyncIterator[str]
+
+
 # ============================================================================
 # Entry Point - Generic
 # ============================================================================
 
 
-def astream_graph(
+def stream_graph_state(
     graph: StreamableGraph[Any, Any],
     initial_state: Mapping[str, Any],
     context: BaseModel,
-) -> AsyncIterator[tuple[str, Any]]:
+) -> tier_1_iterator:
     """
     Entry point for streaming a LangGraph workflow with multi-mode output.
 
@@ -166,7 +235,7 @@ def astream_graph(
 
     Example:
         ```python
-        raw_stream = astream_graph(workflow, initial_state, context)
+        raw_stream = stream_graph_state(workflow, initial_state, context)
 
         # Apply adapters
         validated_stream = stateful_validation_adapter(raw_stream, ...)
@@ -185,11 +254,11 @@ def astream_graph(
     )
 
 
-def astream_graph_with_updates(
+def stream_graph_updates(
     graph: StreamableGraph[Any, Any],
     initial_state: Mapping[str, Any],
     context: BaseModel,
-) -> AsyncIterator[tuple[str, Any]]:
+) -> tier_1_iterator:
     """
     Entry point for streaming a LangGraph workflow with state updates.
 
@@ -221,7 +290,7 @@ def astream_graph_with_updates(
 
     Example:
         ```python
-        raw_stream = astream_graph_with_updates(workflow, initial_state,
+        raw_stream = astream_graph_updates(workflow, initial_state,
             context)
 
         # Apply change-reactive adapters
@@ -253,7 +322,7 @@ def astream_graph_messages(
     graph: StreamableGraphMessages[Any, Any],
     initial_state: Mapping[str, Any],
     context: BaseModel,
-) -> AsyncIterator[tuple[BaseMessageChunk, dict[str, Any]]]:
+) -> tier_2_iterator:
     """
     Entry point for streaming a LangGraph workflow with messagess output.
 
@@ -289,19 +358,6 @@ def astream_graph_messages(
         context=context,
     )
 
-
-# define iterator type for API consumers, The tier_1_iterator returns tuples
-# arising from calling langgraph's astream with stream_mode = "values" or
-# "updates".
-tier_1_iterator = AsyncIterator[tuple[str, Any]]
-
-
-# Tier 2 iterator arise when calling astream with stream_mode = "messages".
-# They do not contain state but provide info on the calling node in the
-# metadata member of the tuple.
-tier_2_iterator = AsyncIterator[
-    tuple[BaseMessageChunk, dict[str, Any]]
-]
 
 # ============================================================================
 # Tier 1 Adapters - Multi-Mode (State-Aware)
@@ -493,17 +549,95 @@ async def stateful_validation_adapter(
             yield (buffered_mode, buffered_event)
 
 
+async def field_change_adapter(
+    multi_mode_stream: tier_1_iterator,
+    *,
+    on_field_change: (
+        dict[str, Callable[[Any], Awaitable[None]]] | None
+    ) = None,
+) -> tier_1_iterator:
+    """
+    Adapter that reacts to specific field changes via "updates" events.
+
+    This adapter uses the "updates" stream mode to detect when specific state
+    fields change, and invokes registered callbacks. It passes through all
+    stream events unchanged.
+
+    This enables building reactive adapters that respond to specific state
+    changes, such as:
+    - React when "status" changes to "valid"
+    - React when "context" becomes available
+    - React when "query_classification" is set
+
+    Args:
+        multi_mode_stream: Source stream with (mode, event) tuples
+        on_field_change: Dict mapping field names to async callbacks.
+            Each callback receives the new field value as its argument.
+            Callbacks are invoked when those fields are updated.
+
+    Yields:
+        All (mode, event) tuples from the stream, unchanged
+
+    Example:
+        ```python
+        async def on_context_ready(context: str):
+            logger.info(f"Context retrieved: {len(context)} chars")
+
+        async def on_status_changed(status: str):
+            logger.info(f"Status changed to: {status}")
+
+        reactive_stream = field_change_adapter(
+            multi_mode_stream,
+            on_field_change={
+                "context": on_context_ready,
+                "status": on_status_changed,
+            }
+        )
+
+        async for mode, event in reactive_stream:
+            # Process events as usual
+            ...
+        ```
+    """
+    if on_field_change is None:
+        on_field_change = {}
+
+    async for mode, event in multi_mode_stream:
+        # React to field changes via "updates" events
+        if mode == "updates" and isinstance(event, dict):
+            # event format: {node_name: {field_name: value, ...}}
+            for node_name, changes in event.items():  # type: ignore[union-attr]
+                if isinstance(changes, dict):
+                    for field, value in changes.items():  # type: ignore[union-attr]
+                        if field in on_field_change:
+                            try:
+                                await on_field_change[field](value)
+                            except Exception as e:
+                                # Log the error but don't interrupt the stream
+                                logger = ConsoleLogger()
+                                logger.error(
+                                    f"Error in field_change_adapter: {e}"
+                                )
+                                pass
+
+        # Always yield the event unchanged
+        yield (mode, event)
+
+
+# ============================================================================
+# Tier 1 to tier 2 adapters
+# ============================================================================
+
+
 async def terminal_demux_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
     on_terminal_state: Callable[[StateT], Any] | None = None,
 ) -> tier_2_iterator:
     """
-    Terminal adapter: de-multiplexes multi-mode stream to messages only.
-
-    This is a convenience wrapper that uses the base Mapping type for the
-    callback. For type-safe usage with specific state types (like ChatState),
-    use create_terminal_demux_adapter() instead.
+    Terminal adapter: de-multiplexes multi-mode stream to messages
+    only. The callback given to on_terminal_state is called after
+    streaming (may be used, for example, for logging the exchange).
 
     This adapter:
     - Extracts and yields only message chunks and metadata
@@ -575,76 +709,95 @@ async def demux_adapter(
             pass
 
 
-async def field_change_adapter(
+# ============================================================================
+# Tier 1 to tier 3 adapters
+# ============================================================================
+
+
+async def terminal_field_change_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
-    on_field_change: (
-        dict[str, Callable[[Any], Awaitable[None]]] | None
-    ) = None,
-) -> tier_1_iterator:
+    on_field_change: dict[str, Callable[[Any], str]] | None = None,
+    on_terminal_state: Callable[[StateT], Any] | None = None,
+) -> tier_3_iterator:
     """
-    Adapter that reacts to specific field changes via "updates" events.
+    Terminal adapter: de-multiplexes multi-mode stream to strings
+    only. Uses the "updates" stream mode to detect specific state
+    fields changes, invoking callbacks registered in on_field_change.
+    The callback given to on_terminal_state is called after
+    streaming (may be used, for example, for logging the exchange).
 
-    This adapter uses the "updates" stream mode to detect when specific state
-    fields change, and invokes registered callbacks. It passes through all
-    stream events unchanged.
-
-    This enables building reactive adapters that respond to specific state
-    changes, such as:
-    - React when "status" changes to "valid"
-    - React when "context" becomes available
-    - React when "query_classification" is set
+    This adapter:
+    - Extracts and yields only the text of messages chunks and
+        the return of the on_field_change callback
+    - Captures the terminal state (last "values" event), and
+        invokes an optional callback with the terminal state
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         on_field_change: Dict mapping field names to async callbacks.
             Each callback receives the new field value as its argument.
             Callbacks are invoked when those fields are updated.
+        on_terminal_state: Optional callback for terminal state.
+            The callback receives Mapping[str, Any] type.
 
     Yields:
-        All (mode, event) tuples from the stream, unchanged
+        strings (tier 3 iterator)
 
     Example:
         ```python
-        async def on_context_ready(context: str):
-            logger.info(f"Context retrieved: {len(context)} chars")
+        async def on_context_ready(context: str) -> str:
+            return f"Context retrieved: {len(context)} chars"
 
-        async def on_status_changed(status: str):
-            logger.info(f"Status changed to: {status}")
+        async def on_status_changed(status: str) -> str:
+            return f"Status changed to: {status}"
 
-        reactive_stream = field_change_adapter(
+        texts = terminal_field_change_adapter(
             multi_mode_stream,
             on_field_change={
                 "context": on_context_ready,
                 "status": on_status_changed,
             }
+            on_terminal_state=lambda s: logger.log(s),
         )
 
-        async for mode, event in reactive_stream:
-            # Process events as usual
-            ...
+        async for text in texts:
+            yield text
         ```
     """
-    if on_field_change is None:
-        on_field_change = {}
 
+    final_state: StateT | None = None
     async for mode, event in multi_mode_stream:
-        # React to field changes via "updates" events
-        if mode == "updates" and isinstance(event, dict):
+        if mode == "messages":
+            chunk, _ = event  # Extract chunk and metadata
+            yield chunk.text
+        elif (
+            mode == "updates"
+            and isinstance(event, dict)
+            and on_field_change
+        ):
             # event format: {node_name: {field_name: value, ...}}
             for node_name, changes in event.items():  # type: ignore[union-attr]
                 if isinstance(changes, dict):
                     for field, value in changes.items():  # type: ignore[union-attr]
                         if field in on_field_change:
                             try:
-                                await on_field_change[field](value)
-                            except Exception:
+                                yield on_field_change[field](value)
+                            except Exception as e:
                                 # Log the error but don't interrupt the stream
-                                # Implement appropriate error handling as needed
+                                logger = ConsoleLogger()
+                                logger.error(
+                                    f"Error in "
+                                    f"terminal_field_change_adapter: {e}"
+                                )
                                 pass
+        elif mode == "events":
+            final_state = event  # type: ignore
+        else:
+            pass
 
-        # Always yield the event unchanged
-        yield (mode, event)
+    if on_terminal_state and final_state:
+        on_terminal_state(final_state)
 
 
 # ============================================================================
@@ -652,234 +805,234 @@ async def field_change_adapter(
 # ============================================================================
 
 
-async def validation_stream_adapter(
-    stream: AsyncIterator[BaseMessageChunk],
-    query_text: str,
-    *,
-    validator_model: RunnableType,
-    allowed_content: list[str],
-    buffer_size: int = 320,
-    error_message: str = "Content not allowed",
-    max_retries: int = 2,
-    logger: LoggerBase = ConsoleLogger(),
-) -> AsyncIterator[BaseMessageChunk]:
-    """
-    Wraps an LLM stream with content validation.
+# async def validation_stream_adapter(
+#     stream: AsyncIterator[BaseMessageChunk],
+#     query_text: str,
+#     *,
+#     validator_model: RunnableType,
+#     allowed_content: list[str],
+#     buffer_size: int = 320,
+#     error_message: str = "Content not allowed",
+#     max_retries: int = 2,
+#     logger: LoggerBase = ConsoleLogger(),
+# ) -> AsyncIterator[BaseMessageChunk]:
+#     """
+#     Wraps an LLM stream with content validation.
 
-    This adapter buffers initial chunks from the response stream, validates
-    the buffered content using a separate LLM call, and then either:
-    - Yields the buffered chunks + remaining stream if validation passes
-    - Yields an error message and stops if validation fails
+#     This adapter buffers initial chunks from the response stream, validates
+#     the buffered content using a separate LLM call, and then either:
+#     - Yields the buffered chunks + remaining stream if validation passes
+#     - Yields an error message and stops if validation fails
 
-    The validation LLM call is independent of the main response graph,
-    as discussed in the design.
+#     The validation LLM call is independent of the main response graph,
+#     as discussed in the design.
 
-    Args:
-        stream: The LLM response stream to wrap
-        query_text: The original user query (included in validation context)
-        validator_model: Runnable for content classification
-        allowed_content: List of allowed content categories
-        buffer_size: Number of characters to buffer before validation
-        error_message: Message to yield if validation fails
-        max_retries: Number of retry attempts for validation LLM call
-        logger: Logger for warnings and errors
+#     Args:
+#         stream: The LLM response stream to wrap
+#         query_text: The original user query (included in validation context)
+#         validator_model: Runnable for content classification
+#         allowed_content: List of allowed content categories
+#         buffer_size: Number of characters to buffer before validation
+#         error_message: Message to yield if validation fails
+#         max_retries: Number of retry attempts for validation LLM call
+#         logger: Logger for warnings and errors
 
-    Yields:
-        BaseMessageChunk objects - either the original stream or error
+#     Yields:
+#         BaseMessageChunk objects - either the original stream or error
 
-    Example:
-        ```python
-        stream = llm.astream(messages)
-        validated_stream = validation_stream_adapter(
-            stream,
-            query_text,
-            validator_model=validator,
-            allowed_content=["statistics", "mathematics"],
-        )
-        async for chunk in validated_stream:
-            print(chunk.text, end="")
-        ```
-    """
-    buffer_chunks: list[BaseMessageChunk] = []
-    buffer_text: str = ""
-    validation_complete: bool = False
+#     Example:
+#         ```python
+#         stream = llm.astream(messages)
+#         validated_stream = validation_stream_adapter(
+#             stream,
+#             query_text,
+#             validator_model=validator,
+#             allowed_content=["statistics", "mathematics"],
+#         )
+#         async for chunk in validated_stream:
+#             print(chunk.text, end="")
+#         ```
+#     """
+#     buffer_chunks: list[BaseMessageChunk] = []
+#     buffer_text: str = ""
+#     validation_complete: bool = False
 
-    async def _validate_content(content: str) -> tuple[bool, str]:
-        """
-        Validate content with retry logic.
-        Returns (is_valid, classification_result).
-        """
-        for attempt in range(max_retries + 1):
-            try:
-                classification: str = await validator_model.ainvoke(
-                    {"text": content}
-                )
-                logger.info(
-                    "Model content classification: "
-                    + classification.replace("\n", " ")
-                )
+#     async def _validate_content(content: str) -> tuple[bool, str]:
+#         """
+#         Validate content with retry logic.
+#         Returns (is_valid, classification_result).
+#         """
+#         for attempt in range(max_retries + 1):
+#             try:
+#                 classification: str = await validator_model.ainvoke(
+#                     {"text": content}
+#                 )
+#                 logger.info(
+#                     "Model content classification: "
+#                     + classification.replace("\n", " ")
+#                 )
 
-                # Check against allowed content plus common acceptable responses
-                # if check_allowed_content(
-                #     classification,
-                #     allowed_content
-                #     + ["apology", "human interaction"],
-                # ):
-                if classification in allowed_content + [
-                    "apology",
-                    "human interaction",
-                ]:
-                    return True, classification
-                else:
-                    return False, classification
+#                 # Check against allowed content plus common acceptable responses
+#                 # if check_allowed_content(
+#                 #     classification,
+#                 #     allowed_content
+#                 #     + ["apology", "human interaction"],
+#                 # ):
+#                 if classification in allowed_content + [
+#                     "apology",
+#                     "human interaction",
+#                 ]:
+#                     return True, classification
+#                 else:
+#                     return False, classification
 
-            except Exception as e:
-                logger.warning(
-                    f"Content check attempt {attempt + 1}/{max_retries + 1} "
-                    f"failed: {e}"
-                )
+#             except Exception as e:
+#                 logger.warning(
+#                     f"Content check attempt {attempt + 1}/{max_retries + 1} "
+#                     f"failed: {e}"
+#                 )
 
-                if attempt == max_retries:
-                    # All retries exhausted - fail-open strategy
-                    logger.error(
-                        f"Content checker failed after {max_retries + 1} "
-                        f"attempts: {e}"
-                    )
-                    return True, "validation_unavailable"
+#                 if attempt == max_retries:
+#                     # All retries exhausted - fail-open strategy
+#                     logger.error(
+#                         f"Content checker failed after {max_retries + 1} "
+#                         f"attempts: {e}"
+#                     )
+#                     return True, "validation_unavailable"
 
-                # Exponential backoff before retry
-                await asyncio.sleep(0.5 * (attempt + 1))
+#                 # Exponential backoff before retry
+#                 await asyncio.sleep(0.5 * (attempt + 1))
 
-        # Should never reach here
-        return True, "validation_error"
+#         # Should never reach here
+#         return True, "validation_error"
 
-    async for chunk in stream:
-        if not validation_complete:
-            # Buffering phase
-            buffer_chunks.append(chunk)
-            buffer_text += chunk.text
+#     async for chunk in stream:
+#         if not validation_complete:
+#             # Buffering phase
+#             buffer_chunks.append(chunk)
+#             buffer_text += chunk.text
 
-            if len(buffer_text) >= buffer_size:
-                # Validate buffered content
-                is_valid, classification = await _validate_content(
-                    query_text + "\n\n" + buffer_text + "..."
-                )
+#             if len(buffer_text) >= buffer_size:
+#                 # Validate buffered content
+#                 is_valid, classification = await _validate_content(
+#                     query_text + "\n\n" + buffer_text + "..."
+#                 )
 
-                if not is_valid:
-                    logger.info(
-                        f"Content rejected with classification: {classification}"
-                    )
-                    yield AIMessageChunk(content=error_message)
-                    return  # Stop streaming
+#                 if not is_valid:
+#                     logger.info(
+#                         f"Content rejected with classification: {classification}"
+#                     )
+#                     yield AIMessageChunk(content=error_message)
+#                     return  # Stop streaming
 
-                # Validation passed - yield buffered chunks
-                validation_complete = True
-                if classification == "validation_unavailable":
-                    logger.warning(
-                        "LLM exchange without content check (validation unavailable)"
-                    )
+#                 # Validation passed - yield buffered chunks
+#                 validation_complete = True
+#                 if classification == "validation_unavailable":
+#                     logger.warning(
+#                         "LLM exchange without content check (validation unavailable)"
+#                     )
 
-                for buffered in buffer_chunks:
-                    yield buffered
-        else:
-            # Streaming phase - validation already passed
-            yield chunk
+#                 for buffered in buffer_chunks:
+#                     yield buffered
+#         else:
+#             # Streaming phase - validation already passed
+#             yield chunk
 
-    # Handle case where stream ended before buffer was full
-    if not validation_complete:
-        if buffer_text:  # Only validate if there's content
-            is_valid, classification = await _validate_content(
-                query_text + "\n\n" + buffer_text
-            )
+#     # Handle case where stream ended before buffer was full
+#     if not validation_complete:
+#         if buffer_text:  # Only validate if there's content
+#             is_valid, classification = await _validate_content(
+#                 query_text + "\n\n" + buffer_text
+#             )
 
-            if not is_valid:
-                logger.info(
-                    f"Content rejected with classification: {classification}"
-                )
-                yield AIMessageChunk(content=error_message)
-                return
+#             if not is_valid:
+#                 logger.info(
+#                     f"Content rejected with classification: {classification}"
+#                 )
+#                 yield AIMessageChunk(content=error_message)
+#                 return
 
-            if classification == "validation_unavailable":
-                logger.warning(
-                    f"LLM exchange without content check: {buffer_text[:100]}..."
-                )
+#             if classification == "validation_unavailable":
+#                 logger.warning(
+#                     f"LLM exchange without content check: {buffer_text[:100]}..."
+#                 )
 
-        # Yield all buffered chunks
-        for buffered in buffer_chunks:
-            yield buffered
-
-
-async def logging_stream_adapter(
-    stream: AsyncIterator[BaseMessageChunk],
-    *,
-    on_complete: Callable[[str], Awaitable[None]] | None = None,
-    on_chunk: Callable[[str, str], Awaitable[None]] | None = None,
-) -> AsyncIterator[BaseMessageChunk]:
-    """
-    Wraps a stream to enable logging callbacks.
-
-    This adapter passes through all chunks unchanged while optionally
-    invoking callbacks for logging or monitoring purposes.
-
-    Args:
-        stream: The stream to wrap
-        on_complete: Async callback invoked with complete response text
-        on_chunk: Async callback invoked with (chunk_text, buffer_so_far)
-
-    Yields:
-        All chunks from the original stream unchanged
-    """
-    buffer: str = ""
-
-    async for chunk in stream:
-        chunk_text = chunk.text
-        buffer += chunk_text
-
-        if on_chunk:
-            await on_chunk(chunk_text, buffer)
-
-        yield chunk
-
-    if on_complete:
-        await on_complete(buffer)
+#         # Yield all buffered chunks
+#         for buffered in buffer_chunks:
+#             yield buffered
 
 
-def compose_adapters(
-    *adapters: Callable[
-        [AsyncIterator[BaseMessageChunk]],
-        AsyncIterator[BaseMessageChunk],
-    ],
-) -> Callable[
-    [AsyncIterator[BaseMessageChunk]], AsyncIterator[BaseMessageChunk]
-]:
-    """
-    Compose multiple stream adapters into a single adapter.
+# async def logging_stream_adapter(
+#     stream: AsyncIterator[BaseMessageChunk],
+#     *,
+#     on_complete: Callable[[str], Awaitable[None]] | None = None,
+#     on_chunk: Callable[[str, str], Awaitable[None]] | None = None,
+# ) -> AsyncIterator[BaseMessageChunk]:
+#     """
+#     Wraps a stream to enable logging callbacks.
 
-    Adapters are applied left-to-right (first adapter wraps the stream,
-    second adapter wraps the result, etc.).
+#     This adapter passes through all chunks unchanged while optionally
+#     invoking callbacks for logging or monitoring purposes.
 
-    Args:
-        *adapters: Stream adapter functions to compose
+#     Args:
+#         stream: The stream to wrap
+#         on_complete: Async callback invoked with complete response text
+#         on_chunk: Async callback invoked with (chunk_text, buffer_so_far)
 
-    Returns:
-        A single adapter that applies all adapters in sequence
+#     Yields:
+#         All chunks from the original stream unchanged
+#     """
+#     buffer: str = ""
 
-    Example:
-        ```python
-        composed = compose_adapters(
-            lambda s: validation_stream_adapter(s, query, ...),
-            lambda s: logging_stream_adapter(s, on_complete=log_fn),
-        )
-        result_stream = composed(llm_stream)
-        ```
-    """
+#     async for chunk in stream:
+#         chunk_text = chunk.text
+#         buffer += chunk_text
 
-    def composed(
-        stream: AsyncIterator[BaseMessageChunk],
-    ) -> AsyncIterator[BaseMessageChunk]:
-        result: AsyncIterator[BaseMessageChunk] = stream
-        for adapter in adapters:
-            result = adapter(result)
-        return result
+#         if on_chunk:
+#             await on_chunk(chunk_text, buffer)
 
-    return composed
+#         yield chunk
+
+#     if on_complete:
+#         await on_complete(buffer)
+
+
+# def compose_adapters(
+#     *adapters: Callable[
+#         [AsyncIterator[BaseMessageChunk]],
+#         AsyncIterator[BaseMessageChunk],
+#     ],
+# ) -> Callable[
+#     [AsyncIterator[BaseMessageChunk]], AsyncIterator[BaseMessageChunk]
+# ]:
+#     """
+#     Compose multiple stream adapters into a single adapter.
+
+#     Adapters are applied left-to-right (first adapter wraps the stream,
+#     second adapter wraps the result, etc.).
+
+#     Args:
+#         *adapters: Stream adapter functions to compose
+
+#     Returns:
+#         A single adapter that applies all adapters in sequence
+
+#     Example:
+#         ```python
+#         composed = compose_adapters(
+#             lambda s: validation_stream_adapter(s, query, ...),
+#             lambda s: logging_stream_adapter(s, on_complete=log_fn),
+#         )
+#         result_stream = composed(llm_stream)
+#         ```
+#     """
+
+#     def composed(
+#         stream: AsyncIterator[BaseMessageChunk],
+#     ) -> AsyncIterator[BaseMessageChunk]:
+#         result: AsyncIterator[BaseMessageChunk] = stream
+#         for adapter in adapters:
+#             result = adapter(result)
+#         return result
+
+#     return composed
