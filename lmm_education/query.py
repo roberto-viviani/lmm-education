@@ -2,9 +2,9 @@
 This module allows interactively querying a language model, such that
 it can be tested using material ingested in the RAG database.
 
-A RAG database must have been previously created (for example, with the
-ingest module). In the following examples, we assume the existence of
-a database on basic statistical modelling.
+A RAG database must have been previously created (for example, with 
+the ingest module). In the following examples, we assume the 
+existence of a database on basic statistical modelling.
 
 Examples:
 
@@ -165,10 +165,13 @@ async def chat_function(
     This function retrieves a compiled LangGraph's graph, creates the
     initial state, and returns a stream to process a user query.
 
-    Note: This is an async generator function that may be called directly:
+    Note: This is an async generator function that may be called 
+        directly:
+        ```python
         stream = chat_function(...)
         async for chunk in stream:
             ...
+        ```
 
     Args:
         querytext: The user's query text
@@ -311,15 +314,17 @@ def query(
     logger: LoggerBase = ConsoleLogger(),
 ) -> Iterator[str]:
     """
-    Synchronous generator that yields text strings from the query() async function.
+    Synchronous generator that yields text graph stream.
 
-    This is a convenience wrapper that allows synchronous code to consume
-    the streaming response from the language model. It creates an event loop
-    internally to bridge the async/sync boundary.
+    This is a convenience wrapper that allows synchronous code to 
+    consume the streaming response from the language model. It 
+    creates an event loop internally to bridge the async/sync 
+    boundary.
 
     Args:
         querystr: The query text to send to the language model
-        model_settings: Language model settings (or 'major', 'minor', 'aux')
+        model_settings: Language model settings (or 'major', 'minor', 
+            'aux')
         chat_settings: Chat settings for the query
         print_context: If True, print the RAG context to the logger
         validate_content: If True, validate response content
@@ -330,9 +335,11 @@ def query(
         str: Text chunks from the language model response
 
     Example:
+        ```python
         for text in query_sync("What is logistic regression?"):
             print(text, end="", flush=True)
         print()
+        ```
     """
     from .asyncutils import async_gen_to_sync_iter
 
@@ -364,11 +371,12 @@ async def aquery(
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncIterator[str]:
     """
-    Asynchronous generator that yields text strings from the query() async function.
+    Asynchronous generator that yields text from the graph stream.
 
     Args:
         querystr: The query text to send to the language model
-        model_settings: Language model settings (or 'major', 'minor', 'aux')
+        model_settings: Language model settings (or 'major', 'minor', 
+            'aux')
         chat_settings: Chat settings for the query
         print_context: If True, print the RAG context in the output
         validate_content: If True, validate response content
@@ -380,9 +388,11 @@ async def aquery(
         str: Text chunks from the language model response
 
     Example:
+        ```python
         async for text in query("What is logistic regression?"):
             print(text, end="", flush=True)
         print()
+        ```
     """
     if allowed_content is None:
         allowed_content = []
@@ -407,7 +417,8 @@ async def aquery(
             model_settings = config.aux
         else:
             errmsg: str = (
-                f"Invalid language model settings: {model_settings}\nShould"
+                f"Invalid language model settings: "
+                f"{model_settings}\nShould"
                 " be one of 'major', 'minor', 'aux'"
             )
             logger.error(errmsg)

@@ -19,7 +19,6 @@ async def logging(
     streams: TextIOBase,
     state: GraphState,
     context: Context,
-    interaction_type: str,
     timestamp: datetime,
     record_id: str) -> None:
     ... implementation goes here
@@ -29,8 +28,8 @@ Then create a logger using the factory function:
 
 ```python
 with open("logger.csv", 'a', encoding='utf-8') as f:
-    log = create_graph_logger(f, context, logging)
-    record_id: str = log(state, "MESSAGE")
+    log = create_graph_logger(f, context)
+    record_id: str = log(state)
 ```
 
 Note: The caller is responsible for keeping the stream open while
@@ -163,7 +162,8 @@ def create_graph_logger(
     Example:
         ```python
         with open("logger.csv", 'a', encoding='utf-8') as f:
-            log = create_graph_logger(f, context, my_logging_coroutine)
+            log = create_graph_logger(f, context, 
+                my_logging_coroutine)
             record_id = log(state)
         ```
 
@@ -182,7 +182,6 @@ def create_graph_logger(
         Args:
             state: The state (TypedDict) to log
             context: The dependency injection object (Pydantic Model)
-            interaction_type: The interaction type (default: "MESSAGE")
             timestamp: Timestamp of the interaction. Defaults to
                 current time if None.
             record_id: Unique identifier for this record. Generated
@@ -229,7 +228,7 @@ def create_null_logger() -> (
     Example:
         ```python
         log = create_null_logger()
-        log(state, context, "MESSAGE")  # Does nothing
+        log(state)  # Does nothing
         ```
     """
 

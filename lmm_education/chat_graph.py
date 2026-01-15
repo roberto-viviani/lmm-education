@@ -1,15 +1,17 @@
 """
-LangGraph-based chat workflow for RAG-enabled language model interactions.
+LangGraph-based chat workflow for RAG-enabled language model 
+interactions.
 
-This module provides a state-based graph architecture for processing chat
-queries with retrieval-augmented generation (RAG). The workflow handles:
+This module provides a state-based graph architecture for processing 
+chat queries with retrieval-augmented generation (RAG). The workflow 
+handles:
 - Query validation
 - Context retrieval from vector store
 - Query formatting with retrieved context
 - LLM response generation
 
-The state object (ChatState) cleanly separates concerns that were previously
-conflated in the history parameter.
+The state object (ChatState) cleanly separates concerns that were 
+previously conflated in the history parameter.
 """
 
 # LangGraph missing type stubs
@@ -58,7 +60,8 @@ class ChatState(TypedDict):
     Attributes:
         messages: Conversation history as LangChain messages
         status: status of the graph
-        query_text: The current user query (possibly formatted with context)
+        query_text: The current user query (possibly formatted with 
+            context)
         context: Retrieved context from vector store
     """
 
@@ -119,16 +122,20 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     The graph implements the following flow:
 
-        START → validate_query → [conditional]
-                                    ↓ valid
-                              retrieve_context → format_query → generate → END
-                                    ↓ invalid
-                              END
+    START → validate_query → [conditional]
+                                ↓ valid
+                            retrieve_context → format_query → 
+                                                    generate → END
+                                ↓ invalid
+                            END
 
     The generate node uses llm.astream() to produce streaming output.
     Dependency injection handled at the level of streaming call
     through context argument. Use
-    workflow.astream(state, stream_mode="messages", context=workflow_context)
+    ```python
+    workflow.astream(state, stream_mode="messages", 
+                    context=workflow_context)
+    ```
     to consume the stream.
 
     Returns:
@@ -239,7 +246,8 @@ def create_chat_workflow() -> ChatStateGraphType:
     def format_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> ChatState:
-        """Format the query with retrieved context using prompt template."""
+        """Format the query with retrieved context using prompt 
+        template."""
         context: str = state.get("context", "")
         query: str = state["query_text"]
         settings: ChatSettings = runtime.context.chat_settings
@@ -269,13 +277,13 @@ def create_chat_workflow() -> ChatStateGraphType:
         """
         Generate LLM response using streaming.
 
-        This node invokes the LLM with the formatted query and conversation
-        history. The actual streaming is handled by LangGraph's astream()
-        with stream_mode="messages".
+        This node invokes the LLM with the formatted query and 
+        conversation history. The actual streaming is handled by 
+        LangGraph's astream() with stream_mode="messages".
 
-        Note: This node stores the final complete response in state, but
-        when using astream() with stream_mode="messages", you'll receive
-        chunks as they're generated.
+        Note: This node stores the final complete response in state, 
+            but when using astream() with stream_mode="messages", 
+            you'll receive chunks as they're generated.
         """
         config: ChatWorkflowContext = runtime.context
         messages = prepare_messages_for_llm(
@@ -289,7 +297,7 @@ def create_chat_workflow() -> ChatStateGraphType:
             if hasattr(chunk, 'text') and callable(chunk.text):
                 response_chunks.append(chunk.text)
             elif hasattr(chunk, 'content'):
-                content: str = str(chunk.content)  # type: ignore (arg type)
+                content: str = str(chunk.content)  # type: ignore
                 response_chunks.append(content)
             else:
                 response_chunks.append(str(chunk))
@@ -373,7 +381,8 @@ def prepare_messages_for_llm(
     Args:
         state: Current chat state
         system_message: Optional system message to prepend
-        history_window: Number of recent messages to include (default 4)
+        history_window: Number of recent messages to include 
+            (defaults to 4)
 
     Returns:
         List of (role, content) tuples for LLM invocation
@@ -422,7 +431,9 @@ def databaselog_create(
     if not os.path.exists(database_file):
         with open(database_file, "w", encoding='utf-8') as f:
             f.write(
-                "record_id,client_host,session_hash,timestamp,history_length,model_name,interaction_type,query,response\n"
+                "record_id,client_host,session_hash,timestamp,"
+                "history_length,model_name,interaction_type,"
+                "query,response\n"
             )
 
     if not os.path.exists(database_context_file):
@@ -453,7 +464,8 @@ async def logging(
     """
 
     def fmat_for_csv(text: str) -> str:
-        """Format text for CSV storage by escaping quotes and newlines."""
+        """Format text for CSV storage by escaping quotes and 
+        newlines."""
 
         # Replace double quotation marks with single quotation marks
         modified_text = text.replace('"', "'")
@@ -466,7 +478,8 @@ async def logging(
     if isinstance(streams, list):
         if len(streams) < 2:
             raise ValueError(
-                "logging, when stream list given, mut contain 2 streams"
+                "logging, when stream list given, mut contain 2 " 
+                "streams"
             )
         stream, context_stream = streams[0], streams[1]
     else:
@@ -482,7 +495,7 @@ async def logging(
     messages: list[BaseMessage] = state['messages']
     status: ChatStatus = state['status']
     response: str = (
-        str(messages[-1].content) if messages else ""  # type: ignore (langchain)
+        str(messages[-1].content) if messages else ""  # type: ignore
     )
     query: str = state["query_text"]
     classification: str = state["query_classification"]
@@ -495,19 +508,21 @@ async def logging(
                     f'{record_id},{client_host},{session_hash},'
                     f'{timestamp},{len(messages)},'
                     f'{model_name},MESSAGES,'
-                    f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
+                    f'"{fmat_for_csv(query)}",'
+                    f'"{fmat_for_csv(response)}"\n'
                 )
 
-                # Log context if available (from context role in history). We also
-                # record relevance of context for further monitoring.
+                # Log context if available (from context role in 
+                # history). We also record relevance of context for 
+                # further monitoring.
                 if state["context"]:
                     query_context: str = state[
                         "context"
                     ]  # TODO: check this is not a list
-                    # we evaluate consistency of context prior to saving
+                    # Evaluate consistency of context prior to saving
                     try:
                         lmm_validator: RunnableType = create_runnable(
-                            'context_validator'  # this will be a dict lookup
+                            'context_validator'  # will be a lookup
                         )
                         validation: str = await lmm_validator.ainvoke(
                             {
@@ -518,7 +533,8 @@ async def logging(
                         validation = validation.upper()
                     except Exception as e:
                         logger.error(
-                            f'Could not connect to aux model to validate context: {e}'
+                            f"Could not connect to aux model to "
+                            f"validate context: {e}"
                         )
                         validation = "<failed>"
 
@@ -533,12 +549,14 @@ async def logging(
                         ) as f:
                             f.write(
                                 f'{record_id},{validation},'
-                                f'"{fmat_for_csv(query_context)}",{classification}\n'
+                                f'"{fmat_for_csv(query_context)}",'
+                                f'{classification}\n'
                             )
                     else:
                         context_stream.write(
                             f'{record_id},{validation},'
-                            f'"{fmat_for_csv(query_context)}",{classification}\n'
+                            f'"{fmat_for_csv(query_context)}",'
+                            f'{classification}\n'
                         )
             case "empty_query":
                 stream.write(
@@ -559,7 +577,8 @@ async def logging(
                     f'{record_id},{client_host},{session_hash},'
                     f'{timestamp},{len(messages)},'
                     f'{model_name},REJECTED,'
-                    f'"{fmat_for_csv(query)}","{fmat_for_csv(response)}"\n'
+                    f'"{fmat_for_csv(query)}",'
+                    f'"{fmat_for_csv(response)}"\n'
                 )
 
             case _:  # ignore all others (errors logged to logger)
