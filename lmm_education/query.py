@@ -2,8 +2,8 @@
 This module allows interactively querying a language model, such that
 it can be tested using material ingested in the RAG database.
 
-A RAG database must have been previously created (for example, with 
-the ingest module). In the following examples, we assume the 
+A RAG database must have been previously created (for example, with
+the ingest module). In the following examples, we assume the
 existence of a database on basic statistical modelling.
 
 Examples:
@@ -165,7 +165,7 @@ async def chat_function(
     This function retrieves a compiled LangGraph's graph, creates the
     initial state, and returns a stream to process a user query.
 
-    Note: This is an async generator function that may be called 
+    Note: This is an async generator function that may be called
         directly:
         ```python
         stream = chat_function(...)
@@ -182,6 +182,7 @@ async def chat_function(
             context object. If False, carries out no validation. If a
             CheckReponse object, overrides the settings from
             the context object.
+        database_streams: TextIO streams to do the database logging to
         database_log: if False (default), carries out no database
             logging. If True, carries out database logging with the
             default function defined with the graph. If a logger
@@ -284,6 +285,7 @@ async def chat_function(
 
     message_stream: tier_2_iterator
     if database_logger:
+
         dblogger: Callable[[ChatState], Any] = (
             lambda state: database_logger(state, None, None)
         )
@@ -316,14 +318,14 @@ def query(
     """
     Synchronous generator that yields text graph stream.
 
-    This is a convenience wrapper that allows synchronous code to 
-    consume the streaming response from the language model. It 
-    creates an event loop internally to bridge the async/sync 
+    This is a convenience wrapper that allows synchronous code to
+    consume the streaming response from the language model. It
+    creates an event loop internally to bridge the async/sync
     boundary.
 
     Args:
         querystr: The query text to send to the language model
-        model_settings: Language model settings (or 'major', 'minor', 
+        model_settings: Language model settings (or 'major', 'minor',
             'aux')
         chat_settings: Chat settings for the query
         print_context: If True, print the RAG context to the logger
@@ -375,7 +377,7 @@ async def aquery(
 
     Args:
         querystr: The query text to send to the language model
-        model_settings: Language model settings (or 'major', 'minor', 
+        model_settings: Language model settings (or 'major', 'minor',
             'aux')
         chat_settings: Chat settings for the query
         print_context: If True, print the RAG context in the output
