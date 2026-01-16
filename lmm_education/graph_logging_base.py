@@ -58,19 +58,31 @@ StateType = TypeVar("StateType", bound=Mapping[str, Any])
 # Context must be or derive from Pydantic's BaseModel
 ContextType = TypeVar("ContextType", bound=BaseModel)
 
-# Type Alias for the coroutine for better readability
-LogCoroutine = Callable[
+# Type Alias for the input coroutine for better readability
+LogCoroutineType = Callable[
     [
         TextIOBase | list[TextIOBase],
         StateType,
         ContextType,
+        str,  # Client host
+        str,  # Session hash
         datetime,
-        str,
+        str,  # Record ID
     ],
     Coroutine[Any, Any, None],
 ]
 
-# Type alias for the function returned by
+# Type alias for the function returned by the factory
+LoggerFunctionType = Callable[
+    [
+        StateType,
+        str | None,  # Client host
+        str | None,  # Session hash
+        datetime | None,
+        str | None,  # Record ID
+    ],
+    str,
+]
 
 # Module-level collection of task objects.
 active_logs: set[asyncio.Task[None]] = set()
@@ -103,14 +115,10 @@ async def _shutdown() -> None:
         # logging itself, because the coroutines are written to
         # handle all exceptions and write them to the log. But we
         # do not know if Gradio is canceling anything. Diagnostics
-        completed = sum(
-            1 for r in results if not isinstance(r, Exception)
-        )
-        cancelled = sum(
-            1
-            for r in results
-            if isinstance(r, asyncio.CancelledError)
-        )
+        completed = sum(1 for r in results 
+                        if not isinstance(r, Exception))
+        cancelled = sum(1 for r in results 
+                        if isinstance(r, asyncio.CancelledError))
         failed = sum(
             1
             for r in results
@@ -136,8 +144,8 @@ atexit.register(_shutdown_sync)
 def create_graph_logger(
     streams: TextIOBase | list[TextIOBase],
     context: ContextType,
-    log_coro: LogCoroutine[StateType, ContextType],
-) -> Callable[[StateType, datetime | None, str | None], str]:
+    log_coro: LogCoroutineType[StateType, ContextType],
+) -> LoggerFunctionType[StateType]:
     """
     Factory that returns a fire-and-forget log function.
 
@@ -162,7 +170,7 @@ def create_graph_logger(
     Example:
         ```python
         with open("logger.csv", 'a', encoding='utf-8') as f:
-            log = create_graph_logger(f, context, 
+            log = create_graph_logger(f, context,
                 my_logging_coroutine)
             record_id = log(state)
         ```
@@ -173,6 +181,8 @@ def create_graph_logger(
 
     def log(
         state: StateType,
+        client_host: str | None = None,
+        session_hash: str | None = None,
         timestamp: datetime | None = None,
         record_id: str | None = None,
     ) -> str:
@@ -181,7 +191,10 @@ def create_graph_logger(
 
         Args:
             state: The state (TypedDict) to log
-            context: The dependency injection object (Pydantic Model)
+            client_host: The client host (IP address) of the
+                interaction. Defaults to "<unknown>" if None.
+            session_hash: The session hash of the interaction.
+                Defaults to "<unknown>" if None.
             timestamp: Timestamp of the interaction. Defaults to
                 current time if None.
             record_id: Unique identifier for this record. Generated
@@ -190,6 +203,10 @@ def create_graph_logger(
         Returns:
             The record_id used for the record.
         """
+        if client_host is None:
+            client_host = "<unknown>"
+        if session_hash is None:
+            session_hash = "<unknown>"
         if timestamp is None:
             timestamp = datetime.now()
 
@@ -201,6 +218,8 @@ def create_graph_logger(
                 streams,
                 state,
                 context,
+                client_host,
+                session_hash,
                 timestamp,
                 record_id,
             )
@@ -213,9 +232,7 @@ def create_graph_logger(
     return log
 
 
-def create_null_logger() -> (
-    Callable[[Any, datetime | None, str | None], str]
-):
+def create_null_logger() -> LoggerFunctionType[Any]:
     """
     Factory that returns a no-op logger function.
 
@@ -234,6 +251,8 @@ def create_null_logger() -> (
 
     def null_log(
         state: Any,
+        client_host: str | None = None,
+        session_hash: str | None = None,
         timestamp: datetime | None = None,
         record_id: str | None = None,
     ) -> str:

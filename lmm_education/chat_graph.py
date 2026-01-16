@@ -387,6 +387,8 @@ async def logging(
     streams: TextIOBase | list[TextIOBase],
     state: ChatState,
     context: ChatWorkflowContext,
+    client_host: str,
+    session_hash: str,
     timestamp: datetime,
     record_id: str,
 ) -> None:
@@ -428,8 +430,6 @@ async def logging(
     logger: LoggerBase = context.logger
 
     # info from state and context
-    client_host: str = context.client_host or "<unknwon>"
-    session_hash: str = context.session_hash or "<unknwon>"
     model_name: str = context.llm.name or "<unknwon>"
     chat_database: ChatDatabase = context.chat_settings.chat_database
     messages: list[BaseMessage] = state["messages"]

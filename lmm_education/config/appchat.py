@@ -29,7 +29,7 @@ class CheckResponse(BaseModel):
         description="buffer size to send to model to check content",
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_allowed_content(self) -> Self:
         """Validate that allowed_content is not empty when check_response is True."""
         if self.check_response and not self.allowed_content:
@@ -59,13 +59,12 @@ class ChatDatabase(BaseModel):
 
 
 class ChatSettings(BaseSettings):
-
     model_config = SettingsConfigDict(
         toml_file=CHAT_CONFIG_FILE,
         env_prefix="LMMEDU_",  # Uppercase for environment variables
         frozen=True,
         validate_assignment=True,
-        extra='forbid',  # Prevent unexpected fields
+        extra="forbid",  # Prevent unexpected fields
     )
 
     # This is displayed on the chatbot. Change it as appropriate
@@ -150,14 +149,15 @@ QUERY: "{query}"
         description="Check thematic appropriateness of chat",
     )
 
-    chat_database: ChatDatabase = Field(
-        default_factory=ChatDatabase,
-        description="Database of chat exchanges",
-    )
-
     server: ServerSettings = Field(
         default_factory=ServerSettings,
         description="Server configuration",
+    )
+
+    # database of exchanges
+    chat_database: ChatDatabase = Field(
+        default_factory=ChatDatabase,
+        description="Database of chat exchanges",
     )
 
     @classmethod

@@ -37,12 +37,10 @@ python -m lmm_education.query 'what is logistic regression?'
 from collections.abc import (
     AsyncIterator,
     Iterator,
-    AsyncGenerator,
     Callable,
 )
-from typing import Any, Literal
+from typing import Literal
 from io import TextIOBase
-from datetime import datetime
 
 # Langchain
 from langchain_core.messages import (
@@ -63,21 +61,19 @@ from lmm.language_models.langchain.runnables import (
     create_runnable,
     RunnableType,
 )
-from lmm_education.config.appchat import CheckResponse
-from qdrant_client import AsyncQdrantClient
 
 # LM markdown for education
 from .config.config import load_settings
 from .config.config import ConfigSettings, DEFAULT_CONFIG_FILE
+from qdrant_client import AsyncQdrantClient
 from .stores.langchain.vector_store_qdrant_langchain import (
     AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
 )
 from .config.appchat import (
     ChatSettings,
+    CheckResponse,
     load_settings as load_chat_settings,
 )
-
-# New imports for refactored architecture
 from .chat_graph import (
     ChatStateGraphType,
     ChatState,
@@ -94,7 +90,9 @@ from .stream_adapters import (
     terminal_field_change_adapter,
     tier_3_adapter,
 )
-from .graph_logging_base import create_graph_logger, LogCoroutine
+from .graph_logging_base import (
+    create_graph_logger, LogCoroutineType, LoggerFunctionType,
+)
 
 
 def history_to_messages(
@@ -155,9 +153,9 @@ def create_chat_stream(
     print_context: bool = False,
     validate: CheckResponse | Literal[False] | None = None,
     database_streams: list[TextIOBase] = [],
-    database_log: (LogCoroutine[ChatState, ChatWorkflowContext] | bool) = False,
+    database_log: (LogCoroutineType[ChatState, ChatWorkflowContext] | bool) = False,
     logger: LoggerBase = ConsoleLogger(),
-) -> AsyncGenerator[str, None]:
+) -> tier_3_iterator:
     """
     Creates and configures the chat stream.
 
@@ -203,7 +201,8 @@ def create_chat_stream(
     """
 
     # Load settings.
-    config_settings: ConfigSettings | None = load_settings(logger=logger)
+    config_settings: ConfigSettings | None = \
+        load_settings(logger=logger)
     if config_settings is None:
         raise ValueError("Could not load settings")
 
@@ -218,25 +217,32 @@ def create_chat_stream(
             response_settings = validate
 
     # Settings for logging.
-    database_logger: Callable[[ChatState, datetime | None, str | None], str] | None = (
-        None
-    )
+    database_logger: LoggerFunctionType[ChatState] | None = None
     match database_log:
         case False:
             database_logger = None
         case True:
-            database_logger = create_graph_logger(database_streams, context, logging)
+            database_logger = create_graph_logger(
+                database_streams, 
+                context, 
+                logging,
+            )
         case _:
             database_logger = create_graph_logger(
-                database_streams, context, database_log
+                database_streams, 
+                context, 
+                database_log,
             )
     if database_logger and not database_streams:
-        raise ValueError("chat_function: database_logger used without streams")
+        raise ValueError("chat_function: database_logger "
+                         "used without streams")
 
     # map dblogger to typed lambda (required for typing)
-    dblogger: Callable[[ChatState], Any] | None = (
-        (lambda state: database_logger(state, None, None)) if database_logger else None
-    )
+    if database_logger:
+        dblogger: Callable[[ChatState], str] | None = \
+            lambda state: database_logger(state, None, None, None, None)
+    else:
+        dblogger = None
 
     # Fetch graph from workflow library
     wfname = "query"
@@ -288,7 +294,7 @@ def create_chat_stream(
                 if print_context
                 else None
             ),
-            on_terminal_state=dblogger,
+            on_terminal_state=dblogger if database_logger else None,
         )
         if dblogger or print_context
         else tier_3_adapter(tier_1_stream)
@@ -473,7 +479,6 @@ async def aquery(
         llm=llm,
         retriever=retriever,
         chat_settings=chat_settings,
-        print_context=print_context,
         logger=logger,
     )  # override config settings
     response_settings = CheckResponse(
@@ -484,7 +489,7 @@ async def aquery(
 
     # Get the iterator and consume it
     try:
-        iterator: AsyncGenerator[str, None] = create_chat_stream(
+        iterator: tier_3_iterator = create_chat_stream(
             querystr,
             None,
             context,
