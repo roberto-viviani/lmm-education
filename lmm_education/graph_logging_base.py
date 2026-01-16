@@ -115,10 +115,14 @@ async def _shutdown() -> None:
         # logging itself, because the coroutines are written to
         # handle all exceptions and write them to the log. But we
         # do not know if Gradio is canceling anything. Diagnostics
-        completed = sum(1 for r in results 
-                        if not isinstance(r, Exception))
-        cancelled = sum(1 for r in results 
-                        if isinstance(r, asyncio.CancelledError))
+        completed = sum(
+            1 for r in results if not isinstance(r, Exception)
+        )
+        cancelled = sum(
+            1
+            for r in results
+            if isinstance(r, asyncio.CancelledError)
+        )
         failed = sum(
             1
             for r in results
