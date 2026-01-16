@@ -1,5 +1,7 @@
 """Tests for CheckResponse validator in appchat.py configuration."""
 
+# pyright: reportArgumentType=false
+
 import unittest
 from pydantic import ValidationError
 

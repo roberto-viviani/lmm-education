@@ -1,3 +1,5 @@
+# pyright: reportArgumentType=false
+
 import unittest
 import io
 import logging
@@ -77,7 +79,7 @@ def setUpModule():
     # Save the document content to a test file
     with open(TEST_MARKDOWN_FILE, 'w', encoding='utf-8') as f:
         f.write(document)
-    
+
     settings = ConfigSettings(
         major={'model': "Debug/debug"},
         minor={'model': "Debug/debug"},
@@ -93,9 +95,10 @@ def setUpModule():
 def tearDownModule():
     # Clean up the test file
     import os
+
     if os.path.exists(TEST_MARKDOWN_FILE):
         os.remove(TEST_MARKDOWN_FILE)
-    
+
     export_settings(original_settings)
 
 

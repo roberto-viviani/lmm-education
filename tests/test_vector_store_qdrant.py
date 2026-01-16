@@ -3,6 +3,9 @@
 NOTE: initialize collection tested in test_lmm_rag.py
 """
 
+# pyright: reportArgumentType=false
+
+
 import unittest
 import logging
 import re

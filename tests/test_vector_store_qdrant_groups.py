@@ -1,5 +1,7 @@
 """Tests for grouped qdrant queries"""
 
+# pyright: reportArgumentType=false
+
 import unittest
 import logging
 

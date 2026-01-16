@@ -2,6 +2,9 @@
 Unit tests for the find_dictionary_differences function in lmm_education/config/utils.py
 """
 
+# pyright: reportArgumentType=false
+# pyright: reportUnknownArgumentType=false
+
 import json
 import unittest
 from lmm_education.config.utils import (

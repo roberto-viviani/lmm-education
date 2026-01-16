@@ -1,3 +1,5 @@
+# pyright: reportArgumentType=false
+
 import unittest
 import tempfile
 import asyncio

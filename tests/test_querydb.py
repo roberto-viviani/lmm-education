@@ -5,6 +5,8 @@ NOTE: most functionality is tested in the test_vector_store... modules.
 IMORTANT: A wokring database must be present for tests to function.
 """
 
+# pyright: reportArgumentType=false
+
 import unittest
 import logging
 

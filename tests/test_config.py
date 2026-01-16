@@ -3,6 +3,9 @@ import tempfile
 import os
 from pydantic import ValidationError
 
+# pyright: reportArgumentType=false
+# pyright: reportOptionalMemberAccess=false
+
 from lmm_education.config.config import (
     load_settings,
     ConfigSettings,

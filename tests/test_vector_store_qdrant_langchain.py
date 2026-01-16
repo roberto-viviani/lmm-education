@@ -3,6 +3,8 @@
 NOTE: initialize collection tested in test_lmm_rag.py
 """
 
+# pyright: reportArgumentType=false
+
 import unittest
 
 from lmm.markdown.parse_markdown import (
