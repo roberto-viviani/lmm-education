@@ -1610,7 +1610,9 @@ async def aquery(
                 response = QdrantResponse(points=points)
 
             case QdrantEmbeddingModel.DENSE:
-                vect: list[float] = encoder.embed_query(querytext)
+                vect: list[float] = await encoder.aembed_query(
+                    querytext
+                )
                 query_dict: dict[str, Any] = {
                     'collection_name': collection_name,
                     'query': vect,
@@ -1621,7 +1623,9 @@ async def aquery(
                 response = await client.query_points(**query_dict)
 
             case QdrantEmbeddingModel.MULTIVECTOR:
-                vect: list[float] = encoder.embed_query(querytext)
+                vect: list[float] = await encoder.aembed_query(
+                    querytext
+                )
                 multi_vect: list[list[float]] = [vect, vect]
                 query_dict: dict[str, Any] = {
                     'collection_name': collection_name,
@@ -1651,7 +1655,9 @@ async def aquery(
 
             case QdrantEmbeddingModel.HYBRID_DENSE:
                 try:
-                    vect: list[float] = encoder.embed_query(querytext)
+                    vect: list[float] = await encoder.aembed_query(
+                        querytext
+                    )
                     sparse_model = _get_sparse_model(
                         embedding_settings
                     )
@@ -1689,7 +1695,9 @@ async def aquery(
 
             case QdrantEmbeddingModel.HYBRID_MULTIVECTOR:
                 try:
-                    vect: list[float] = encoder.embed_query(querytext)
+                    vect: list[float] = await encoder.aembed_query(
+                        querytext
+                    )
                     sparse_model = _get_sparse_model(
                         embedding_settings
                     )
@@ -2102,7 +2110,7 @@ async def aquery_grouped(
                 )
 
             case QdrantEmbeddingModel.DENSE:
-                vect = encoder.embed_query(querytext)
+                vect = await encoder.aembed_query(querytext)
                 query_dict: dict[str, Any] = {
                     'collection_name': collection_name,
                     'query': vect,
@@ -2121,7 +2129,7 @@ async def aquery_grouped(
                 )
 
             case QdrantEmbeddingModel.MULTIVECTOR:
-                vect = encoder.embed_query(querytext)
+                vect = await encoder.aembed_query(querytext)
                 query_dict: dict[str, Any] = {
                     'collection_name': collection_name,
                     'query': [vect, vect],
@@ -2168,7 +2176,9 @@ async def aquery_grouped(
 
             case QdrantEmbeddingModel.HYBRID_DENSE:
                 try:
-                    vect: list[float] = encoder.embed_query(querytext)
+                    vect: list[float] = await encoder.aembed_query(
+                        querytext
+                    )
                     sparse_model: SparseTextEmbedding = (
                         _get_sparse_model(embedding_settings)
                     )
@@ -2214,7 +2224,9 @@ async def aquery_grouped(
 
             case QdrantEmbeddingModel.HYBRID_MULTIVECTOR:
                 try:
-                    vect: list[float] = encoder.embed_query(querytext)
+                    vect: list[float] = await encoder.aembed_query(
+                        querytext
+                    )
                     sparse_model: SparseTextEmbedding = (
                         _get_sparse_model(embedding_settings)
                     )
