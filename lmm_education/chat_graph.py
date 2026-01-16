@@ -20,7 +20,6 @@ previously conflated in the history parameter.
 
 # ruff: noqa: E402
 
-from io import TextIOBase
 from typing import TypedDict, Literal, Annotated
 
 from pydantic import BaseModel, Field
@@ -43,11 +42,14 @@ from langgraph.runtime import Runtime
 from langgraph.graph.state import CompiledStateGraph
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
-from lmm_education.config.appchat import ChatSettings, ChatDatabase
+from lmm_education.config.appchat import ChatSettings
+from lmm_education.logging_db import ChatDatabaseInterface
 
 
 # Type aliases
-ChatStatus = Literal["valid", "empty_query", "long_query", "rejected", "error"]
+ChatStatus = Literal[
+    "valid", "empty_query", "long_query", "rejected", "error"
+]
 
 
 class ChatState(TypedDict):
@@ -105,6 +107,7 @@ class ChatWorkflowContext(BaseModel):
     client_host: str = "<unknown>"
     session_hash: str = "<unknown>"
     logger: LoggerBase = Field(default_factory=ConsoleLogger)
+    database: ChatDatabaseInterface | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -151,17 +154,23 @@ def create_chat_workflow() -> ChatStateGraphType:
         if not query or not query.strip():
             return {
                 "status": "empty_query",
-                "messages": AIMessage(content=settings.MSG_EMPTY_QUERY),
+                "messages": AIMessage(
+                    content=settings.MSG_EMPTY_QUERY
+                ),
             }
 
         if len(query.split()) > settings.max_query_word_count:
             return {
                 "status": "long_query",
-                "messages": AIMessage(content=settings.MSG_LONG_QUERY),
+                "messages": AIMessage(
+                    content=settings.MSG_LONG_QUERY
+                ),
             }
 
         # Normalize query text
-        normalized_query = query.replace("the textbook", "the context provided")
+        normalized_query = query.replace(
+            "the textbook", "the context provided"
+        )
 
         return {
             "query_text": normalized_query,
@@ -176,8 +185,12 @@ def create_chat_workflow() -> ChatStateGraphType:
         config: ChatWorkflowContext = runtime.context
 
         try:
-            documents: list[Document] = await config.retriever.ainvoke(query)
-            context: str = "\n-----\n".join([d.page_content for d in documents])
+            documents: list[Document] = (
+                await config.retriever.ainvoke(query)
+            )
+            context: str = "\n-----\n".join(
+                [d.page_content for d in documents]
+            )
 
             # Store document metadata for logging
             # doc_metadata: list[dict[str, Any]] = [
@@ -195,11 +208,15 @@ def create_chat_workflow() -> ChatStateGraphType:
             return {"context": context}
 
         except Exception as e:
-            config.logger.error(f"Error retrieving from vector database:\n{e}")
+            config.logger.error(
+                f"Error retrieving from vector database:\n{e}"
+            )
             settings: ChatSettings = config.chat_settings
             return {
                 "status": "error",
-                "messages": AIMessage(content=settings.MSG_ERROR_QUERY),
+                "messages": AIMessage(
+                    content=settings.MSG_ERROR_QUERY
+                ),
             }
 
     def format_query(
@@ -212,10 +229,14 @@ def create_chat_workflow() -> ChatStateGraphType:
         settings: ChatSettings = runtime.context.chat_settings
 
         # Convert LaTeX delimiters for display
-        formatted_context = convert_backslash_latex_delimiters(context)
+        formatted_context = convert_backslash_latex_delimiters(
+            context
+        )
 
         # Format with prompt template
-        template = PromptTemplate.from_template(settings.PROMPT_TEMPLATE)
+        template = PromptTemplate.from_template(
+            settings.PROMPT_TEMPLATE
+        )
         formatted_query: str = template.format(
             context=formatted_context,
             query=query,
@@ -238,7 +259,9 @@ def create_chat_workflow() -> ChatStateGraphType:
             you'll receive chunks as they're generated.
         """
         config: ChatWorkflowContext = runtime.context
-        messages = prepare_messages_for_llm(state, config.system_message)
+        messages = prepare_messages_for_llm(
+            state, config.system_message
+        )
 
         # Stream the response - chunks will be emitted by astream()
         response_chunks: list[str] = []
@@ -264,9 +287,9 @@ def create_chat_workflow() -> ChatStateGraphType:
         return "error"
 
     # Build the graph------------------------------------------------
-    workflow: StateGraph[ChatState, ChatWorkflowContext, ChatState, ChatState] = (
-        StateGraph(ChatState, ChatWorkflowContext)
-    )
+    workflow: StateGraph[
+        ChatState, ChatWorkflowContext, ChatState, ChatState
+    ] = StateGraph(ChatState, ChatWorkflowContext)
 
     # Add nodes
     workflow.add_node("validate_query", validate_query)
@@ -308,8 +331,8 @@ def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
 # file when we have more workflows.
 from lmm.language_models.lazy_dict import LazyLoadingDict
 
-workflow_library: LazyLoadingDict[str, ChatStateGraphType] = LazyLoadingDict(
-    _workflow_factory
+workflow_library: LazyLoadingDict[str, ChatStateGraphType] = (
+    LazyLoadingDict(_workflow_factory)
 )
 
 
@@ -341,7 +364,9 @@ def prepare_messages_for_llm(
     # Add recent conversation history
     state_messages: list[BaseMessage] = state.get("messages", [])
     for msg in state_messages[-history_window:]:
-        role: str = "user" if isinstance(msg, HumanMessage) else "assistant"
+        role: str = (
+            "user" if isinstance(msg, HumanMessage) else "assistant"
+        )
         content: str = ""
         try:
             content = str(msg.content)  # type: ignore (dict type)
@@ -362,161 +387,147 @@ from lmm.language_models.langchain.runnables import (
     RunnableType,
     create_runnable,
 )
+from lmm.utils.hash import generate_random_string
 
 
-def databaselog_create(database_file: str, database_context_file: str) -> None:
-    """Creates the database files with the correct headers."""
-
-    import os
-
-    # Initialize CSV database files with headers if they don't exist
-    if not os.path.exists(database_file):
-        with open(database_file, "w", encoding="utf-8") as f:
-            f.write(
-                "record_id,client_host,session_hash,timestamp,"
-                "history_length,model_name,interaction_type,"
-                "query,response\n"
-            )
-
-    if not os.path.exists(database_context_file):
-        with open(database_context_file, "w", encoding="utf-8") as f:
-            f.write("record_id,evaluation,context,classification\n")
-
-
-async def logging(
-    streams: TextIOBase | list[TextIOBase],
+async def graph_logger(
+    database: ChatDatabaseInterface,
     state: ChatState,
     context: ChatWorkflowContext,
-    client_host: str,
-    session_hash: str,
-    timestamp: datetime,
-    record_id: str,
+    client_host: str = "<unknown>",
+    session_hash: str = "<unknown>",
+    timestamp: datetime | None = None,
+    record_id: str | None = None,
 ) -> None:
     """
-    Log to CSV files function.
+    Log to database function.
 
-    When the interaction_type is "MESSAGE", also logs the
-    context in the context table (from context config)
-
-    Args:
-        streams: a TextIOBase list of 2 to log messages
-        state: the ChatState to log
-        context: the dependency injection object
-        interaction_type: the interaction type
-        timestamp: Timestamp of the interaction
-        record_id: Unique identifier for this record
+    Extracts information from the state and context and delegates to
+    the database interface. Adds context validation information to the
+    log.
     """
 
-    def fmat_for_csv(text: str) -> str:
-        """Format text for CSV storage by escaping quotes and
-        newlines."""
+    if timestamp is None:
+        timestamp = datetime.now()
 
-        # Replace double quotation marks with single quotation marks
-        modified_text = text.replace('"', "'")
-        # Replace newline characters with " | "
-        modified_text = modified_text.replace("\n", " | ")
-        return modified_text
-
-    stream: TextIOBase
-    context_stream: TextIOBase | None
-    if isinstance(streams, list):
-        if len(streams) < 2:
-            raise ValueError("logging, when stream list given, mut contain 2 streams")
-        stream, context_stream = streams[0], streams[1]
-    else:
-        stream = streams
-        context_stream = None
+    if record_id is None:
+        record_id = generate_random_string(16)
 
     logger: LoggerBase = context.logger
 
     # info from state and context
-    model_name: str = context.llm.name or "<unknwon>"
-    chat_database: ChatDatabase = context.chat_settings.chat_database
-    messages: list[BaseMessage] = state["messages"]
-    status: ChatStatus = state["status"]
-    response: str = (
-        str(messages[-1].content) if messages else ""  # type: ignore
+    model_name: str = (
+        context.llm.name or "<unknown>"
+        if hasattr(context.llm, "name")
+        else "<unknown>"
     )
-    query: str = state["query_text"]
-    classification: str = state["query_classification"]
+    messages: list[BaseMessage] = state.get("messages", [])
+    status: ChatStatus = state.get("status", "error")
+
+    # Safely get last response
+    response: str = ""
+    if messages and isinstance(messages[-1], AIMessage):
+        response = messages[-1].pretty_repr()
+
+    query: str = state.get("query_text", "")
+    classification: str = state.get("query_classification", "")
+    message_count = len(messages)
 
     try:
         match status:
             case "valid":
-                # Log main interaction to messages.csv
-                stream.write(
-                    f"{record_id},{client_host},{session_hash},"
-                    f"{timestamp},{len(messages)},"
-                    f"{model_name},MESSAGES,"
-                    f'"{fmat_for_csv(query)}",'
-                    f'"{fmat_for_csv(response)}"\n'
-                )
+                # Check for context
+                context_text: str = state.get("context", "")
 
-                # Log context if available (from context role in
-                # history). We also record relevance of context for
-                # further monitoring.
-                if state["context"]:
-                    query_context: str = state["context"]
+                if context_text:
                     # Evaluate consistency of context prior to saving
+                    validation: str = "<unknown>"
                     try:
                         lmm_validator: RunnableType = create_runnable(
                             "context_validator"  # will be a lookup
                         )
-                        validation: str = await lmm_validator.ainvoke(
-                            {
-                                "query": f"{query}. {response}",
-                                "context": query_context,
-                            }
+                        validation_res: str = (
+                            await lmm_validator.ainvoke(
+                                {
+                                    "query": f"{query}. {response}",
+                                    "context": context_text,
+                                }
+                            )
                         )
-                        validation = validation.upper()
+                        validation = validation_res.upper()
                     except Exception as e:
                         logger.error(
                             f"Could not connect to aux model to validate context: {e}"
                         )
                         validation = "<failed>"
 
-                    if context_stream is None:
-                        context_database_file = chat_database.context_database_file
-                        with open(
-                            context_database_file,
-                            "a",
-                            encoding="utf-8",
-                        ) as f:
-                            f.write(
-                                f"{record_id},{validation},"
-                                f'"{fmat_for_csv(query_context)}",'
-                                f"{classification}\n"
-                            )
-                    else:
-                        context_stream.write(
-                            f"{record_id},{validation},"
-                            f'"{fmat_for_csv(query_context)}",'
-                            f"{classification}\n"
-                        )
+                    await database.log_message_with_context(
+                        record_id=record_id,
+                        client_host=client_host,
+                        session_hash=session_hash,
+                        timestamp=timestamp,
+                        message_count=message_count,
+                        model_name=model_name,
+                        interaction_type="MESSAGES",
+                        query=query,
+                        response=response,
+                        validation=validation,
+                        context=context_text,
+                        classification=classification,
+                    )
+                else:
+                    await database.log_message(
+                        record_id=record_id,
+                        client_host=client_host,
+                        session_hash=session_hash,
+                        timestamp=timestamp,
+                        message_count=message_count,
+                        model_name=model_name,
+                        interaction_type="MESSAGES",
+                        query=query,
+                        response=response,
+                    )
+
             case "empty_query":
-                stream.write(
-                    f"{record_id},{client_host},{session_hash},"
-                    f"{timestamp},{len(messages)},"
-                    f',EMPTYQUERY,"",""\n'
+                await database.log_message(
+                    record_id=record_id,
+                    client_host=client_host,
+                    session_hash=session_hash,
+                    timestamp=timestamp,
+                    message_count=message_count,
+                    model_name="",
+                    interaction_type="EMPTYQUERY",
+                    query="",
+                    response="",
                 )
 
             case "long_query":
-                stream.write(
-                    f"{record_id},{client_host},{session_hash},"
-                    f"{timestamp},{len(messages)},"
-                    f',LONGQUERY,"{fmat_for_csv(query)}",""\n'
+                await database.log_message(
+                    record_id=record_id,
+                    client_host=client_host,
+                    session_hash=session_hash,
+                    timestamp=timestamp,
+                    message_count=message_count,
+                    model_name="",
+                    interaction_type="LONGQUERY",
+                    query=query,
+                    response="",
                 )
 
             case "rejected":
-                stream.write(
-                    f"{record_id},{client_host},{session_hash},"
-                    f"{timestamp},{len(messages)},"
-                    f"{model_name},REJECTED,"
-                    f'"{fmat_for_csv(query)}",'
-                    f'"{fmat_for_csv(response)}"\n'
+                await database.log_message(
+                    record_id=record_id,
+                    client_host=client_host,
+                    session_hash=session_hash,
+                    timestamp=timestamp,
+                    message_count=message_count,
+                    model_name=model_name,
+                    interaction_type="REJECTED",
+                    query=query,
+                    response=response,
                 )
 
-            case _:  # ignore all others (errors logged to logger)
+            case _:  # ignore all others
                 pass
 
     except Exception as e:

@@ -105,6 +105,7 @@ from lmm.language_models.langchain.runnables import RunnableType
 
 # Import ChatState for domain-specific adapters
 from lmm_education.chat_graph import ChatState
+from lmm_education.background_task_manager import schedule_task
 
 
 # ============================================================================
@@ -243,7 +244,7 @@ def stream_graph_state(
                                         context)
 
         # Apply adapters
-        validated_stream = stateful_validation_adapter(raw_stream, 
+        validated_stream = stateful_validation_adapter(raw_stream,
             ...)
         message_stream = terminal_demux_adapter(validated_stream,
             on_terminal_state=log_fn)
@@ -570,7 +571,9 @@ async def field_change_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
     on_field_change: (
-        dict[str, Callable[[Any], Awaitable[None]]] | None
+        dict[str, Callable[[Any], Awaitable[str]]]
+        | dict[str, Callable[[Any], str]]
+        | None
     ) = None,
 ) -> tier_1_iterator:
     """
@@ -585,7 +588,6 @@ async def field_change_adapter(
     state changes, such as:
     - React when "status" changes to "valid"
     - React when "context" becomes available
-    - React when "query_classification" is set
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
@@ -619,7 +621,9 @@ async def field_change_adapter(
         ```
     """
     if on_field_change is None:
-        on_field_change = {}
+        async for mode, event in multi_mode_stream:
+            yield (mode, event)
+        return
 
     async for mode, event in multi_mode_stream:
         # React to field changes via "updates" events
@@ -629,8 +633,24 @@ async def field_change_adapter(
                 if isinstance(changes, dict):
                     for field, value in changes.items():  # type: ignore[union-attr]
                         if field in on_field_change:
+                            callback_fun: (
+                                Callable[[Any], Awaitable[str]]
+                                | Callable[[Any], str]
+                            ) = on_field_change[field]
                             try:
-                                await on_field_change[field](value)
+                                if asyncio.iscoroutinefunction(
+                                    callback_fun
+                                ):
+                                    content: str = await callback_fun(
+                                        value
+                                    )
+                                else:
+                                    content = callback_fun(value)  # type: ignore
+                                msg = BaseMessageChunk(
+                                    content=content,
+                                    type="user",
+                                )
+                                yield ("messages", (msg, {}))
                             except Exception as e:
                                 # Log the error but don't stop stream
                                 logger = ConsoleLogger()
@@ -644,6 +664,59 @@ async def field_change_adapter(
         yield (mode, event)
 
 
+async def terminal_tier1_adapter(
+    multi_mode_stream: tier_1_iterator,
+    *,
+    on_terminal_state: (
+        Callable[[StateT], Any]
+        | Callable[[StateT], Awaitable[Any]]
+        | None
+    ) = None,
+) -> tier_1_iterator:
+    """
+    Terminal adapter: de-multiplexes multi-mode stream to messages
+    only. The callback given to on_terminal_state is called after
+    streaming (may be used, for example, for logging the exchange).
+
+    This adapter:
+    - Extracts and yields only message chunks and metadata
+    - Captures the terminal state (last "values" event)
+    - Invokes an optional callback with the terminal state
+
+    Args:
+        multi_mode_stream: Source stream with (mode, event) tuples
+        on_terminal_state: Optional callback for terminal state.
+            The callback receives Mapping[str, Any] type.
+
+    Yields:
+        BaseMessageChunk, metadata tuples (tier 2 iterator)
+
+    Example:
+        ```python
+        messages = terminal_demux_adapter(
+            multi_mode_stream,
+            on_terminal_state=lambda s: logger.log(s),
+        )
+
+        async for chunk, _ in messages:
+            yield chunk.text  # To Gradio
+        ```
+    """
+
+    final_state: StateT | None = None
+    async for mode, event in multi_mode_stream:
+        if mode == "values":
+            final_state = event
+
+        yield (mode, event)
+
+    if on_terminal_state and final_state:
+        if asyncio.iscoroutinefunction(on_terminal_state):
+            schedule_task(on_terminal_state(final_state))
+        else:
+            on_terminal_state(final_state)
+
+
 # ============================================================================
 # Tier 1 to tier 2 adapters
 # ============================================================================
@@ -652,7 +725,11 @@ async def field_change_adapter(
 async def terminal_demux_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
-    on_terminal_state: Callable[[StateT], Any] | None = None,
+    on_terminal_state: (
+        Callable[[StateT], Any]
+        | Callable[[StateT], Awaitable[Any]]
+        | None
+    ) = None,
 ) -> tier_2_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to messages
@@ -693,7 +770,10 @@ async def terminal_demux_adapter(
             final_state = event
 
     if on_terminal_state and final_state:
-        on_terminal_state(final_state)
+        if asyncio.iscoroutinefunction(on_terminal_state):
+            schedule_task(on_terminal_state(final_state))
+        else:
+            on_terminal_state(final_state)
 
 
 async def demux_adapter(

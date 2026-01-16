@@ -1,0 +1,245 @@
+"""
+Database interface and CSV implementation for chat logging.
+"""
+
+from abc import ABC, abstractmethod
+from datetime import datetime
+from io import TextIOBase
+import asyncio
+import os
+from typing import Self
+
+# pyright: reportMissingTypeStubs=false
+
+
+class ChatDatabaseInterface(ABC):
+    """Abstract base class for chat logging databases."""
+
+    @abstractmethod
+    async def log_message(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+    ) -> None:
+        """Log a basic chat interaction/message."""
+        pass
+
+    @abstractmethod
+    async def log_message_with_context(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+        validation: str,
+        context: str,
+        classification: str,
+    ) -> None:
+        """Log a chat interaction including retrieval context details."""
+        pass
+
+
+class CsvChatDatabase(ChatDatabaseInterface):
+    """
+    CSV implementation of the chat database interface.
+    Writes to provided text streams.
+    """
+
+    def __init__(
+        self,
+        message_stream: TextIOBase,
+        context_stream: TextIOBase | None = None,
+    ):
+        self.message_stream = message_stream
+        self.context_stream = context_stream
+
+    def _fmat_for_csv(self, text: str) -> str:
+        """Format text for CSV storage by escaping quotes and newlines."""
+        if not text:
+            return ""
+        # Replace double quotation marks with single quotation marks
+        modified_text = text.replace('"', "'")
+        # Replace newline characters with " | "
+        modified_text = modified_text.replace("\n", " | ")
+        return modified_text
+
+    def _write_message_sync(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+    ) -> None:
+        """Synchronous implementation of message writing."""
+        self.message_stream.write(
+            f"{record_id},{client_host},{session_hash},"
+            f"{timestamp},{message_count},"
+            f"{model_name},{interaction_type},"
+            f'"{self._fmat_for_csv(query)}",'
+            f'"{self._fmat_for_csv(response)}"\n'
+        )
+        self.message_stream.flush()
+
+    def _write_context_sync(
+        self,
+        record_id: str,
+        validation: str,
+        context: str,
+        classification: str,
+    ) -> None:
+        """Synchronous implementation of context writing."""
+        if self.context_stream:
+            self.context_stream.write(
+                f"{record_id},{validation},"
+                f'"{self._fmat_for_csv(context)}",'
+                f"{classification}\n"
+            )
+            self.context_stream.flush()
+
+    async def log_message(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            self._write_message_sync,
+            record_id,
+            client_host,
+            session_hash,
+            timestamp,
+            message_count,
+            model_name,
+            interaction_type,
+            query,
+            response,
+        )
+
+    async def log_message_with_context(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+        validation: str,
+        context: str,
+        classification: str,
+    ) -> None:
+        loop = asyncio.get_running_loop()
+
+        def _log_both() -> None:
+            self._write_message_sync(
+                record_id,
+                client_host,
+                session_hash,
+                timestamp,
+                message_count,
+                model_name,
+                interaction_type,
+                query,
+                response,
+            )
+            self._write_context_sync(
+                record_id,
+                validation,
+                context,
+                classification,
+            )
+
+        await loop.run_in_executor(None, _log_both)
+
+
+class CsvFileChatDatabase(CsvChatDatabase):
+    """
+    Context manager that manages CSV files and provides a CsvChatDatabase interface.
+    Handles file creation and header initialization.
+    """
+
+    def __init__(
+        self,
+        database_file: str,
+        database_context_file: str | None = None,
+    ):
+        # We don't initialize super() here because we don't have streams yet.
+        # We will initialize it in __enter__.
+        # This works because we only use the methods (which rely on streams)
+        # after entering the context.
+        self.database_file = database_file
+        self.database_context_file = database_context_file
+        self.files_opened: list[TextIOBase] = []
+
+        # Initialize headers immediately
+        self._ensure_headers()
+
+    def _ensure_headers(self) -> None:
+        """Creates the database files with the correct headers if they don't exist."""
+        if not os.path.exists(self.database_file):
+            with open(self.database_file, "w", encoding="utf-8") as f:
+                f.write(
+                    "record_id,client_host,session_hash,timestamp,"
+                    "history_length,model_name,interaction_type,"
+                    "query,response\n"
+                )
+
+        if self.database_context_file and not os.path.exists(
+            self.database_context_file
+        ):
+            with open(
+                self.database_context_file, "w", encoding="utf-8"
+            ) as f:
+                f.write(
+                    "record_id,evaluation,context,classification\n"
+                )
+
+    def __enter__(self) -> Self:
+        f_msg = open(self.database_file, "a", encoding="utf-8")
+        self.files_opened.append(f_msg)
+
+        f_ctx: TextIOBase | None = None
+        if self.database_context_file:
+            f_ctx = open(
+                self.database_context_file, "a", encoding="utf-8"
+            )
+            self.files_opened.append(f_ctx)
+
+        # Initialize the parent class with the opened streams
+        super().__init__(f_msg, f_ctx)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+        for f in self.files_opened:
+            try:
+                f.close()
+            except Exception as e:
+                print(f"Error closing log file: {e}")
+        self.files_opened.clear()
