@@ -147,7 +147,7 @@ def create_initial_state(
     )
 
 
-async def chat_stream(
+def create_chat_stream(
     querytext: str,
     history: list[dict[str, str]] | None,
     context: ChatWorkflowContext,
@@ -155,22 +155,24 @@ async def chat_stream(
     print_context: bool = False,
     validate: CheckResponse | Literal[False] | None = None,
     database_streams: list[TextIOBase] = [],
-    database_log: (
-        LogCoroutine[ChatState, ChatWorkflowContext] | bool
-    ) = False,
+    database_log: (LogCoroutine[ChatState, ChatWorkflowContext] | bool) = False,
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncGenerator[str, None]:
     """
-    Async generator that yields BaseMessageChunk objects.
+    Creates and configures the chat stream.
 
     This function retrieves a compiled LangGraph's graph, creates the
-    initial state, and returns a stream to process a user query.
+    initial state, and returns a configured stream to process a user
+    query.
 
     Note: This is an async generator function that may be called
-        directly:
+        directly.
         ```python
-        stream = chat_function(...)
-        async for chunk in stream:
+        try:
+            stream = create_chat_stream(...)
+            async for chunk in stream:
+                ...
+        except Exception as e:
             ...
         ```
 
@@ -192,23 +194,18 @@ async def chat_stream(
 
     Yields:
         strings from the LLM stream
+
+    Behaviour:
+        This function does not stream the LLM response, it only sets
+        up the stream and returns it. Exceptions will be raised in
+        case the stream fails to initialize (usually, due to invalid
+        settings or failure to acquire resources).
     """
 
-    # Utility function to process error messages. The chunks here are
-    # shown in the chat output, the logger is for internal use.
-    def _error_chunk(message: str) -> str:
-        logger.error(message)
-        return "Error: " + message
-
-    config_settings: ConfigSettings | None = load_settings(
-        logger=logger
-    )
+    # Load settings.
+    config_settings: ConfigSettings | None = load_settings(logger=logger)
     if config_settings is None:
-        yield _error_chunk("Could not load settings")
-        return
-
-    # Settings for print_context
-    context.print_context = print_context
+        raise ValueError("Could not load settings")
 
     # Retrieve settings for validation.
     response_settings: CheckResponse
@@ -221,46 +218,32 @@ async def chat_stream(
             response_settings = validate
 
     # Settings for logging.
-    database_logger: (
-        Callable[[ChatState, datetime | None, str | None], str] | None
-    ) = None
+    database_logger: Callable[[ChatState, datetime | None, str | None], str] | None = (
+        None
+    )
     match database_log:
         case False:
             database_logger = None
         case True:
-            database_logger = create_graph_logger(
-                database_streams, context, logging
-            )
+            database_logger = create_graph_logger(database_streams, context, logging)
         case _:
             database_logger = create_graph_logger(
                 database_streams, context, database_log
             )
     if database_logger and not database_streams:
-        yield _error_chunk(
-            "chat_function: database_logger used without streams"
-        )
-        return
+        raise ValueError("chat_function: database_logger used without streams")
 
-    # map dblogger to typed lambda
+    # map dblogger to typed lambda (required for typing)
     dblogger: Callable[[ChatState], Any] | None = (
-        (lambda state: database_logger(state, None, None))
-        if database_logger
-        else None
+        (lambda state: database_logger(state, None, None)) if database_logger else None
     )
-
-    # define print context function
-    def _print_context(context: str) -> str:
-        return "CONTEXT:\n" + context + "\nEND CONTEXT------\n\n"
 
     # Fetch graph from workflow library
     wfname = "query"
     try:
         workflow: ChatStateGraphType = workflow_library[wfname]
     except Exception as e:
-        yield _error_chunk(
-            f"Could not create workflow {wfname}:\n{e}"
-        )
-        return
+        raise ValueError(f"Could not create workflow {wfname}:\n{e}") from e
 
     # Create initial state
     initial_state: ChatState = create_initial_state(
@@ -283,12 +266,10 @@ async def chat_stream(
         try:
             validator_model: RunnableType = create_runnable(
                 "allowed_content_validator",
-                allowed_content=allowed_content  # type: ignore
+                allowed_content=allowed_content,  # type: ignore
             )
         except Exception as e:
-            err_msg = f"Could not initialize validation model: {e}"
-            yield _error_chunk(err_msg)
-            return
+            raise ValueError(f"Could not initialize validation model: {e}") from e
 
         tier_1_stream = stateful_validation_adapter(
             raw_stream,
@@ -303,7 +284,9 @@ async def chat_stream(
         terminal_field_change_adapter(
             tier_1_stream,
             on_field_change=(
-                {'context': _print_context} if print_context else None
+                {"context": lambda c: "CONTEXT:\n" + c + "\nEND CONTEXT------\n\n"}
+                if print_context
+                else None
             ),
             on_terminal_state=dblogger,
         )
@@ -311,15 +294,7 @@ async def chat_stream(
         else tier_3_adapter(tier_1_stream)
     )
 
-    try:
-        # async for chunk, _ in message_stream:
-        #     yield str(chunk.text)  # type: ignore
-        async for txt in text_stream:
-            yield txt
-
-    except Exception as e:
-        yield _error_chunk(f"Workflow streaming ex failed: {e}")
-        return
+    return text_stream
 
 
 def query(
@@ -353,9 +328,16 @@ def query(
     Yields:
         str: Text chunks from the language model response
 
+    Behaviour:
+        On successful execution, it will yield the text chunks from
+        the language model response. If exceptions are raised, it
+        will yield an error message. Errors may also be propagated
+        through the logger. This behaviour is consistent with its
+        use in a CLI.
+
     Example:
         ```python
-        for text in query_sync("What is logistic regression?"):
+        for text in query("What is logistic regression?"):
             print(text, end="", flush=True)
         print()
         ```
@@ -406,9 +388,17 @@ async def aquery(
     Yields:
         str: Text chunks from the language model response
 
+    Behaviour:
+        On successful execution, it will yield the text chunks from
+        the language model response. If exceptions are raised, it
+        will yield an error message. Errors may also be propagated
+        through the logger. This behaviour is consistent with its
+        use in a CLI.
+
     Example:
         ```python
-        async for text in query("What is logistic regression?"):
+        # assumes vector database is present
+        async for text in aquery("What is logistic regression?"):
             print(text, end="", flush=True)
         print()
         ```
@@ -416,9 +406,7 @@ async def aquery(
     if allowed_content is None:
         allowed_content = []
 
-    config_settings: ConfigSettings | None = load_settings(
-        logger=logger
-    )
+    config_settings: ConfigSettings | None = load_settings(logger=logger)
     if config_settings is None:
         logger.error("Could not load settings.")
         yield "Could not load settings."
@@ -444,7 +432,12 @@ async def aquery(
             yield errmsg
             return
 
-    llm: BaseChatModel = create_model_from_settings(model_settings)
+    try:
+        llm: BaseChatModel = create_model_from_settings(model_settings)
+    except Exception as e:
+        logger.error(f"Could not load language model: {e}")
+        yield f"Could not load language model: {e}"
+        return
 
     if chat_settings is None:
         chat_settings = load_chat_settings(logger=logger)
@@ -467,8 +460,8 @@ async def aquery(
             return
 
     try:
-        retriever: BaseRetriever = (
-            AsyncQdrantRetriever.from_config_settings(client=client)
+        retriever: BaseRetriever = AsyncQdrantRetriever.from_config_settings(
+            client=client
         )
     except Exception as e:
         logger.error(f"Could not load retriever: {e}")
@@ -482,24 +475,36 @@ async def aquery(
         chat_settings=chat_settings,
         print_context=print_context,
         logger=logger,
-    )
-
-    # Get the iterator and consume it
+    )  # override config settings
     response_settings = CheckResponse(
         check_response=validate_content,
         allowed_content=allowed_content,
     )
-    iterator: AsyncGenerator[str, None] = chat_stream(
-        querystr,
-        None,
-        context,
-        print_context=print_context,
-        validate=response_settings,
-        logger=logger,
-    )
+    context.chat_settings.check_response = response_settings
 
-    async for chunk in iterator:
-        yield chunk
+    # Get the iterator and consume it
+    try:
+        iterator: AsyncGenerator[str, None] = create_chat_stream(
+            querystr,
+            None,
+            context,
+            print_context=print_context,
+            validate=response_settings,
+            logger=logger,
+        )
+    except Exception as e:
+        logger.error(f"Could not load chat stream: {e}")
+        yield f"Could not load chat stream: {e}"
+        return
+
+    try:
+        async for chunk in iterator:
+            yield chunk
+    except Exception as e:
+        errmsg: str = f"Workflow streaming failed: {e}"
+        logger.error(errmsg)
+        yield errmsg
+        return
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """Test the refactored chat_function_with_validation."""
 
-# pyright: strict
+# ruff: noqa: E402
 
 import unittest
 import asyncio
@@ -14,7 +14,7 @@ from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
 from lmm_education.query import (
-    chat_stream,
+    create_chat_stream,
     ChatWorkflowContext,
 )
 from lmm_education.config.config import (
@@ -44,9 +44,7 @@ except ConnectionError as e:
     print(f"Error message:\n{e}")
     exit()
 except Exception as e:
-    print(
-        "Could not connect to the model provider due to a system error."
-    )
+    print("Could not connect to the model provider due to a system error.")
     print(f"Error message:\n{e}")
     exit()
 
@@ -54,7 +52,7 @@ except Exception as e:
 original_settings = ConfigSettings()
 
 
-async def consume_chat_stream(
+async def consume_create_chat_stream(
     iterator: AsyncIterator[str],
 ) -> str:
     """
@@ -62,7 +60,7 @@ async def consume_chat_stream(
     the complete response as a string.
 
     This function is designed to work with the iterator returned by
-    chat_stream. It accumulates the text content from each chunk
+    create_chat_stream. It accumulates the text content from each chunk
     and returns the final result.
 
     Args:
@@ -79,9 +77,9 @@ async def consume_chat_stream(
 
 def setUpModule():
     settings = ConfigSettings(
-        major={'model': "Debug/debug"},
-        minor={'model': "Debug/debug"},
-        aux={'model': "Debug/debug"},
+        major={"model": "Debug/debug"},
+        minor={"model": "Debug/debug"},
+        aux={"model": "Debug/debug"},
         # the current database may not use this encoding model
         # embeddings={
         #     'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
@@ -96,14 +94,9 @@ def tearDownModule():
 
 
 class TestQuery(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
-        self.retriever: BaseRetriever = (
-            AsyncQdrantRetriever.from_config_settings()
-        )
+        self.llm: BaseChatModel = create_model_from_settings(ConfigSettings().major)
+        self.retriever: BaseRetriever = AsyncQdrantRetriever.from_config_settings()
 
     def get_workflow_context(
         self,
@@ -111,7 +104,6 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             check_response=CheckResponse(check_response=False)
         ),
     ) -> ChatWorkflowContext:
-
         return ChatWorkflowContext(
             llm=self.llm,
             retriever=self.retriever,
@@ -122,12 +114,12 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test that empty query returns error iterator."""
         print("Test 1: Empty query")
 
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             "",
             [],
             self.get_workflow_context(),
         )
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("If you have questions", result)
         print("✓ Passed\n")
@@ -137,12 +129,12 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         print("Test 2: Long query")
         long_query = " ".join(["word"] * 200)
 
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             long_query,
             [],
             self.get_workflow_context(),
         )
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("too long", result)
         print("✓ Passed\n")
@@ -151,18 +143,15 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         """Test a normal query (if LLM is available)."""
         print("Test 3: Normal query")
         try:
-
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a linear model?",
                 None,
                 self.get_workflow_context(),
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
         except Exception as e:
             print(f"⚠ Skipped (LLM not available): {e}\n")
-            raise Exception(
-                "Error in test_validation_normal_query"
-            ) from e
+            raise Exception("Error in test_validation_normal_query") from e
 
         print(f"Result length: {len(result)} characters")
         print(f"First 100 chars: {result[:100]}...")
@@ -175,26 +164,24 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         try:
             # explicit retriever, that may be re-used
             context: ChatWorkflowContext = self.get_workflow_context()
-            context.retriever = (
-                AsyncQdrantRetriever.from_config_settings()
-            )
+            context.retriever = AsyncQdrantRetriever.from_config_settings()
 
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a linear model?",
                 None,
                 context,
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             self.assertTrue(len(result) > 0)
 
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a logistic regression?",
                 [],
                 context,
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
             # must be closed down
@@ -204,9 +191,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             print("✓ Passed\n")
         except Exception as e:
             print(f"⚠ Skipped (LLM not available): {e}\n")
-            raise Exception(
-                "Error in test_validation_normal_query"
-            ) from e
+            raise Exception("Error in test_validation_normal_query") from e
 
 
 from lmm.utils.logging import (
@@ -219,19 +204,13 @@ from lmm_education.config.appchat import CheckResponse
 
 
 class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
-        self.retriever: BaseRetriever = (
-            AsyncQdrantRetriever.from_config_settings()
-        )
+        self.llm: BaseChatModel = create_model_from_settings(ConfigSettings().major)
+        self.retriever: BaseRetriever = AsyncQdrantRetriever.from_config_settings()
 
     def get_workflow_context(
         self, chat_settings: ChatSettings = ChatSettings()
     ) -> ChatWorkflowContext:
-
         return ChatWorkflowContext(
             llm=self.llm,
             retriever=self.retriever,
@@ -244,18 +223,18 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         chat_settings = ChatSettings(
             check_response=CheckResponse(
                 check_response=True,
-                allowed_content=['statistics'],
+                allowed_content=["statistics"],
             )
         )
         context = self.get_workflow_context(chat_settings)
         # chat_function_with_validation is async generator - call directly without await
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             "",
             [],
             context,
             # validate defaults to None, which uses context
         )
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("If you have questions", result)
         print("✓ Passed\n")
@@ -268,12 +247,12 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         long_query = " ".join(["word"] * 200)
         chat_settings = ChatSettings(
             check_response=CheckResponse(
-                check_response=True, allowed_content=['statistics']
+                check_response=True, allowed_content=["statistics"]
             )
         )
         context = self.get_workflow_context(chat_settings)
         # chat_function_with_validation is async generator - call directly without await
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             long_query,
             [],
             context,
@@ -283,7 +262,7 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
         if logger.count_logs(level=logging.WARNING) > 0:
             print("\n".join(logger.get_logs()))
         self.assertEqual(logger.count_logs(level=logging.WARNING), 0)
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         print(f"Result: {result}")
         self.assertIn("too long", result)
         print("✓ Passed\n")
@@ -295,26 +274,22 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
             chat_settings = ChatSettings(
                 check_response=CheckResponse(
                     check_response=True,
-                    allowed_content=['statistics'],
+                    allowed_content=["statistics"],
                     initial_buffer_size=120,
                 )
             )
             # chat_function_with_validation is async generator - call directly without await
             context = self.get_workflow_context(chat_settings)
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a linear model?",
                 [],
                 context,
                 validate=chat_settings.check_response,
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
         except Exception as e:
-            print(
-                f"⚠ Skipped (validation model not available): {e}\n"
-            )
-            raise Exception(
-                "Error in test_validation_normal_query"
-            ) from e
+            print(f"⚠ Skipped (validation model not available): {e}\n")
+            raise Exception("Error in test_validation_normal_query") from e
 
         print(f"Result length: {len(result)} characters")
         print(f"First 200 chars: {result[:200]}...")
@@ -323,14 +298,9 @@ class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
 
 
 class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
-        self.retriever: BaseRetriever = (
-            AsyncQdrantRetriever.from_config_settings()
-        )
+        self.llm: BaseChatModel = create_model_from_settings(ConfigSettings().major)
+        self.retriever: BaseRetriever = AsyncQdrantRetriever.from_config_settings()
 
     def get_workflow_context(
         self,
@@ -338,7 +308,6 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
             check_response=CheckResponse(check_response=False)
         ),
     ) -> ChatWorkflowContext:
-
         return ChatWorkflowContext(
             llm=self.llm,
             retriever=self.retriever,
@@ -352,14 +321,14 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         stream = io.StringIO()
         stream_context = io.StringIO()
 
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             "",
             [],
             self.get_workflow_context(),
             database_streams=[stream, stream_context],
             database_log=True,
         )
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         self.assertIn("If you have questions", result)
 
         await asyncio.sleep(0.1)
@@ -379,14 +348,14 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         stream = io.StringIO()
         stream_context = io.StringIO()
 
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             long_query,
             [],
             self.get_workflow_context(),
             database_streams=[stream, stream_context],
             database_log=True,
         )
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         self.assertIn("too long", result)
 
         await asyncio.sleep(0.1)
@@ -405,20 +374,17 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         stream_context = io.StringIO()
 
         try:
-
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a linear model?",
                 None,
                 self.get_workflow_context(),
                 database_streams=[stream, stream_context],
                 database_log=True,
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
         except Exception as e:
             print(f"⚠ Skipped (LLM not available): {e}\n")
-            raise Exception(
-                "Error in test_validation_normal_query"
-            ) from e
+            raise Exception("Error in test_validation_normal_query") from e
 
         self.assertTrue(len(result) > 0)
 
@@ -440,19 +406,16 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         stream_context = io.StringIO()
 
         try:
-
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a linear model?",
                 None,
                 self.get_workflow_context(),
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
 
         except Exception as e:
             print(f"⚠ Skipped (LLM not available): {e}\n")
-            raise Exception(
-                "Error in test_validation_normal_query"
-            ) from e
+            raise Exception("Error in test_validation_normal_query") from e
 
         self.assertTrue(len(result) > 0)
 
@@ -467,14 +430,9 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 
 
 class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
-        self.retriever: BaseRetriever = (
-            AsyncQdrantRetriever.from_config_settings()
-        )
+        self.llm: BaseChatModel = create_model_from_settings(ConfigSettings().major)
+        self.retriever: BaseRetriever = AsyncQdrantRetriever.from_config_settings()
 
     def get_workflow_context(
         self,
@@ -482,7 +440,6 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
             check_response=CheckResponse(check_response=False)
         ),
     ) -> ChatWorkflowContext:
-
         return ChatWorkflowContext(
             llm=self.llm,
             retriever=self.retriever,
@@ -493,13 +450,13 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
         """Test that empty query returns error iterator."""
         print("Test 1 (context): Empty query")
 
-        iterator = chat_stream(
+        iterator = create_chat_stream(
             "",
             [],
             self.get_workflow_context(),
             print_context=True,
         )
-        result = await consume_chat_stream(iterator)
+        result = await consume_create_chat_stream(iterator)
         self.assertFalse(result.startswith("CONTEXT"))
         self.assertNotIn("END CONTEXT--", result)
         self.assertIn("If you have questions", result)
@@ -513,7 +470,7 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
         stream_context = io.StringIO()
 
         try:
-            iterator = chat_stream(
+            iterator = create_chat_stream(
                 "What is a linear model?",
                 None,
                 self.get_workflow_context(),
@@ -521,13 +478,11 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
                 database_streams=[stream, stream_context],
                 database_log=True,
             )
-            result = await consume_chat_stream(iterator)
+            result = await consume_create_chat_stream(iterator)
 
         except Exception as e:
             print(f"⚠ Skipped (LLM not available): {e}\n")
-            raise Exception(
-                "Error in test_validation_normal_query"
-            ) from e
+            raise Exception("Error in test_validation_normal_query") from e
 
         self.assertTrue(len(result) > 0)
         self.assertTrue(result.startswith("CONTEXT"))
