@@ -41,7 +41,7 @@ from langgraph.runtime import Runtime
 from langgraph.graph.state import CompiledStateGraph
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
-from lmm_education.config.appchat import ChatSettings
+from lmm_education.config.appchat import ChatSettings, ChatDatabase
 
 
 # Type aliases
@@ -459,6 +459,7 @@ async def logging(
     client_host: str = context.client_host or "<unknwon>"
     session_hash: str = context.session_hash or "<unknwon>"
     model_name: str = context.llm.name or "<unknwon>"
+    chat_database: ChatDatabase = context.chat_settings.chat_database
     messages: list[BaseMessage] = state['messages']
     status: ChatStatus = state['status']
     response: str = (
@@ -505,7 +506,7 @@ async def logging(
 
                     if context_stream is None:
                         context_database_file = (
-                            context.chat_settings.chat_database.context_database_file
+                            chat_database.context_database_file
                         )
                         with open(
                             context_database_file,

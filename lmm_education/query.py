@@ -279,10 +279,11 @@ async def chat_stream(
     tier_1_stream: tier_1_iterator = raw_stream
     if response_settings.check_response:
         # Initialize the validation model
+        allowed_content = response_settings.allowed_content
         try:
             validator_model: RunnableType = create_runnable(
                 "allowed_content_validator",
-                allowed_content=response_settings.allowed_content,  # type: ignore
+                allowed_content=allowed_content  # type: ignore
             )
         except Exception as e:
             err_msg = f"Could not initialize validation model: {e}"

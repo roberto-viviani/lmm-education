@@ -19,7 +19,7 @@ Architecture:
 Stream Modes for tier 1 and tier 2:
 - "messages": (BaseMessageChunk, metadata) tuples for text display
 - "values": Complete state snapshot after each node execution
-- "updates": Differential state changes {node_name: {field: value, ...}}
+- "updates": State changes {node_name: {field: value, ...}}
 
 Stream mode for tier 3:
 - streams are limited to strings (any other information is lost).
@@ -83,6 +83,8 @@ Tier 1 to tier 3 adapters:
     callback called after streaming, which is given the final state.
 
 """
+
+# flake8: noqa  (too long lines)
 
 import asyncio
 from typing import Protocol, TypeVar, Any, Hashable, Literal
@@ -241,9 +243,10 @@ def stream_graph_state(
                                         context)
 
         # Apply adapters
-        validated_stream = stateful_validation_adapter(raw_stream, ...)
+        validated_stream = stateful_validation_adapter(raw_stream, 
+            ...)
         message_stream = terminal_demux_adapter(validated_stream,
-                                    on_terminal_state=log_fn)
+            on_terminal_state=log_fn)
 
         # Consume for display
         async for chunk in message_stream:
