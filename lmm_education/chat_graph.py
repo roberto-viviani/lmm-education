@@ -18,6 +18,8 @@ previously conflated in the history parameter.
 # pyright: reportMissingTypeStubs=false
 # pyright: reportUnknownMemberType=false
 
+# ruff: noqa: E402
+
 from io import TextIOBase
 from typing import TypedDict, Literal, Annotated
 
@@ -324,10 +326,9 @@ def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
         case _:
             raise ValueError(f"Invalid workflow: {workflow_name}")
 
-
-from lmm.language_models.lazy_dict import (
-    LazyLoadingDict,
-)  # noqa: E402
+# At present, we put the dict here, but will be moved to a setup
+# file when we have more workflows.
+from lmm.language_models.lazy_dict import LazyLoadingDict
 
 workflow_library: LazyLoadingDict[str, ChatStateGraphType] = (
     LazyLoadingDict(_workflow_factory)
