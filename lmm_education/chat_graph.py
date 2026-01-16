@@ -1,16 +1,16 @@
 """
-LangGraph-based chat workflow for RAG-enabled language model 
+LangGraph-based chat workflow for RAG-enabled language model
 interactions.
 
-This module provides a state-based graph architecture for processing 
-chat queries with retrieval-augmented generation (RAG). The workflow 
+This module provides a state-based graph architecture for processing
+chat queries with retrieval-augmented generation (RAG). The workflow
 handles:
 - Query validation
 - Context retrieval from vector store
 - Query formatting with retrieved context
 - LLM response generation
 
-The state object (ChatState) cleanly separates concerns that were 
+The state object (ChatState) cleanly separates concerns that were
 previously conflated in the history parameter.
 """
 
@@ -60,7 +60,7 @@ class ChatState(TypedDict):
     Attributes:
         messages: Conversation history as LangChain messages
         status: status of the graph
-        query_text: The current user query (possibly formatted with 
+        query_text: The current user query (possibly formatted with
             context)
         context: Retrieved context from vector store
     """
@@ -74,7 +74,7 @@ class ChatState(TypedDict):
     query_classification: str
 
     # RAG context
-    context: str  # TODO: check this is not a list
+    context: str
 
 
 def create_initial_state(query: str) -> ChatState:
@@ -124,7 +124,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     START → validate_query → [conditional]
                                 ↓ valid
-                            retrieve_context → format_query → 
+                            retrieve_context → format_query →
                                                     generate → END
                                 ↓ invalid
                             END
@@ -133,7 +133,7 @@ def create_chat_workflow() -> ChatStateGraphType:
     Dependency injection handled at the level of streaming call
     through context argument. Use
     ```python
-    workflow.astream(state, stream_mode="messages", 
+    workflow.astream(state, stream_mode="messages",
                     context=workflow_context)
     ```
     to consume the stream.
@@ -144,27 +144,25 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     def validate_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> ChatState:
+    ) -> dict[str, str | AIMessage]:  # ChatState:
         """Validate the user's query for length and content."""
         query: str = state.get("query_text", "")
         settings: ChatSettings = runtime.context.chat_settings
 
         if not query or not query.strip():
             return {
-                **state,
                 "status": "empty_query",
-                "messages": [
-                    AIMessage(content=settings.MSG_EMPTY_QUERY)
-                ],
+                "messages": AIMessage(
+                    content=settings.MSG_EMPTY_QUERY
+                ),
             }
 
         if len(query.split()) > settings.max_query_word_count:
             return {
-                **state,
                 "status": "long_query",
-                "messages": [
-                    AIMessage(content=settings.MSG_LONG_QUERY)
-                ],
+                "messages": AIMessage(
+                    content=settings.MSG_LONG_QUERY
+                ),
             }
 
         # Normalize query text
@@ -173,14 +171,13 @@ def create_chat_workflow() -> ChatStateGraphType:
         )
 
         return {
-            **state,
             "query_text": normalized_query,
             "status": "valid",
         }
 
     async def retrieve_context(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> ChatState:
+    ) -> dict[str, str | AIMessage]:  # ChatState:
         """Retrieve relevant documents from vector store."""
         query: str = state["query_text"]
         config: ChatWorkflowContext = runtime.context
@@ -206,28 +203,7 @@ def create_chat_workflow() -> ChatStateGraphType:
             #     for d in documents
             # ]
 
-            new_state: ChatState = {
-                **state,
-                "status": "valid",
-                "context": context,
-            }
-            # TODO:
-            # this copies context to messages channel so that it will
-            # be streamed to output. This has the downside that the
-            # message list is messed up. The alternative is to stream
-            # the state and filter it, moving the logic to the caller.
-            # At present, this is never called within a chat.
-            if config.print_context:
-                message: list[BaseMessage] = [
-                    AIMessage(
-                        content="CONTEXT:\n"
-                        + context
-                        + "\nEND CONTEXT------\n\n"
-                    )
-                ]
-                new_state['messages'] = message
-
-            return new_state
+            return {"context": context}
 
         except Exception as e:
             config.logger.error(
@@ -235,18 +211,16 @@ def create_chat_workflow() -> ChatStateGraphType:
             )
             settings: ChatSettings = config.chat_settings
             return {
-                **state,
                 "status": "error",
-                "messages": [
-                    AIMessage(content=settings.MSG_ERROR_QUERY)
-                ],
-                "context": "",
+                "messages": AIMessage(
+                    content=settings.MSG_ERROR_QUERY
+                ),
             }
 
     def format_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> ChatState:
-        """Format the query with retrieved context using prompt 
+    ) -> dict[str, str | AIMessage]:  # ChatState:
+        """Format the query with retrieved context using prompt
         template."""
         context: str = state.get("context", "")
         query: str = state["query_text"]
@@ -266,23 +240,20 @@ def create_chat_workflow() -> ChatStateGraphType:
             query=query,
         )
 
-        return {
-            **state,
-            "query_text": formatted_query,
-        }
+        return {"query_text": formatted_query}
 
     async def generate(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> ChatState:
+    ) -> dict[str, str | AIMessage]:  # ChatState:
         """
         Generate LLM response using streaming.
 
-        This node invokes the LLM with the formatted query and 
-        conversation history. The actual streaming is handled by 
+        This node invokes the LLM with the formatted query and
+        conversation history. The actual streaming is handled by
         LangGraph's astream() with stream_mode="messages".
 
-        Note: This node stores the final complete response in state, 
-            but when using astream() with stream_mode="messages", 
+        Note: This node stores the final complete response in state,
+            but when using astream() with stream_mode="messages",
             you'll receive chunks as they're generated.
         """
         config: ChatWorkflowContext = runtime.context
@@ -305,11 +276,7 @@ def create_chat_workflow() -> ChatStateGraphType:
         # Store complete response in state (for non-streaming access)
         complete_response = "".join(response_chunks)
 
-        return {
-            **state,
-            "messages": state.get("messages", [])
-            + [AIMessage(content=complete_response)],
-        }
+        return {"messages": AIMessage(content=complete_response)}
 
     def should_retrieve(state: ChatState) -> str:
         """Conditional edge: check if query is valid."""
@@ -381,7 +348,7 @@ def prepare_messages_for_llm(
     Args:
         state: Current chat state
         system_message: Optional system message to prepend
-        history_window: Number of recent messages to include 
+        history_window: Number of recent messages to include
             (defaults to 4)
 
     Returns:
@@ -464,7 +431,7 @@ async def logging(
     """
 
     def fmat_for_csv(text: str) -> str:
-        """Format text for CSV storage by escaping quotes and 
+        """Format text for CSV storage by escaping quotes and
         newlines."""
 
         # Replace double quotation marks with single quotation marks
@@ -478,7 +445,7 @@ async def logging(
     if isinstance(streams, list):
         if len(streams) < 2:
             raise ValueError(
-                "logging, when stream list given, mut contain 2 " 
+                "logging, when stream list given, mut contain 2 "
                 "streams"
             )
         stream, context_stream = streams[0], streams[1]
@@ -512,13 +479,11 @@ async def logging(
                     f'"{fmat_for_csv(response)}"\n'
                 )
 
-                # Log context if available (from context role in 
-                # history). We also record relevance of context for 
+                # Log context if available (from context role in
+                # history). We also record relevance of context for
                 # further monitoring.
                 if state["context"]:
-                    query_context: str = state[
-                        "context"
-                    ]  # TODO: check this is not a list
+                    query_context: str = state["context"]
                     # Evaluate consistency of context prior to saving
                     try:
                         lmm_validator: RunnableType = create_runnable(

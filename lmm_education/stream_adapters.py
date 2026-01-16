@@ -76,10 +76,10 @@ Tier 1 to tier 2 adapters:
 
 Tier 1 to tier 3 adapters:
 
-- `field_change_terminal_adapter`: Reacts to specific field changes 
-    via "updates", and calls a callback to insert into the string 
+- `field_change_terminal_adapter`: Reacts to specific field changes
+    via "updates", and calls a callback to insert into the string
     stream the result of the callback. It otherwise streams messages
-    by extracting their content. It also takes a terminal state 
+    by extracting their content. It also takes a terminal state
     callback called after streaming, which is given the final state.
 
 """
@@ -143,13 +143,13 @@ class StreamableGraph(Protocol[InputStateT, InputContextT]):
     """
     Minimal protocol for LangGraph compiled graphs.
 
-    This protocol only specifies the astream() method that we 
+    This protocol only specifies the astream() method that we
     actually use, avoiding tight coupling to LangGraph internals.
 
-    The InputStateT and InputContextT are contravariant because they 
-    appear only in input positions (parameters), allowing a graph 
-    that accepts specific types (like ChatState, ChatWorkflowContext) 
-    to be compatible with a protocol expecting broader types (like 
+    The InputStateT and InputContextT are contravariant because they
+    appear only in input positions (parameters), allowing a graph
+    that accepts specific types (like ChatState, ChatWorkflowContext)
+    to be compatible with a protocol expecting broader types (like
     Mapping[str, Any], BaseModel).
     """
 
@@ -169,7 +169,7 @@ class StreamableGraphMessages(Protocol[InputStateT, InputContextT]):
     """
     Minimal protocol for LangGraph compiled graphs.
 
-    This protocol only specifies the astream() method that we 
+    This protocol only specifies the astream() method that we
     actually use, avoiding tight coupling to LangGraph internals.
     """
 
@@ -214,10 +214,10 @@ def stream_graph_state(
     context: BaseModel,
 ) -> tier_1_iterator:
     """
-    Entry point for streaming a LangGraph workflow with multi-mode 
+    Entry point for streaming a LangGraph workflow with multi-mode
     output.
 
-    This function configures the graph to stream both messages and 
+    This function configures the graph to stream both messages and
     state updates, enabling downstream adapters to:
     - Access and modify state (Tier 1 adapters)
     - Capture terminal state for logging
@@ -237,7 +237,7 @@ def stream_graph_state(
 
     Example:
         ```python
-        raw_stream = stream_graph_state(workflow, initial_state, 
+        raw_stream = stream_graph_state(workflow, initial_state,
                                         context)
 
         # Apply adapters
@@ -265,19 +265,19 @@ def stream_graph_updates(
     """
     Entry point for streaming a LangGraph workflow with state updates.
 
-    This function configures the graph to stream messages, full state 
+    This function configures the graph to stream messages, full state
     values, and differential state updates. This enables:
     - Tier 1 adapters to access and modify state
     - Change-reactive adapters to respond to specific field updates
     - Terminal state capture for logging
     - Message extraction for display
 
-    The "updates" stream mode provides differential updates in the 
+    The "updates" stream mode provides differential updates in the
     format:
         ("updates", {node_name: {changed_field: new_value, ...}})
 
-    This is more granular than "values" (which provides the complete 
-    state) and enables building adapters that react to specific state 
+    This is more granular than "values" (which provides the complete
+    state) and enables building adapters that react to specific state
     changes.
 
     Args:
@@ -329,10 +329,10 @@ def astream_graph_messages(
     context: BaseModel,
 ) -> tier_2_iterator:
     """
-    Entry point for streaming a LangGraph workflow with messagess 
+    Entry point for streaming a LangGraph workflow with messagess
     output.
 
-    This function configures the graph to stream only messages, 
+    This function configures the graph to stream only messages,
     enabling downstream adapters to:
 
     - Extract messages for display
@@ -382,7 +382,7 @@ async def stateful_validation_adapter(
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_1_iterator:
     """
-    Multi-mode adapter that validates message content and modifies 
+    Multi-mode adapter that validates message content and modifies
     state.
 
     This is a Tier 1 (state-aware) adapter that:
@@ -476,7 +476,7 @@ async def stateful_validation_adapter(
                 validation_complete = True
 
                 if not is_valid:
-                    # Validation failed - yield rejection and 
+                    # Validation failed - yield rejection and
                     # modified state
                     logger.info(
                         f"Content rejected with classification: "
@@ -524,7 +524,7 @@ async def stateful_validation_adapter(
                 for buffered_mode, buffered_event in buffer_chunks:
                     yield (buffered_mode, buffered_event)
         else:
-            # Pass through non-message events or post-validation 
+            # Pass through non-message events or post-validation
             # messages
             yield (mode, event)
 
@@ -571,14 +571,14 @@ async def field_change_adapter(
     ) = None,
 ) -> tier_1_iterator:
     """
-    Adapter that reacts to specific field changes via "updates" 
+    Adapter that reacts to specific field changes via "updates"
     events.
 
-    This adapter uses the "updates" stream mode to detect when 
-    specific state fields change, and invokes registered callbacks. 
+    This adapter uses the "updates" stream mode to detect when
+    specific state fields change, and invokes registered callbacks.
     It passes through all stream events unchanged.
 
-    This enables building reactive adapters that respond to specific 
+    This enables building reactive adapters that respond to specific
     state changes, such as:
     - React when "status" changes to "valid"
     - React when "context" becomes available
@@ -587,7 +587,7 @@ async def field_change_adapter(
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         on_field_change: Dict mapping field names to async callbacks.
-            Each callback receives the new field value as its 
+            Each callback receives the new field value as its
             argument.
             Callbacks are invoked when those fields are updated.
 
@@ -697,7 +697,7 @@ async def demux_adapter(
     multi_mode_stream: tier_1_iterator,
 ) -> tier_2_iterator:
     """
-    Terminal adapter: de-multiplexes multi-mode stream to messages 
+    Terminal adapter: de-multiplexes multi-mode stream to messages
     only.
 
     This is the final adapter in the Tier 1 chain. It:
@@ -754,7 +754,7 @@ async def terminal_field_change_adapter(
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         on_field_change: Dict mapping field names to async callbacks.
-            Each callback receives the new field value as its 
+            Each callback receives the new field value as its
             argument.
             Callbacks are invoked when those fields are updated.
         on_terminal_state: Optional callback for terminal state.
@@ -803,7 +803,7 @@ async def terminal_field_change_adapter(
                             try:
                                 yield on_field_change[field](value)
                             except Exception as e:
-                                # Log the error but don't interrupt 
+                                # Log the error but don't interrupt
                                 # the stream
                                 logger = ConsoleLogger()
                                 logger.error(
@@ -812,13 +812,47 @@ async def terminal_field_change_adapter(
                                     f"{e}"
                                 )
                                 pass
-        elif mode == "events":
+        elif mode == "values":
             final_state = event  # type: ignore
         else:
             pass
 
     if on_terminal_state and final_state:
         on_terminal_state(final_state)
+
+
+async def tier_3_adapter(
+    multi_mode_stream: tier_1_iterator,
+) -> tier_3_iterator:
+    """
+    Terminal adapter: de-multiplexes multi-mode stream to messages
+    only.
+
+    This is the final adapter in the Tier 1 chain. It:
+    - Extracts and yields only message chunks and metadata
+
+    This adapter is generic - it works with any state type.
+
+    Args:
+        multi_mode_stream: Source stream with (mode, event) tuples
+
+    Yields:
+        BaseMessageChunk, metadata tuples (tier 2 iterator)
+
+    Example:
+        ```python
+        messages = demux_adapter(multi_mode_stream)
+
+        async for chunk, _ in messages:
+            yield chunk.text  # To Gradio
+        ```
+    """
+    async for mode, event in multi_mode_stream:
+        if mode == "messages":
+            chunk, _ = event  # Extract chunk and metadata
+            yield chunk.text
+        else:
+            pass
 
 
 # ============================================================================

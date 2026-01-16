@@ -87,11 +87,12 @@ from .chat_graph import (
 )
 from .stream_adapters import (
     tier_1_iterator,
-    tier_2_iterator,
+    tier_3_iterator,
     stream_graph_state,
+    stream_graph_updates,
     stateful_validation_adapter,
-    terminal_demux_adapter,
-    demux_adapter,
+    terminal_field_change_adapter,
+    tier_3_adapter,
 )
 from .graph_logging_base import create_graph_logger, LogCoroutine
 
@@ -146,7 +147,7 @@ def create_initial_state(
     )
 
 
-async def chat_function(
+async def chat_stream(
     querytext: str,
     history: list[dict[str, str]] | None,
     context: ChatWorkflowContext,
@@ -240,6 +241,17 @@ async def chat_function(
         )
         return
 
+    # map dblogger to typed lambda
+    dblogger: Callable[[ChatState], Any] | None = (
+        (lambda state: database_logger(state, None, None))
+        if database_logger
+        else None
+    )
+
+    # define print context function
+    def _print_context(context: str) -> str:
+        return "CONTEXT:\n" + context + "\nEND CONTEXT------\n\n"
+
     # Fetch graph from workflow library
     wfname = "query"
     try:
@@ -257,8 +269,10 @@ async def chat_function(
     )
 
     # Set up the stream
-    raw_stream: tier_1_iterator = stream_graph_state(
-        workflow, initial_state, context
+    raw_stream: tier_1_iterator = (
+        stream_graph_updates(workflow, initial_state, context)
+        if print_context
+        else stream_graph_state(workflow, initial_state, context)
     )
 
     # Configure stream for validation requests
@@ -283,22 +297,24 @@ async def chat_function(
             logger=logger,
         )
 
-    message_stream: tier_2_iterator
-    if database_logger:
-
-        dblogger: Callable[[ChatState], Any] = (
-            lambda state: database_logger(state, None, None)
-        )
-        message_stream = terminal_demux_adapter(
+    # final adapter to tier 3
+    text_stream: tier_3_iterator = (
+        terminal_field_change_adapter(
             tier_1_stream,
+            on_field_change=(
+                {'context': _print_context} if print_context else None
+            ),
             on_terminal_state=dblogger,
         )
-    else:
-        message_stream = demux_adapter(tier_1_stream)
+        if dblogger or print_context
+        else tier_3_adapter(tier_1_stream)
+    )
 
     try:
-        async for chunk, _ in message_stream:
-            yield str(chunk.text)  # type: ignore
+        # async for chunk, _ in message_stream:
+        #     yield str(chunk.text)  # type: ignore
+        async for txt in text_stream:
+            yield txt
 
     except Exception as e:
         yield _error_chunk(f"Workflow streaming ex failed: {e}")
@@ -472,7 +488,7 @@ async def aquery(
         check_response=validate_content,
         allowed_content=allowed_content,
     )
-    iterator: AsyncGenerator[str, None] = chat_function(
+    iterator: AsyncGenerator[str, None] = chat_stream(
         querystr,
         None,
         context,
