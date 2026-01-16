@@ -47,9 +47,7 @@ from lmm_education.config.appchat import ChatSettings, ChatDatabase
 
 
 # Type aliases
-ChatStatus = Literal[
-    "valid", "empty_query", "long_query", "rejected", "error"
-]
+ChatStatus = Literal["valid", "empty_query", "long_query", "rejected", "error"]
 
 
 class ChatState(TypedDict):
@@ -104,7 +102,6 @@ class ChatWorkflowContext(BaseModel):
     retriever: BaseRetriever
     system_message: str = "You are a helpful assistant"
     chat_settings: ChatSettings = Field(default_factory=ChatSettings)
-    print_context: bool = False
     client_host: str = "<unknown>"
     session_hash: str = "<unknown>"
     logger: LoggerBase = Field(default_factory=ConsoleLogger)
@@ -154,23 +151,17 @@ def create_chat_workflow() -> ChatStateGraphType:
         if not query or not query.strip():
             return {
                 "status": "empty_query",
-                "messages": AIMessage(
-                    content=settings.MSG_EMPTY_QUERY
-                ),
+                "messages": AIMessage(content=settings.MSG_EMPTY_QUERY),
             }
 
         if len(query.split()) > settings.max_query_word_count:
             return {
                 "status": "long_query",
-                "messages": AIMessage(
-                    content=settings.MSG_LONG_QUERY
-                ),
+                "messages": AIMessage(content=settings.MSG_LONG_QUERY),
             }
 
         # Normalize query text
-        normalized_query = query.replace(
-            "the textbook", "the context provided"
-        )
+        normalized_query = query.replace("the textbook", "the context provided")
 
         return {
             "query_text": normalized_query,
@@ -185,12 +176,8 @@ def create_chat_workflow() -> ChatStateGraphType:
         config: ChatWorkflowContext = runtime.context
 
         try:
-            documents: list[Document] = (
-                await config.retriever.ainvoke(query)
-            )
-            context: str = "\n-----\n".join(
-                [d.page_content for d in documents]
-            )
+            documents: list[Document] = await config.retriever.ainvoke(query)
+            context: str = "\n-----\n".join([d.page_content for d in documents])
 
             # Store document metadata for logging
             # doc_metadata: list[dict[str, Any]] = [
@@ -208,15 +195,11 @@ def create_chat_workflow() -> ChatStateGraphType:
             return {"context": context}
 
         except Exception as e:
-            config.logger.error(
-                f"Error retrieving from vector database:\n{e}"
-            )
+            config.logger.error(f"Error retrieving from vector database:\n{e}")
             settings: ChatSettings = config.chat_settings
             return {
                 "status": "error",
-                "messages": AIMessage(
-                    content=settings.MSG_ERROR_QUERY
-                ),
+                "messages": AIMessage(content=settings.MSG_ERROR_QUERY),
             }
 
     def format_query(
@@ -229,14 +212,10 @@ def create_chat_workflow() -> ChatStateGraphType:
         settings: ChatSettings = runtime.context.chat_settings
 
         # Convert LaTeX delimiters for display
-        formatted_context = convert_backslash_latex_delimiters(
-            context
-        )
+        formatted_context = convert_backslash_latex_delimiters(context)
 
         # Format with prompt template
-        template = PromptTemplate.from_template(
-            settings.PROMPT_TEMPLATE
-        )
+        template = PromptTemplate.from_template(settings.PROMPT_TEMPLATE)
         formatted_query: str = template.format(
             context=formatted_context,
             query=query,
@@ -259,17 +238,15 @@ def create_chat_workflow() -> ChatStateGraphType:
             you'll receive chunks as they're generated.
         """
         config: ChatWorkflowContext = runtime.context
-        messages = prepare_messages_for_llm(
-            state, config.system_message
-        )
+        messages = prepare_messages_for_llm(state, config.system_message)
 
         # Stream the response - chunks will be emitted by astream()
         response_chunks: list[str] = []
         async for chunk in config.llm.astream(messages):
             # Extract text from chunk safely
-            if hasattr(chunk, 'text') and callable(chunk.text):
+            if hasattr(chunk, "text") and callable(chunk.text):
                 response_chunks.append(chunk.text)
-            elif hasattr(chunk, 'content'):
+            elif hasattr(chunk, "content"):
                 content: str = str(chunk.content)  # type: ignore
                 response_chunks.append(content)
             else:
@@ -287,9 +264,9 @@ def create_chat_workflow() -> ChatStateGraphType:
         return "error"
 
     # Build the graph------------------------------------------------
-    workflow: StateGraph[
-        ChatState, ChatWorkflowContext, ChatState, ChatState
-    ] = StateGraph(ChatState, ChatWorkflowContext)
+    workflow: StateGraph[ChatState, ChatWorkflowContext, ChatState, ChatState] = (
+        StateGraph(ChatState, ChatWorkflowContext)
+    )
 
     # Add nodes
     workflow.add_node("validate_query", validate_query)
@@ -331,8 +308,8 @@ def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
 # file when we have more workflows.
 from lmm.language_models.lazy_dict import LazyLoadingDict
 
-workflow_library: LazyLoadingDict[str, ChatStateGraphType] = (
-    LazyLoadingDict(_workflow_factory)
+workflow_library: LazyLoadingDict[str, ChatStateGraphType] = LazyLoadingDict(
+    _workflow_factory
 )
 
 
@@ -364,9 +341,7 @@ def prepare_messages_for_llm(
     # Add recent conversation history
     state_messages: list[BaseMessage] = state.get("messages", [])
     for msg in state_messages[-history_window:]:
-        role: str = (
-            "user" if isinstance(msg, HumanMessage) else "assistant"
-        )
+        role: str = "user" if isinstance(msg, HumanMessage) else "assistant"
         content: str = ""
         try:
             content = str(msg.content)  # type: ignore (dict type)
@@ -389,16 +364,14 @@ from lmm.language_models.langchain.runnables import (
 )
 
 
-def databaselog_create(
-    database_file: str, database_context_file: str
-) -> None:
+def databaselog_create(database_file: str, database_context_file: str) -> None:
     """Creates the database files with the correct headers."""
 
     import os
 
     # Initialize CSV database files with headers if they don't exist
     if not os.path.exists(database_file):
-        with open(database_file, "w", encoding='utf-8') as f:
+        with open(database_file, "w", encoding="utf-8") as f:
             f.write(
                 "record_id,client_host,session_hash,timestamp,"
                 "history_length,model_name,interaction_type,"
@@ -406,7 +379,7 @@ def databaselog_create(
             )
 
     if not os.path.exists(database_context_file):
-        with open(database_context_file, "w", encoding='utf-8') as f:
+        with open(database_context_file, "w", encoding="utf-8") as f:
             f.write("record_id,evaluation,context,classification\n")
 
 
@@ -439,17 +412,14 @@ async def logging(
         # Replace double quotation marks with single quotation marks
         modified_text = text.replace('"', "'")
         # Replace newline characters with " | "
-        modified_text = modified_text.replace('\n', ' | ')
+        modified_text = modified_text.replace("\n", " | ")
         return modified_text
 
     stream: TextIOBase
     context_stream: TextIOBase | None
     if isinstance(streams, list):
         if len(streams) < 2:
-            raise ValueError(
-                "logging, when stream list given, mut contain 2 "
-                "streams"
-            )
+            raise ValueError("logging, when stream list given, mut contain 2 streams")
         stream, context_stream = streams[0], streams[1]
     else:
         stream = streams
@@ -462,8 +432,8 @@ async def logging(
     session_hash: str = context.session_hash or "<unknwon>"
     model_name: str = context.llm.name or "<unknwon>"
     chat_database: ChatDatabase = context.chat_settings.chat_database
-    messages: list[BaseMessage] = state['messages']
-    status: ChatStatus = state['status']
+    messages: list[BaseMessage] = state["messages"]
+    status: ChatStatus = state["status"]
     response: str = (
         str(messages[-1].content) if messages else ""  # type: ignore
     )
@@ -472,12 +442,12 @@ async def logging(
 
     try:
         match status:
-            case 'valid':
+            case "valid":
                 # Log main interaction to messages.csv
                 stream.write(
-                    f'{record_id},{client_host},{session_hash},'
-                    f'{timestamp},{len(messages)},'
-                    f'{model_name},MESSAGES,'
+                    f"{record_id},{client_host},{session_hash},"
+                    f"{timestamp},{len(messages)},"
+                    f"{model_name},MESSAGES,"
                     f'"{fmat_for_csv(query)}",'
                     f'"{fmat_for_csv(response)}"\n'
                 )
@@ -490,61 +460,58 @@ async def logging(
                     # Evaluate consistency of context prior to saving
                     try:
                         lmm_validator: RunnableType = create_runnable(
-                            'context_validator'  # will be a lookup
+                            "context_validator"  # will be a lookup
                         )
                         validation: str = await lmm_validator.ainvoke(
                             {
-                                'query': f"{query}. {response}",
-                                'context': query_context,
+                                "query": f"{query}. {response}",
+                                "context": query_context,
                             }
                         )
                         validation = validation.upper()
                     except Exception as e:
                         logger.error(
-                            f"Could not connect to aux model to "
-                            f"validate context: {e}"
+                            f"Could not connect to aux model to validate context: {e}"
                         )
                         validation = "<failed>"
 
                     if context_stream is None:
-                        context_database_file = (
-                            chat_database.context_database_file
-                        )
+                        context_database_file = chat_database.context_database_file
                         with open(
                             context_database_file,
                             "a",
-                            encoding='utf-8',
+                            encoding="utf-8",
                         ) as f:
                             f.write(
-                                f'{record_id},{validation},'
+                                f"{record_id},{validation},"
                                 f'"{fmat_for_csv(query_context)}",'
-                                f'{classification}\n'
+                                f"{classification}\n"
                             )
                     else:
                         context_stream.write(
-                            f'{record_id},{validation},'
+                            f"{record_id},{validation},"
                             f'"{fmat_for_csv(query_context)}",'
-                            f'{classification}\n'
+                            f"{classification}\n"
                         )
             case "empty_query":
                 stream.write(
-                    f'{record_id},{client_host},{session_hash},'
-                    f'{timestamp},{len(messages)},'
+                    f"{record_id},{client_host},{session_hash},"
+                    f"{timestamp},{len(messages)},"
                     f',EMPTYQUERY,"",""\n'
                 )
 
             case "long_query":
                 stream.write(
-                    f'{record_id},{client_host},{session_hash},'
-                    f'{timestamp},{len(messages)},'
+                    f"{record_id},{client_host},{session_hash},"
+                    f"{timestamp},{len(messages)},"
                     f',LONGQUERY,"{fmat_for_csv(query)}",""\n'
                 )
 
             case "rejected":
                 stream.write(
-                    f'{record_id},{client_host},{session_hash},'
-                    f'{timestamp},{len(messages)},'
-                    f'{model_name},REJECTED,'
+                    f"{record_id},{client_host},{session_hash},"
+                    f"{timestamp},{len(messages)},"
+                    f"{model_name},REJECTED,"
                     f'"{fmat_for_csv(query)}",'
                     f'"{fmat_for_csv(response)}"\n'
                 )
