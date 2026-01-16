@@ -326,6 +326,7 @@ def _workflow_factory(workflow_name: str) -> ChatStateGraphType:
         case _:
             raise ValueError(f"Invalid workflow: {workflow_name}")
 
+
 # At present, we put the dict here, but will be moved to a setup
 # file when we have more workflows.
 from lmm.language_models.lazy_dict import LazyLoadingDict
