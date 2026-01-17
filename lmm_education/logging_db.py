@@ -50,6 +50,24 @@ class ChatDatabaseInterface(ABC):
         """Log a chat interaction including retrieval context details."""
         pass
 
+    @classmethod
+    def from_config(cls) -> 'CsvFileChatDatabase':
+        from lmm_education.config.appchat import (
+            ChatSettings,
+            load_settings,
+            ChatDatabase,
+        )
+
+        chat_settings: ChatSettings | None = load_settings()
+        if chat_settings is None:
+            raise ValueError("Could not load chat settings")
+
+        db_settings: ChatDatabase = chat_settings.chat_database
+        return CsvFileChatDatabase(
+            db_settings.messages_database_file,
+            db_settings.context_database_file,
+        )
+
 
 class CsvChatDatabase(ChatDatabaseInterface):
     """

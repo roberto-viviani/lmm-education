@@ -208,7 +208,7 @@ def create_chat_stream(
             the context object.
         database_log: if False (default), carries out no database
             logging. If True, carries out database logging with the
-            default function defined with the graph. If a tuple of
+            settings defined in the context. If a tuple of
             streams or file paths is provided, it uses those streams
             for logging.
         logger: Logger instance for info and error reporting
@@ -396,7 +396,7 @@ def create_chat_stringstream(
             the context object.
         database_log: if False (default), carries out no database
             logging. If True, carries out database logging with the
-            default function defined with the graph. If a tuple of
+            settings defined in the context. If a tuple of
             streams or file paths is provided, it uses those streams
             for logging.
         logger: Logger instance for info and error reporting
