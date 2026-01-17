@@ -405,7 +405,7 @@ class TestLoadMarkdown(unittest.TestCase):
         # check using qdrant API that records are there
         from qdrant_client.models import Record
 
-        id = ids[0][1]
+        id = ids[0][1]  # type: ignore
         records: list[Record] = client.retrieve(
             collection_name=opts.database.companion_collection,
             ids=[id],
@@ -629,7 +629,7 @@ class TestMarkdownQueries(unittest.TestCase):
         result_text: list[str] = points_to_text(result_points)
 
         self.assertLess(0, len(result_points))
-        companion_uuids = set([id[1] for id in ids])
+        companion_uuids = set([id[1] for id in ids])  # type: ignore
         self.assertTrue(results.groups[0].id in companion_uuids)
         self.assertTrue(len(result_text) > 0)
         print(len(result_text))
