@@ -819,7 +819,11 @@ async def terminal_field_change_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
     on_field_change: dict[str, Callable[[Any], str]] | None = None,
-    on_terminal_state: Callable[[StateT], Any] | None = None,
+    on_terminal_state: (
+        Callable[[StateT], Any]
+        | Callable[[StateT], Awaitable[Any]]
+        | None
+    ),
 ) -> tier_3_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to strings
@@ -901,7 +905,10 @@ async def terminal_field_change_adapter(
             pass
 
     if on_terminal_state and final_state:
-        on_terminal_state(final_state)
+        if asyncio.iscoroutinefunction(on_terminal_state):
+            schedule_task(on_terminal_state(final_state))
+        else:
+            on_terminal_state(final_state)
 
 
 async def tier_3_adapter(
