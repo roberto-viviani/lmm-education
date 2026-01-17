@@ -630,12 +630,12 @@ class TestQuery(unittest.TestCase):
         opts = ConfigSettings(
             storage=":memory:",
             database=DatabaseSettings(
-                annotation_model=annotation_model,
                 collection_name=collection_name,
             ),
             RAG=RAGSettings(
                 questions=True,
                 encoding_model=EncodingModel.SPARSE_MERGED,
+                annotation_model=annotation_model,
             ),
             embeddings={
                 "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1"
