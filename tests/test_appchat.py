@@ -2,13 +2,18 @@ import unittest
 import io
 import asyncio
 import gradio as gr
-from lmm_education.apputils import async_log_factory, AsyncLogfuncType
+from functools import partial
+
+# from lmm_education.apputils import async_log_factory, AsyncLogfuncType
 from lmm_education.config.config import (
     ConfigSettings,
     export_settings,
 )
-from lmm_education.config.appchat import ChatSettings
-from lmm.utils.logging import ConsoleLogger  #
+from lmm_education.config.appchat import ChatSettings, CheckResponse
+from lmm_education.chat_graph import (
+    graph_logger,
+    ChatWorkflowContext,
+)
 
 original_settings = ConfigSettings()
 
@@ -28,27 +33,61 @@ def tearDownModule():
 
 class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
+    def setUp(self):
+        from langchain_core.language_models import BaseChatModel
+        from langchain_core.retrievers import BaseRetriever
+        from lmm.language_models.langchain.models import (
+            create_model_from_settings,
+        )
+        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+            AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
+        )
+
+        self.llm: BaseChatModel = create_model_from_settings(
+            ConfigSettings().major
+        )
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
+
+    def get_workflow_context(
+        self,
+        chat_settings: ChatSettings = ChatSettings(
+            check_response=CheckResponse(check_response=False)
+        ),
+    ) -> ChatWorkflowContext:
+        return ChatWorkflowContext(
+            llm=self.llm,
+            retriever=self.retriever,
+            chat_settings=chat_settings,
+        )
+
     async def test_garden_path(self):
         # import after setUpModule
-        from appChat import gradio_callback_fn
+        from appChat import gradio_callback_fn, AsyncLogfunType
+        from lmm_education.logging_db import CsvChatDatabase
 
         stream = io.StringIO()
         stream_context = io.StringIO()
-        logfun: AsyncLogfuncType = async_log_factory(
-            stream, stream_context, ConsoleLogger()
+        db_logger = CsvChatDatabase(
+            message_stream=stream, context_stream=stream_context
+        )
+        logfun: AsyncLogfunType = partial(
+            graph_logger,
+            database=db_logger,
+            context=self.get_workflow_context(),
         )
 
         buffer: str = ""
         async for chunk in gradio_callback_fn(
             "In the field of linear models and statistics, what is logistic regression?",
             [],
-            gr.Request,
+            gr.Request,  # type: ignore
             logfun,
         ):
             buffer += chunk
 
         self.assertGreater(len(buffer), 0)
-        print(buffer)
 
         await asyncio.sleep(0.1)
         msg_log: str = stream.getvalue()
@@ -61,21 +100,27 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
     # This only testable after prompting a real model
     # async def test_rejection(self):
     #     # import after setUpModule
-    #     from appChat import gradio_callback_fn
-
-    #     chat_settings = ChatSettings()
+    #     from appChat import gradio_callback_fn, AsyncLogfunType
+    #     from lmm_education.logging_db import CsvChatDatabase
 
     #     stream = io.StringIO()
     #     stream_context = io.StringIO()
-    #     logfun: AsyncLogfuncType = async_log_factory(
-    #         stream, stream_context, ConsoleLogger()
+    #     db_logger = CsvChatDatabase(
+    #         message_stream=stream, context_stream=stream_context
     #     )
+    #     logfun: AsyncLogfunType = partial(
+    #         graph_logger,
+    #         database=db_logger,
+    #         context=self.get_workflow_context(),
+    #     )
+
+    #     settings: ChatSettings = ChatSettings()
 
     #     buffer: str = ""
     #     async for chunk in gradio_callback_fn(
     #         "Why is the sky blue?",
     #         [],
-    #         gr.Request,
+    #         gr.Request,  # type: ignore
     #         logfun,
     #     ):
     #         buffer += chunk
@@ -93,21 +138,27 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_message(self):
         # import after setUpModule
-        from appChat import gradio_callback_fn
+        from appChat import gradio_callback_fn, AsyncLogfunType
+        from lmm_education.logging_db import CsvChatDatabase
 
         chat_settings = ChatSettings()
 
         stream = io.StringIO()
         stream_context = io.StringIO()
-        logfun: AsyncLogfuncType = async_log_factory(
-            stream, stream_context, ConsoleLogger()
+        db_logger = CsvChatDatabase(
+            message_stream=stream, context_stream=stream_context
+        )
+        logfun: AsyncLogfunType = partial(
+            graph_logger,
+            database=db_logger,
+            context=self.get_workflow_context(),
         )
 
         buffer: str = ""
         async for chunk in gradio_callback_fn(
             "",
             [],
-            gr.Request,
+            gr.Request,  # type: ignore
             logfun,
         ):
             buffer += chunk
@@ -124,21 +175,27 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_long_query(self):
         # import after setUpModule
-        from appChat import gradio_callback_fn
+        from appChat import gradio_callback_fn, AsyncLogfunType
+        from lmm_education.logging_db import CsvChatDatabase
 
         chat_settings = ChatSettings()
 
         stream = io.StringIO()
         stream_context = io.StringIO()
-        logfun: AsyncLogfuncType = async_log_factory(
-            stream, stream_context, ConsoleLogger()
+        db_logger = CsvChatDatabase(
+            message_stream=stream, context_stream=stream_context
+        )
+        logfun: AsyncLogfunType = partial(
+            graph_logger,
+            database=db_logger,
+            context=self.get_workflow_context(),
         )
 
         buffer: str = ""
         async for chunk in gradio_callback_fn(
             "This is a long query " * 200,
             [],
-            gr.Request,
+            gr.Request,  # type: ignore
             logfun,
         ):
             buffer += chunk
@@ -155,17 +212,18 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_vote(self):
         from appChat import vote
+        from lmm_education.logging_db import CsvChatDatabase
 
         stream = io.StringIO()
         stream_context = io.StringIO()
-        logfun: AsyncLogfuncType = async_log_factory(
-            stream, stream_context, ConsoleLogger()
+        db_logger = CsvChatDatabase(
+            message_stream=stream, context_stream=stream_context
         )
 
         data: gr.LikeData = gr.LikeData(
             None, {'index': 0, 'value': "liked"}
         )
-        await vote(data, gr.Request, logfun)
+        await vote(data, gr.Request, db_logger)  # type: ignore
 
         await asyncio.sleep(0.1)
         msg_log: str = stream.getvalue()
@@ -176,15 +234,17 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_postcomment(self):
         from appChat import postcomment
+        from lmm_education.logging_db import CsvChatDatabase
 
         stream = io.StringIO()
         stream_context = io.StringIO()
-        logfun: AsyncLogfuncType = async_log_factory(
-            stream, stream_context, ConsoleLogger()
+        db_logger = CsvChatDatabase(
+            message_stream=stream, context_stream=stream_context
         )
 
         comment = "This was great"
-        await postcomment(comment, gr.Request, logfun)
+        request = gr.Request
+        await postcomment(comment, request, db_logger)  # type: ignore
 
         await asyncio.sleep(0.1)
         msg_log: str = stream.getvalue()
