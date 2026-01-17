@@ -391,8 +391,8 @@ from lmm.utils.hash import generate_random_string
 
 
 async def graph_logger(
-    database: ChatDatabaseInterface,
     state: ChatState,
+    database: ChatDatabaseInterface,
     context: ChatWorkflowContext,
     client_host: str = "<unknown>",
     session_hash: str = "<unknown>",
