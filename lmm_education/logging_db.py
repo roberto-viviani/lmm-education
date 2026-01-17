@@ -9,7 +9,7 @@ import asyncio
 import os
 from typing import Self
 
-# pyright: reportMissingTypeStubs=false
+from lmm_education.background_task_manager import schedule_task
 
 
 class ChatDatabaseInterface(ABC):
@@ -49,6 +49,66 @@ class ChatDatabaseInterface(ABC):
     ) -> None:
         """Log a chat interaction including retrieval context details."""
         pass
+
+    def schedule_message(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+    ) -> None:
+        """Log a basic chat interaction/message (async)."""
+        schedule_task(
+            self.log_message(
+                record_id=record_id,
+                client_host=client_host,
+                session_hash=session_hash,
+                timestamp=timestamp,
+                message_count=message_count,
+                model_name=model_name,
+                interaction_type=interaction_type,
+                query=query,
+                response=response,
+            )
+        )
+
+    def schedule_message_with_context(
+        self,
+        record_id: str,
+        client_host: str,
+        session_hash: str,
+        timestamp: datetime,
+        message_count: int,
+        model_name: str,
+        interaction_type: str,
+        query: str,
+        response: str,
+        validation: str,
+        context: str,
+        classification: str,
+    ) -> None:
+        """Log a basic chat interaction/message (async)."""
+        schedule_task(
+            self.log_message_with_context(
+                record_id=record_id,
+                client_host=client_host,
+                session_hash=session_hash,
+                timestamp=timestamp,
+                message_count=message_count,
+                model_name=model_name,
+                interaction_type=interaction_type,
+                query=query,
+                response=response,
+                validation=validation,
+                context=context,
+                classification=classification,
+            )
+        )
 
     @classmethod
     def from_config(cls) -> 'CsvFileChatDatabase':
