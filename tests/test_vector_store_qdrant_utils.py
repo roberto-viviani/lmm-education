@@ -1,4 +1,5 @@
 # pyright: reportArgumentType=false
+# pyright: reportCallIssue=false
 
 import unittest
 
@@ -74,6 +75,10 @@ class TestQdrantSchema(unittest.TestCase):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        self.assertIsNotNone(client)
+        if client is None:
+            return  # for type checking
+
         logs = logger.get_logs()
         if len(logs) > 0:
             print("\n".join(logs))
@@ -249,6 +254,10 @@ class TestQdrantSchema(unittest.TestCase):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        self.assertIsNotNone(client)
+        if client is None:
+            return  # for type checker
+
         logs = logger.get_logs()
         if len(logs) > 0:
             print("\n".join(logs))
@@ -288,6 +297,9 @@ class TestQdrantSchema(unittest.TestCase):
         logger = LoglistLogger()
 
         client = client_from_config(None, logger)
+        self.assertIsNotNone(client)
+        if client is None:
+            return  # for type checker
 
         COLLECTION: str = "UUIDCollection2"
         initialize_collection(
