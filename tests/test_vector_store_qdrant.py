@@ -337,7 +337,7 @@ class TestInitializationConfigObject(unittest.TestCase):
         import string
 
         characters = string.ascii_letters + string.digits
-        return ''.join(random.choice(characters) for i in range(8))
+        return ''.join(random.choice(characters) for i in range(8))  # type: ignore
 
     def test_encoding_none(self):
         collection_name: str = self._random_collection_name()
@@ -702,7 +702,8 @@ class TestInitializationLocal(unittest.TestCase):
     # calling the language model server
     original_settings = ConfigSettings()
 
-    def _get_settings() -> ConfigSettings:
+    @classmethod
+    def _get_settings(cls) -> ConfigSettings:
         from lmm_education.config.config import LocalStorage
 
         return ConfigSettings(
@@ -781,7 +782,7 @@ class TestInitializationLocal(unittest.TestCase):
         info = database_info(local_client)
         self.assertEqual(info['storage'], "./test_storage")
         self.assertDictEqual(
-            info['main_collection'][collection_name],
+            info['main_collection'][collection_name],  # type: ignore
             {
                 'qdrant_embedding_model': qdrant_model.value,
                 'embeddings': settings.embeddings.model_dump(),
@@ -1509,7 +1510,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         )
         self.assertEqual(len(results), len(ps))
         self.assertEqual(
-            str(results[0].payload["page_content"]),
+            str(results[0].payload["page_content"]),  # type: ignore
             text2.get_content(),
         )
 
@@ -1544,7 +1545,7 @@ class TestIngestionAndQuery(unittest.TestCase):
         )
         self.assertEqual(len(results), len(ps))
         self.assertEqual(
-            str(results[0].payload["page_content"]),
+            str(results[0].payload["page_content"]),  # type: ignore
             text2.get_content(),
         )
 

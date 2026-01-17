@@ -3,8 +3,10 @@ import tempfile
 import os
 from pydantic import ValidationError
 
+# intentional errors
 # pyright: reportArgumentType=false
 # pyright: reportOptionalMemberAccess=false
+# pyright: reportCallIssue=false
 
 from lmm_education.config.config import (
     load_settings,
@@ -17,7 +19,6 @@ from lmm_education.config.config import (
 )
 from lmm.scan.chunks import EncodingModel
 
-# pyright: basic
 
 # Create a test TOML file
 test_content = '''
@@ -52,7 +53,10 @@ class TestReadConfig(unittest.TestCase):
     def test_load_settings(self):
         # Test the load_settings function
         settings = load_settings(file_name=temp_file['temp_file'])
-        self.assertTrue(bool(settings))
+        self.assertIsNotNone(settings)
+        if settings is None:  # for the type checker
+            return
+
         self.assertEqual(settings.storage, ":memory:")
         self.assertEqual(
             settings.database.collection_name, "test_chunks"
@@ -85,7 +89,7 @@ class TestLocalStorageValidation(unittest.TestCase):
     def test_missing_folder_raises_error(self):
         """Test that missing folder field raises ValidationError."""
         with self.assertRaises(ValidationError) as context:
-            LocalStorage()
+            LocalStorage()  # type: ignore (intentionally wrong)
 
         error = context.exception
         self.assertIn("Field required", str(error))

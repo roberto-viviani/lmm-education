@@ -7,9 +7,23 @@ NOTE: initialize collection tested in test_lmm_rag.py
 
 import unittest
 
-from lmm.markdown.parse_markdown import *
-from lmm_education.stores.chunks import *
-from lmm_education.stores.vector_store_qdrant import *
+from lmm.markdown.parse_markdown import (
+    Block,
+    HeaderBlock,
+    MetadataBlock,
+    HeadingBlock,
+    TextBlock,
+)
+
+from lmm.scan.chunks import (
+    EncodingModel,
+)
+from lmm.scan.scan_rag import blocklist_rag, ScanOpts
+from lmm_education.stores.vector_store_qdrant import (
+    QdrantClient,
+    encoding_to_qdrantembedding_model,
+    initialize_collection,
+)
 
 from lmm_education.config.config import ConfigSettings
 
@@ -64,7 +78,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         result = initialize_collection(
-            client, collection_name, embedding_model, settings
+            client,
+            collection_name,
+            embedding_model,
+            settings.embeddings,
         )
         self.assertFalse(result)
 
@@ -75,7 +92,10 @@ class TestInitialization(unittest.TestCase):
         )
         collection_name: str = encoding_model.value
         flag = initialize_collection(
-            client, collection_name, embedding_model, settings
+            client,
+            collection_name,
+            embedding_model,
+            settings.embeddings,
         )
         self.assertEqual(flag, False)
 

@@ -6,6 +6,12 @@ IMORTANT: A wokring database must be present for tests to function.
 """
 
 # pyright: reportArgumentType=false
+# pyright: reportAssignmentType=false
+# pyright: reportUnknownMemberType=false
+# pyright: reportUnknownArgumentType=false
+# pyright: reportAttributeAccessIssue=false
+# pyright: reportUnknownVariableType=false
+# pyright: reportGeneralTypeIssues=false
 
 import unittest
 import logging
@@ -144,6 +150,8 @@ class TestQueryDbSparse(unittest.TestCase):
             )
         except Exception as e:
             logger.error(f"{e}")
+            self.assertFalse(f"querydb error: {e}")
+            return
         finally:
             client.close()
 
@@ -279,6 +287,8 @@ class TestQueryDbMerged(unittest.TestCase):
             )
         except Exception as e:
             logger.error(f"{e}")
+            self.assertFalse(f"querydb error: {e}")
+            return
         finally:
             client.close()
 
