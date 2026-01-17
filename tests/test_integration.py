@@ -203,7 +203,9 @@ class TestChunkingAndIngestion(unittest.TestCase):
         settings = ConfigSettings(
             storage=LocalStorage(folder="./test_storage")
         )
-        client: QdrantClient = client_from_config(settings, logger)
+        client: QdrantClient | None = client_from_config(
+            settings, logger
+        )
         if client is None:
             self.assertTrue(
                 False, "Could not initialize qdrant client"
