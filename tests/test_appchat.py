@@ -14,8 +14,10 @@ from lmm_education.chat_graph import (
     graph_logger,
     ChatWorkflowContext,
 )
+import atexit
 
 original_settings = ConfigSettings()
+atexit.register(export_settings, original_settings)
 
 
 def setUpModule():
@@ -25,6 +27,29 @@ def setUpModule():
         aux={'model': "Debug/debug"},
     )
     export_settings(settings)
+
+    # An embedding engine object is created here just to load the engine.
+    # This avoids the first query to take too long. The object is cached
+    # internally, so we do not actually use the embedding object here.
+    from lmm.language_models.langchain.runnables import (
+        create_embeddings,
+    )
+    from requests import ConnectionError
+
+    try:
+        create_embeddings()
+    except ConnectionError as e:
+        print(
+            "Could not connect to the model provider -- no internet?"
+        )
+        print(f"Error message:\n{e}")
+        raise Exception from e
+    except Exception as e:
+        print(
+            "Could not connect to the model provider due to a system error."
+        )
+        print(f"Error message:\n{e}")
+        raise Exception from e
 
 
 def tearDownModule():
@@ -92,6 +117,8 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
         msg_log: str = stream.getvalue()
         ctx_log: str = stream_context.getvalue()
+
+        print(msg_log)
 
         self.assertIn("MESSAGE", msg_log)
         self.assertNotEqual(len(ctx_log), 0)
