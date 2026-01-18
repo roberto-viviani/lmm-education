@@ -50,6 +50,19 @@ class ChatDatabaseInterface(ABC):
         """Log a chat interaction including retrieval context details."""
         pass
 
+    @abstractmethod
+    def close(self) -> None:
+        """Close database and release resources."""
+        pass
+
+    def __enter__(self) -> Self:
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+        """Exit context manager and cleanup resources."""
+        self.close()
+
     def schedule_message(
         self,
         record_id: str,
@@ -256,11 +269,18 @@ class CsvChatDatabase(ChatDatabaseInterface):
 
         await loop.run_in_executor(None, _log_both)
 
+    def close(self) -> None:
+        """Close database resources. No-op for stream-based implementation."""
+        # This implementation doesn't own the streams, so it doesn't close them.
+        # The caller is responsible for managing stream lifecycle.
+        pass
+
 
 class CsvFileChatDatabase(CsvChatDatabase):
     """
-    Context manager that manages CSV files and provides a CsvChatDatabase interface.
-    Handles file creation and header initialization.
+    File-based CSV chat database that manages file lifecycle.
+    Handles file creation, header initialization, and proper cleanup.
+    Can be used as a context manager or with explicit close() calls.
     """
 
     def __init__(
@@ -268,16 +288,22 @@ class CsvFileChatDatabase(CsvChatDatabase):
         database_file: str,
         database_context_file: str | None = None,
     ):
-        # We don't initialize super() here because we don't have streams yet.
-        # We will initialize it in __enter__.
-        # This works because we only use the methods (which rely on streams)
-        # after entering the context.
         self.database_file = database_file
         self.database_context_file = database_context_file
-        self.files_opened: list[TextIOBase] = []
-
+        
         # Initialize headers immediately
         self._ensure_headers()
+        
+        # Open files immediately for use
+        self._message_file = open(database_file, "a", encoding="utf-8")
+        self._context_file = (
+            open(database_context_file, "a", encoding="utf-8")
+            if database_context_file
+            else None
+        )
+        
+        # Initialize parent class with opened streams
+        super().__init__(self._message_file, self._context_file)
 
     def _ensure_headers(self) -> None:
         """Creates the database files with the correct headers if they don't exist."""
@@ -299,25 +325,32 @@ class CsvFileChatDatabase(CsvChatDatabase):
                     "record_id,evaluation,context,classification\n"
                 )
 
+    def close(self) -> None:
+        """Explicitly close database files and release resources."""
+        if hasattr(self, '_message_file'):
+            try:
+                self._message_file.close()
+            except Exception as e:
+                print(f"Error closing message log file: {e}")
+        
+        if hasattr(self, '_context_file') and self._context_file:
+            try:
+                self._context_file.close()
+            except Exception as e:
+                print(f"Error closing context log file: {e}")
+
     def __enter__(self) -> Self:
-        f_msg = open(self.database_file, "a", encoding="utf-8")
-        self.files_opened.append(f_msg)
-
-        f_ctx: TextIOBase | None = None
-        if self.database_context_file:
-            f_ctx = open(
-                self.database_context_file, "a", encoding="utf-8"
-            )
-            self.files_opened.append(f_ctx)
-
-        # Initialize the parent class with the opened streams
-        super().__init__(f_msg, f_ctx)
+        """Enter context manager. Files are already open, just return self."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
-        for f in self.files_opened:
-            try:
-                f.close()
-            except Exception as e:
-                print(f"Error closing log file: {e}")
-        self.files_opened.clear()
+        """Exit context manager and cleanup resources."""
+        self.close()
+
+    def __del__(self) -> None:
+        """Fallback cleanup - not guaranteed to be called."""
+        try:
+            self.close()
+        except Exception:
+            # Suppress errors during cleanup in destructor
+            pass

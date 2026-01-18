@@ -127,10 +127,16 @@ from lmm_education.chat_graph import graph_logger
 from typing import Any
 from collections.abc import Coroutine
 from functools import partial
+import atexit
 
 # We use the database as specified in config.toml.
 logging_database: ChatDatabaseInterface
 logging_database = ChatDatabaseInterface.from_config()
+
+# Register cleanup handler to ensure files are closed
+# on exit. The database will already be closed if the
+# app is run through main.
+atexit.register(logging_database.close)
 
 AsyncLogfunType = partial[Coroutine[Any, Any, None]]
 async_log_partial: AsyncLogfunType = partial(
@@ -347,17 +353,22 @@ if __name__ == "__main__":
         logger.error("Could not load chat settings:\n" + str(e))
         exit()
 
-    if chat_settings.server.mode == "local":
-        app.launch(
-            server_port=chat_settings.server.port,
-            show_api=False,
-            auth=("accesstoken", "hackerbrücke"),
-        )
-    else:
-        # allow public access on internet computer
-        app.launch(
-            server_name="85.124.80.91",  # keep this
-            server_port=chat_settings.server.port,
-            show_api=False,
-            auth=("accesstoken", "hackerbrücke"),
-        )
+    try:
+        if chat_settings.server.mode == "local":
+            app.launch(
+                server_port=chat_settings.server.port,
+                show_api=False,
+                auth=("accesstoken", "hackerbrücke"),
+            )
+        else:
+            # allow public access on internet computer
+            app.launch(
+                server_name="85.124.80.91",  # keep this
+                server_port=chat_settings.server.port,
+                show_api=False,
+                auth=("accesstoken", "hackerbrücke"),
+            )
+    except Exception as e:
+        logger.error(f"Could not run the app: {e}")
+    finally:
+        logging_database.close()
