@@ -111,6 +111,24 @@ class ChatWorkflowContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @classmethod
+    def from_default_config(cls) -> 'ChatWorkflowContext':
+        from lmm_education.config.config import ConfigSettings
+        from lmm.language_models.langchain.models import (
+            create_model_from_settings,
+        )
+        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+            AsyncQdrantVectorStoreRetriever as AsyncRetriever,
+        )
+
+        config = ConfigSettings()
+        model = create_model_from_settings(config.major)
+
+        return ChatWorkflowContext(
+            llm=model,
+            retriever=AsyncRetriever.from_config_settings(),
+        )
+
 
 # graph alias type
 ChatStateGraphType = CompiledStateGraph[
@@ -416,17 +434,20 @@ async def graph_logger(
     logger: LoggerBase = context.logger
 
     # info from state and context
-    model_name: str = (
-        context.llm.name or "<unknown>"
-        if hasattr(context.llm, "name")
-        else "<unknown>"
-    )
+    model_name: str | None
+    model_name = context.llm.name
+    if not model_name:
+        if hasattr(context.llm, "model_name"):
+            model_name = str(context.llm.model_name)  # type: ignore
+    if not model_name:
+        model_name = "<unknown>"
+
     messages: list[BaseMessage] = state.get("messages", [])
     status: ChatStatus = state.get("status", "error")
 
     # Safely get last response
     response: str = ""
-    if messages and isinstance(messages[-1], AIMessage):
+    if messages:
         response = messages[-1].pretty_repr()
 
     query: str = state.get("query_text", "")
