@@ -72,11 +72,15 @@ class ChatState(TypedDict):
     status: ChatStatus
 
     # Query processing - required field
-    query_text: str
+    query: str
+    query_prompt: str
     query_classification: str
 
     # RAG context
     context: str
+
+    # response
+    response: str
 
 
 def create_initial_state(query: str) -> ChatState:
@@ -85,9 +89,11 @@ def create_initial_state(query: str) -> ChatState:
     return ChatState(
         messages=[],
         status="valid",
-        query_text=query,
+        query=query,
+        query_prompt="",
         query_classification="",
         context="",
+        response="",
     )
 
 
@@ -166,12 +172,13 @@ def create_chat_workflow() -> ChatStateGraphType:
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:  # ChatState:
         """Validate the user's query for length and content."""
-        query: str = state.get("query_text", "")
+        query: str = state.get("query", "")
         settings: ChatSettings = runtime.context.chat_settings
 
         if not query or not query.strip():
             return {
                 "status": "empty_query",
+                "response": settings.MSG_EMPTY_QUERY,
                 "messages": AIMessage(
                     content=settings.MSG_EMPTY_QUERY
                 ),
@@ -180,6 +187,7 @@ def create_chat_workflow() -> ChatStateGraphType:
         if len(query.split()) > settings.max_query_word_count:
             return {
                 "status": "long_query",
+                "response": settings.MSG_LONG_QUERY,
                 "messages": AIMessage(
                     content=settings.MSG_LONG_QUERY
                 ),
@@ -191,15 +199,14 @@ def create_chat_workflow() -> ChatStateGraphType:
         )
 
         return {
-            "query_text": normalized_query,
-            "status": "valid",
+            "query_prompt": normalized_query,
         }
 
     async def retrieve_context(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:  # ChatState:
         """Retrieve relevant documents from vector store."""
-        query: str = state["query_text"]
+        query: str = state["query_prompt"]
         config: ChatWorkflowContext = runtime.context
 
         try:
@@ -243,7 +250,7 @@ def create_chat_workflow() -> ChatStateGraphType:
         """Format the query with retrieved context using prompt
         template."""
         context: str = state.get("context", "")
-        query: str = state["query_text"]
+        query: str = state["query_prompt"]
         settings: ChatSettings = runtime.context.chat_settings
 
         # Convert LaTeX delimiters for display
@@ -260,7 +267,7 @@ def create_chat_workflow() -> ChatStateGraphType:
             query=query,
         )
 
-        return {"query_text": formatted_query}
+        return {"query_prompt": formatted_query}
 
     async def generate(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
@@ -296,7 +303,10 @@ def create_chat_workflow() -> ChatStateGraphType:
         # Store complete response in state (for non-streaming access)
         complete_response = "".join(response_chunks)
 
-        return {"messages": AIMessage(content=complete_response)}
+        return {
+            "response": complete_response,
+            "messages": AIMessage(content=complete_response),
+        }
 
     def should_retrieve(state: ChatState) -> str:
         """Conditional edge: check if query is valid."""
@@ -393,7 +403,7 @@ def prepare_messages_for_llm(
         messages.append((role, content))
 
     # Add the current formatted query
-    messages.append(("user", state["query_text"]))
+    messages.append(("user", state["query_prompt"]))
 
     return messages
 
@@ -445,20 +455,12 @@ async def graph_logger(
     messages: list[BaseMessage] = state.get("messages", [])
     status: ChatStatus = state.get("status", "error")
 
-    # Safely get last response
-    response: str = ""
-    if messages:
-        content = messages[-1].content  # type: ignore
-        if isinstance(content, str):
-            response = content
-        else:
-            # a list of str or dict
-            import json
-
-            response = json.dumps(content)
-
-    query: str = state.get("query_text", "")
-    classification: str = state.get("query_classification", "")
+    # Extract info from state
+    response: str = state.get("response", "")
+    query: str = state.get("query", "")
+    classification: str = (
+        state.get("query_classification", "") or "NA"
+    )
     message_count = len(messages)
 
     try:
@@ -526,7 +528,7 @@ async def graph_logger(
                     model_name="",
                     interaction_type="EMPTYQUERY",
                     query="",
-                    response="",
+                    response=response,
                 )
 
             case "long_query":
@@ -538,12 +540,19 @@ async def graph_logger(
                     message_count=message_count,
                     model_name="",
                     interaction_type="LONGQUERY",
-                    query=query,
-                    response="",
+                    query=(
+                        query[:1500] + "..."
+                        if len(query) > 1500
+                        else query
+                    ),
+                    response=response,
                 )
 
             case "rejected":
-                await database.log_message(
+                # Check for context
+                context_text: str = state.get("context", "")
+
+                await database.log_message_with_context(
                     record_id=record_id,
                     client_host=client_host,
                     session_hash=session_hash,
@@ -553,6 +562,9 @@ async def graph_logger(
                     interaction_type="REJECTED",
                     query=query,
                     response=response,
+                    validation="NA",
+                    context=context_text,
+                    classification=classification,
                 )
 
             case _:  # ignore all others

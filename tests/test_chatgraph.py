@@ -159,7 +159,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             initial_state, context=context, stream_mode="values"
         ):
             counter += 1
-            end_state = event
+            end_state = event  # type: ignore
 
         print("===================================")
         print(f"There were {counter} chunks:\n")
@@ -175,6 +175,30 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             print("------\n")
 
         self.assertGreater(len(messages), 0)
+
+    async def test_stream_updates(self):
+
+        context = self.get_workflow_context()
+        initial_state = create_initial_state(
+            "What is logistic regression?"
+        )
+
+        workflow = create_chat_workflow()
+
+        counter = 0
+        async for event in workflow.astream(
+            initial_state, context=context, stream_mode="updates"
+        ):
+            counter += 1
+            print("======================")
+            print(f"Chunk event {counter}:\n")
+            for k in event.keys():
+                print(f"{k}: {event[k]}\n")
+
+        print("===================================")
+        print(f"There were {counter} chunks")
+
+        self.assertGreater(counter, 0)
 
     async def test_stream_multimodal(self):
 

@@ -104,8 +104,11 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         )
 
         buffer: str = ""
+        query: str = (
+            """In the field of linear models and statistics, what is logistic regression?"""
+        )
         async for chunk in gradio_callback_fn(
-            "In the field of linear models and statistics, what is logistic regression?",
+            query,
             [],
             gr.Request,  # type: ignore
             logfun,
@@ -118,9 +121,8 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         msg_log: str = stream.getvalue()
         ctx_log: str = stream_context.getvalue()
 
-        print(msg_log)
-
-        self.assertIn("MESSAGE", msg_log)
+        self.assertIn("MESSAGES", msg_log)
+        self.assertIn(query, msg_log)
         self.assertNotEqual(len(ctx_log), 0)
         self.assertEqual(msg_log.split(",")[0], ctx_log.split(",")[0])
 
@@ -233,6 +235,8 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
         msg_log: str = stream.getvalue()
         ctx_log: str = stream_context.getvalue()
+
+        print(msg_log)
 
         self.assertIn("LONGQUERY", msg_log)
         self.assertEqual(len(ctx_log), 0)
