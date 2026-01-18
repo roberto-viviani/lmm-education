@@ -332,6 +332,7 @@ def create_chat_stream(
             validator_model=validator_model,
             allowed_content=response_settings.allowed_content,
             buffer_size=response_settings.initial_buffer_size,
+            error_message=context.chat_settings.MSG_WRONG_CONTENT,
             logger=logger,
         )
 

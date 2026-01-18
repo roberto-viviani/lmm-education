@@ -108,9 +108,9 @@ from lmm_education.chat_graph import ChatState
 from lmm_education.background_task_manager import schedule_task
 
 
-# ============================================================================
+# ===================================================================
 # Generic Type Variables and Protocols
-# ============================================================================
+# ===================================================================
 
 # StateType for generic adapters - any TypedDict (which is a Mapping)
 StateT = TypeVar("StateT", bound=Mapping[str, Any])
@@ -137,9 +137,9 @@ StreamMode = Literal[
 # Type for "updates" mode events: {node_name: {field_name: value}}
 UpdatesEvent = dict[str, dict[str, Any]]
 
-# ============================================================================
+# ===================================================================
 # Protocols for generics
-# ============================================================================
+# ===================================================================
 
 
 class StreamableGraph(Protocol[InputStateT, InputContextT]):
@@ -190,7 +190,8 @@ class StreamableGraphMessages(Protocol[InputStateT, InputContextT]):
 
 # define iterator type for API consumers, The tier_1_iterator returns
 # tuples arising from calling langgraph's astream with stream_mode =
-# "values" or "updates".
+# "messages" and "values" or "updates". "messages" is always present
+# as it is related to streaming the language model's response.
 tier_1_iterator = AsyncIterator[tuple[str, Any]]
 
 
@@ -206,9 +207,9 @@ tier_2_iterator = AsyncIterator[
 tier_3_iterator = AsyncIterator[str]
 
 
-# ============================================================================
+# ===================================================================
 # Entry Point - Generic
-# ============================================================================
+# ===================================================================
 
 
 def stream_graph_state(
@@ -370,9 +371,9 @@ def astream_graph_messages(
     )
 
 
-# ============================================================================
+# ===================================================================
 # Tier 1 Adapters - Multi-Mode (State-Aware)
-# ============================================================================
+# ===================================================================
 
 
 async def stateful_validation_adapter(
@@ -420,9 +421,7 @@ async def stateful_validation_adapter(
     buffer_text: str = ""
     validation_complete: bool = False
     captured_state: ChatState | None = None
-    query_text: str = (
-        captured_state.query_text if captured_state else ""
-    )
+    modified_state: ChatState | None = None
 
     async def _validate_content(content: str) -> tuple[bool, str]:
         """Validate content with retry logic."""
@@ -474,8 +473,11 @@ async def stateful_validation_adapter(
 
             if len(buffer_text) >= buffer_size:
                 # Validate buffered content
+                query: str = (
+                    captured_state['query'] if captured_state else ""
+                )
                 is_valid, classification = await _validate_content(
-                    query_text + "\n\n" + buffer_text + "..."
+                    query + "\n\n" + buffer_text + "..."
                 )
                 validation_complete = True
 
@@ -495,8 +497,9 @@ async def stateful_validation_adapter(
 
                     # Modify state to reflect rejection
                     if captured_state:
-                        modified_state: ChatState = {
+                        modified_state = {
                             **captured_state,
+                            "response": error_message,
                             "query_classification": classification,
                             "status": "rejected",
                         }
@@ -511,29 +514,38 @@ async def stateful_validation_adapter(
                         "(validation unavailable)"
                     )
                     if captured_state:
-                        modified_state: ChatState = {
+                        modified_state = {
                             **captured_state,
                             "query_classification": "NA",
                         }
-                        yield ("values", modified_state)
+                        # do not yield state here, wait to end
+                        # updates not really valid (not in full state)
+                        # yield ("updates", {"query_classification": "NA"})
                 else:
                     # record classification
                     if captured_state:
-                        modified_state: ChatState = {
+                        modified_state = {
                             **captured_state,
                             "query_classification": classification,
                         }
-                        yield ("values", modified_state)
+                        # do not yield state here, wait to end
+                        # updates not really valid (not in full state)
+                        # yield ("updates", {"query_classification": classification})
 
                 for buffered_mode, buffered_event in buffer_chunks:
                     yield (buffered_mode, buffered_event)
-        else:
+
+        else:  # if mode == "messages" and ...
             # Pass through non-message events or post-validation
             # messages
             yield (mode, event)
+    # end async for mode, event
 
     # Handle case where stream ended before buffer was full
     if not validation_complete and buffer_text:
+        query_text: str = (
+            captured_state['query'] if captured_state else ""
+        )
         is_valid, classification = await _validate_content(
             query_text + "\n\n" + buffer_text
         )
@@ -549,12 +561,21 @@ async def stateful_validation_adapter(
             )
 
             if captured_state:
-                modified_state: ChatState = {
+                modified_state = {
                     **captured_state,
-                    "status": "rejected",  # type: ignore
+                    "status": "rejected",
+                    "response": error_message,
+                    "query_classification": classification,
                 }
                 yield ("values", modified_state)
             return
+
+        else:
+            if captured_state:
+                modified_state = {
+                    **captured_state,
+                    "query_classification": classification,
+                }
 
         if classification == "validation_unavailable":
             logger.warning(
@@ -565,6 +586,12 @@ async def stateful_validation_adapter(
         # Yield all buffered chunks
         for buffered_mode, buffered_event in buffer_chunks:
             yield (buffered_mode, buffered_event)
+
+    # Yield final state to override previous "values"
+    if modified_state:
+        yield ("values", modified_state)
+    else:
+        logger.warning("validation adapter: modified state not set")
 
 
 async def field_change_adapter(
@@ -699,7 +726,7 @@ async def terminal_tier1_adapter(
         )
 
         async for chunk, _ in messages:
-            yield chunk.text  # To Gradio
+            yield chunk.text
         ```
     """
 
@@ -717,9 +744,9 @@ async def terminal_tier1_adapter(
             on_terminal_state(final_state)
 
 
-# ============================================================================
+# ===================================================================
 # Tier 1 to tier 2 adapters
-# ============================================================================
+# ===================================================================
 
 
 async def terminal_demux_adapter(
@@ -757,7 +784,7 @@ async def terminal_demux_adapter(
         )
 
         async for chunk, _ in messages:
-            yield chunk.text  # To Gradio
+            yield chunk.text
         ```
     """
 
@@ -799,7 +826,7 @@ async def demux_adapter(
         messages = demux_adapter(multi_mode_stream)
 
         async for chunk, _ in messages:
-            yield chunk.text  # To Gradio
+            yield chunk.text
         ```
     """
     async for mode, event in multi_mode_stream:
@@ -810,9 +837,9 @@ async def demux_adapter(
             pass
 
 
-# ============================================================================
+# ===================================================================
 # Tier 1 to tier 3 adapters
-# ============================================================================
+# ===================================================================
 
 
 async def terminal_field_change_adapter(
@@ -931,10 +958,10 @@ async def tier_3_adapter(
 
     Example:
         ```python
-        messages = demux_adapter(multi_mode_stream)
+        messages = tier_3_adpater(multi_mode_stream)
 
-        async for chunk, _ in messages:
-            yield chunk.text  # To Gradio
+        async for chunk in messages:
+            yield chunk
         ```
     """
     async for mode, event in multi_mode_stream:
@@ -945,6 +972,6 @@ async def tier_3_adapter(
             pass
 
 
-# ============================================================================
+# ===================================================================
 # Tier 2 Adapters - Message-Only
-# ============================================================================
+# ===================================================================
