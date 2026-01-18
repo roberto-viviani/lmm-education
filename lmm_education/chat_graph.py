@@ -448,7 +448,14 @@ async def graph_logger(
     # Safely get last response
     response: str = ""
     if messages:
-        response = messages[-1].pretty_repr()
+        content = messages[-1].content  # type: ignore
+        if isinstance(content, str):
+            response = content
+        else:
+            # a list of str or dict
+            import json
+
+            response = json.dumps(content)
 
     query: str = state.get("query_text", "")
     classification: str = state.get("query_classification", "")
