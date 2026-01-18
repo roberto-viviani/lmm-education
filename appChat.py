@@ -185,9 +185,9 @@ async def gradio_callback_fn(
 
     # Safely extract client host and session hash
     client_host: str = getattr(
-        getattr(request, "client", None), "host", "unknown"
+        getattr(request, "client", None), "host", "[in-process]"
     )
-    session_hash: str = getattr(request, "session_hash", "unknown")
+    session_hash: str = getattr(request, "session_hash", "[none]")
 
     # chat_settings is captured by closure, but type checker...
     if chat_settings is None:
@@ -200,7 +200,7 @@ async def gradio_callback_fn(
     try:
         stream_raw: tier_1_iterator = create_chat_stream(
             querytext=querytext,
-            history=history,
+            history=history or None,
             context=context,
             validate=chat_settings.check_response,
             database_log=False,  # do downstream in on_terminal_state
