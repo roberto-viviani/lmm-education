@@ -602,6 +602,7 @@ async def field_change_adapter(
         | dict[str, Callable[[Any], str]]
         | None
     ) = None,
+    logger: LoggerBase = ConsoleLogger(),
 ) -> tier_1_iterator:
     """
     Adapter that reacts to specific field changes via "updates"
@@ -680,7 +681,6 @@ async def field_change_adapter(
                                 yield ("messages", (msg, {}))
                             except Exception as e:
                                 # Log the error but don't stop stream
-                                logger = ConsoleLogger()
                                 logger.error(
                                     f"Error in field_change_adapter: "
                                     f"{e}"
@@ -699,6 +699,7 @@ async def terminal_tier1_adapter(
         | Callable[[StateT], Awaitable[Any]]
         | None
     ) = None,
+    logger: LoggerBase = ConsoleLogger(),
 ) -> tier_1_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to messages
@@ -739,9 +740,18 @@ async def terminal_tier1_adapter(
 
     if on_terminal_state and final_state:
         if asyncio.iscoroutinefunction(on_terminal_state):
-            schedule_task(on_terminal_state(final_state))
+            schedule_task(
+                on_terminal_state(final_state),
+                error_callback=lambda e: logger.error(
+                    f"Error in on_terminal_state: {e}"
+                ),
+            )
         else:
-            on_terminal_state(final_state)
+            try:
+                on_terminal_state(final_state)
+            except Exception as e:
+                # log error but do not stop stream
+                logger.error(f"Error in on_terminal_state: {e}")
 
 
 # ===================================================================
@@ -757,6 +767,7 @@ async def terminal_demux_adapter(
         | Callable[[StateT], Awaitable[Any]]
         | None
     ) = None,
+    logger: LoggerBase = ConsoleLogger(),
 ) -> tier_2_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to messages
@@ -798,9 +809,18 @@ async def terminal_demux_adapter(
 
     if on_terminal_state and final_state:
         if asyncio.iscoroutinefunction(on_terminal_state):
-            schedule_task(on_terminal_state(final_state))
+            schedule_task(
+                on_terminal_state(final_state),
+                error_callback=lambda e: logger.error(
+                    f"Error in on_terminal_state: {e}"
+                ),
+            )
         else:
-            on_terminal_state(final_state)
+            try:
+                on_terminal_state(final_state)
+            except Exception as e:
+                # log error but do not stop stream
+                logger.error(f"Error in on_terminal_state: {e}")
 
 
 async def demux_adapter(
@@ -851,6 +871,7 @@ async def terminal_field_change_adapter(
         | Callable[[StateT], Awaitable[Any]]
         | None
     ),
+    logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to strings
@@ -914,15 +935,24 @@ async def terminal_field_change_adapter(
                 if isinstance(changes, dict):
                     for field, value in changes.items():  # type: ignore[union-attr]
                         if field in on_field_change:
+                            callback_fun: (
+                                Callable[[Any], Awaitable[str]]
+                                | Callable[[Any], str]
+                            ) = on_field_change[field]
                             try:
-                                yield on_field_change[field](value)
+                                if asyncio.iscoroutinefunction(
+                                    callback_fun
+                                ):
+                                    content: str = await callback_fun(
+                                        value
+                                    )
+                                else:
+                                    content = callback_fun(value)  # type: ignore
+                                yield content
                             except Exception as e:
-                                # Log the error but don't interrupt
-                                # the stream
-                                logger = ConsoleLogger()
+                                # Log the error but don't stop stream
                                 logger.error(
-                                    f"Error in "
-                                    f"terminal_field_change_adapter: "
+                                    f"Error in field_change_adapter: "
                                     f"{e}"
                                 )
                                 pass
@@ -933,9 +963,18 @@ async def terminal_field_change_adapter(
 
     if on_terminal_state and final_state:
         if asyncio.iscoroutinefunction(on_terminal_state):
-            schedule_task(on_terminal_state(final_state))
+            schedule_task(
+                on_terminal_state(final_state),
+                error_callback=lambda e: logger.error(
+                    f"Error in on_terminal_state: {e}"
+                ),
+            )
         else:
-            on_terminal_state(final_state)
+            try:
+                on_terminal_state(final_state)
+            except Exception as e:
+                # log error but do not stop stream
+                logger.error(f"Error in on_terminal_state: {e}")
 
 
 async def tier_3_adapter(
