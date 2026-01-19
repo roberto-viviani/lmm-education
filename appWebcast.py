@@ -627,7 +627,7 @@ async def gradio_callback_fn(
             yield buffer
 
         # Non-blocking logging hook - fires after streaming completes
-        record_id: str = generate_random_string(8)
+        record_id: str = generate_random_string()
         model_name: str = settings.major.get_model_name()  # type: ignore
         logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
             async_log(
@@ -661,7 +661,7 @@ async def vote(data: gr.LikeData, request: gr.Request):
     """
     Async function to log user reactions (like/dislike) to messages.
     """
-    record_id = generate_random_string(8)
+    record_id = generate_random_string()
     reaction = "approved" if data.liked else "disapproved"
 
     task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (confused)
@@ -685,7 +685,7 @@ async def postcomment(comment: object, request: gr.Request):
     """
     Async function to log user comments.
     """
-    record_id = generate_random_string(8)
+    record_id = generate_random_string()
 
     task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
         async_log(

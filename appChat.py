@@ -251,7 +251,7 @@ async def vote(
     if logging_db is None:
         logging_db = logging_database
 
-    record_id = generate_random_string(8)
+    record_id = generate_random_string()
     reaction = "approved" if data.liked else "disapproved"
 
     # Safely extract client host and session hash
@@ -289,7 +289,7 @@ async def postcomment(
     if logging_db is None:
         logging_db = logging_database
 
-    record_id = generate_random_string(8)
+    record_id = generate_random_string()
 
     # Safely extract client host and session hash
     client_host: str = getattr(

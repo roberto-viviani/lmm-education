@@ -439,7 +439,7 @@ async def graph_logger(
         timestamp = datetime.now()
 
     if record_id is None:
-        record_id = generate_random_string(16)
+        record_id = generate_random_string()
 
     logger: LoggerBase = context.logger
 
