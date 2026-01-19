@@ -87,7 +87,8 @@ class ChatDatabaseInterface(ABC):
                 interaction_type=interaction_type,
                 query=query,
                 response=response,
-            )
+            ),
+            error_callback=lambda e: print(f"schedule_message: {e}"),
         )
 
     def schedule_message_with_context(
@@ -120,7 +121,10 @@ class ChatDatabaseInterface(ABC):
                 validation=validation,
                 context=context,
                 classification=classification,
-            )
+            ),
+            error_callback=lambda e: print(
+                f"schedule_message_with_context: {e}"
+            ),
         )
 
     @classmethod
@@ -290,18 +294,20 @@ class CsvFileChatDatabase(CsvChatDatabase):
     ):
         self.database_file = database_file
         self.database_context_file = database_context_file
-        
+
         # Initialize headers immediately
         self._ensure_headers()
-        
+
         # Open files immediately for use
-        self._message_file = open(database_file, "a", encoding="utf-8")
+        self._message_file = open(
+            database_file, "a", encoding="utf-8"
+        )
         self._context_file = (
             open(database_context_file, "a", encoding="utf-8")
             if database_context_file
             else None
         )
-        
+
         # Initialize parent class with opened streams
         super().__init__(self._message_file, self._context_file)
 
@@ -332,7 +338,7 @@ class CsvFileChatDatabase(CsvChatDatabase):
                 self._message_file.close()
             except Exception as e:
                 print(f"Error closing message log file: {e}")
-        
+
         if hasattr(self, '_context_file') and self._context_file:
             try:
                 self._context_file.close()
