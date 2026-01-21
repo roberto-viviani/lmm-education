@@ -56,6 +56,13 @@ original_settings = ConfigSettings()
 atexit.register(export_settings, original_settings)
 
 
+def _print_state(state: dict[str, str]) -> None:  # type: ignore (not accessed)
+    for fld in state.keys():
+        print(
+            f"{fld}: {state[fld][:22]}{"..." if len(state[fld]) > 21 else ""}"
+        )
+
+
 async def consume_create_chat_stream(
     iterator: AsyncIterator[str],
 ) -> str:
@@ -416,16 +423,18 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         logtext: str = stream.getvalue()
+        print(f"LOGTEXT\n{logtext}")
         self.assertGreater(len(logtext), 0)
         self.assertIn("MESSAGE", logtext)
         logcontext: str = stream_context.getvalue()
+        print(f"LOGCONTEXT\n{logcontext}")
         self.assertGreater(len(logcontext), 0)
 
         print("✓ Passed\n")
 
     async def test_normal_query_nolog(self):
         """Test a normal query (if LLM is available)."""
-        print("Test 3 (log): Normal query")
+        print("Test 3 (log): Normal no log")
 
         stream = io.StringIO()
         stream_context = io.StringIO()
@@ -452,6 +461,76 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(logtext), 0)
         logcontext: str = stream_context.getvalue()
         self.assertEqual(len(logcontext), 0)
+
+        print("✓ Passed\n")
+
+    async def test_normal_appchat_query(self):
+        """Test a normal query using the appChat stream
+        configuration"""
+        print("Test 3 (log): Appchat query")
+        from lmm_education.query import create_chat_stream
+        from lmm_education.stream_adapters import (
+            tier_1_iterator,
+            tier_3_iterator,
+            terminal_field_change_adapter,
+        )
+        from lmm_education.logging_db import (
+            ChatDatabaseInterface,
+            CsvChatDatabase,
+        )
+        from functools import partial
+        from lmm_education.chat_graph import graph_logger
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+        database: ChatDatabaseInterface = CsvChatDatabase(
+            stream, stream_context
+        )
+        log_function = partial(
+            graph_logger,
+            database=database,
+            context=self.get_workflow_context(),
+        )
+
+        try:
+            stream_raw: tier_1_iterator = create_chat_stream(
+                "What is a linear model?",
+                None,
+                self.get_workflow_context(),
+                database_log=(stream, stream_context),
+            )
+
+            final_stream: tier_3_iterator = (
+                terminal_field_change_adapter(
+                    stream_raw,
+                    source_nodes=["generate"],
+                    on_terminal_state=partial(
+                        log_function,
+                        client_host="unknown",
+                        session_hash="none",
+                        timestamp=None,  # will be set at time of msg
+                        record_id=None,  # handled by logger
+                    ),
+                )
+            )
+            result = await consume_create_chat_stream(final_stream)
+        except Exception as e:
+            print(f"⚠ Skipped (LLM not available): {e}\n")
+            raise Exception(
+                "Error in test_validation_normal_query"
+            ) from e
+
+        self.assertTrue(len(result) > 0)
+
+        await asyncio.sleep(0.1)
+
+        logtext: str = stream.getvalue()
+        print(f"LOGTEXT\n{logtext}")
+        self.assertGreater(len(logtext), 0)
+        self.assertIn("MESSAGE", logtext)
+        logcontext: str = stream_context.getvalue()
+        print(f"LOGCONTEXT\n{logcontext}")
+        self.assertGreater(len(logcontext), 0)
 
         print("✓ Passed\n")
 
