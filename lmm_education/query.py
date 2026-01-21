@@ -423,7 +423,8 @@ def create_chat_stringstream(
             validate=validate,
             database_log=database_log,
             logger=logger,
-        )
+        ),
+        source_nodes=["generate"],
     )
 
 

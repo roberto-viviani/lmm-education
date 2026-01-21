@@ -114,7 +114,13 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             print(m)
             print("------\n")
 
-        self.assertGreater(len(end_state["messages"]), 0)
+        print(
+            f"\nThere is {"a" if end_state["response"] else "no"} response"
+        )
+        if end_state['response']:
+            print(end_state['response'])
+
+        self.assertGreater(len(end_state["response"]), 0)
 
     async def test_stream_messages(self):
 
@@ -166,6 +172,9 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         print(
             f"There are {len(end_state["messages"])} messages in the end state\n"
         )
+        print(
+            f"There is {"a" if end_state["response"] else "no"} response in the end state\n"
+        )
         messages = end_state["messages"]
         counter = 0
         for m in messages:
@@ -174,7 +183,10 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             print(m)
             print("------\n")
 
-        self.assertGreater(len(messages), 0)
+        if end_state['response']:
+            print(f"RESPONSE:\n{end_state['response']}")
+
+        self.assertTrue(end_state['response'])
 
     async def test_stream_updates(self):
 
@@ -239,6 +251,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             f"messages and {counter_val} values):\n"
         )
         print(text)
+        print("---------")
         print(
             f"\nThere are {len(end_state["messages"])} messages in the end state\n"
         )
@@ -250,7 +263,10 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             print(m)
             print("------\n")
 
-        self.assertGreater(len(messages), 0)
+        if end_state['response']:
+            print(f"RESPONSE:\n{end_state['response']}")
+
+        self.assertTrue(end_state['response'])
 
 
 if __name__ == "__main__":

@@ -864,6 +864,7 @@ async def demux_adapter(
 
 async def terminal_field_change_adapter(
     multi_mode_stream: tier_1_iterator,
+    source_nodes: list[str] = [],
     *,
     on_field_change: dict[str, Callable[[Any], str]] | None = None,
     on_terminal_state: (
@@ -888,6 +889,8 @@ async def terminal_field_change_adapter(
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
+        source_nodes: the source nodes one wants to stream. If omitted,
+            all nodes will be streamed.
         on_field_change: Dict mapping field names to async callbacks.
             Each callback receives the new field value as its
             argument.
@@ -923,8 +926,13 @@ async def terminal_field_change_adapter(
     final_state: StateT | None = None
     async for mode, event in multi_mode_stream:
         if mode == "messages":
-            chunk, _ = event  # Extract chunk and metadata
-            yield chunk.text
+            if source_nodes:
+                chunk, metadata = event  # Extract chunk and metadata
+                if metadata["langgraph_node"] in source_nodes:
+                    yield chunk.text
+            else:
+                chunk, _ = event
+                yield chunk.text
         elif (
             mode == "updates"
             and isinstance(event, dict)
@@ -979,6 +987,7 @@ async def terminal_field_change_adapter(
 
 async def tier_3_adapter(
     multi_mode_stream: tier_1_iterator,
+    source_nodes: list[str] = [],
 ) -> tier_3_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to messages
@@ -991,6 +1000,8 @@ async def tier_3_adapter(
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
+        source_nodes: the source nodes one wants to stream. If omitted,
+            all nodes will be streamed.
 
     Yields:
         BaseMessageChunk, metadata tuples (tier 2 iterator)
@@ -1005,8 +1016,13 @@ async def tier_3_adapter(
     """
     async for mode, event in multi_mode_stream:
         if mode == "messages":
-            chunk, _ = event  # Extract chunk and metadata
-            yield chunk.text
+            if source_nodes:
+                chunk, metadata = event  # Extract chunk and metadata
+                if metadata["langgraph_node"] in source_nodes:
+                    yield chunk.text
+            else:
+                chunk, _ = event
+                yield chunk.text
         else:
             pass
 

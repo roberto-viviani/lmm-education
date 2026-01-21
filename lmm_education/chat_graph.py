@@ -42,6 +42,7 @@ from langgraph.runtime import Runtime
 from langgraph.graph.state import CompiledStateGraph
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
+from lmm_education.config.config import ConfigSettings
 from lmm_education.config.appchat import ChatSettings
 from lmm_education.logging_db import ChatDatabaseInterface
 
@@ -168,7 +169,7 @@ def create_chat_workflow() -> ChatStateGraphType:
         Compiled StateGraph ready for streaming
     """
 
-    def validate_query(
+    async def validate_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:  # ChatState:
         """Validate the user's query for length and content."""
@@ -193,8 +194,19 @@ def create_chat_workflow() -> ChatStateGraphType:
                 ),
             }
 
-        # Normalize query text
-        normalized_query = query.replace(
+        # integrate with history
+        if state['messages']:
+            messages: list[str] = [
+                str(m.content) for m in state['messages']  # type: ignore
+            ]
+            config = ConfigSettings()
+            model = create_runnable("summarizer", config.aux)
+            summary: str = await model.ainvoke(
+                {'text': "\n---\n".join(messages)}
+            )
+            query = f"Context from previous interaction: {summary}\n\nUser query: {query}"
+
+        normalized_query: str = query.replace(
             "the textbook", "the context provided"
         )
 
@@ -305,7 +317,6 @@ def create_chat_workflow() -> ChatStateGraphType:
 
         return {
             "response": complete_response,
-            "messages": AIMessage(content=complete_response),
         }
 
     def should_retrieve(state: ChatState) -> str:
