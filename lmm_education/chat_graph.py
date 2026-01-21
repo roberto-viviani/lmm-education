@@ -216,7 +216,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     async def retrieve_context(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:  # ChatState:
+    ) -> dict[str, str | AIMessage]:
         """Retrieve relevant documents from vector store."""
         query: str = state["query_prompt"]
         config: ChatWorkflowContext = runtime.context
@@ -258,7 +258,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     def format_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:  # ChatState:
+    ) -> dict[str, str | AIMessage]:
         """Format the query with retrieved context using prompt
         template."""
         context: str = state.get("context", "")
@@ -283,7 +283,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     async def generate(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:  # ChatState:
+    ) -> dict[str, str | AIMessage]:
         """
         Generate LLM response using streaming.
 
