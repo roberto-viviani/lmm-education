@@ -464,6 +464,18 @@ async def stateful_validation_adapter(
         # Track latest state for potential modification
         if mode == "values":
             captured_state = event
+            # The response field update will arrive after the
+            # llm output has finished streaming. Copy it into
+            # the captured_state modified by streaming.
+            if (
+                modified_state
+                and captured_state
+                and captured_state['response']
+            ):
+                modified_state['response'] = captured_state[
+                    'response'
+                ]
+            yield (mode, event)
 
         # Validation logic only applies to messages
         if mode == "messages" and not validation_complete:
