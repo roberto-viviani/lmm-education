@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, Literal
 from pydantic import Field, BaseModel, model_validator
 from pydantic_settings import (
     BaseSettings,
@@ -56,6 +56,12 @@ class ChatDatabase(BaseModel):
         min_length=1,
         description="Database for retrieved context",
     )
+
+
+# Settings for the integration of history.
+HistoryIntegration = Literal[
+    'none', 'summary', 'context_extraction', 'rewrite'
+]
 
 
 class ChatSettings(BaseSettings):
@@ -141,6 +147,12 @@ QUERY: "{query}"
 
     max_query_word_count: int = Field(
         default=120, ge=0, description="Max word count in query"
+    )
+
+    # Technique to include history
+    history_integration: HistoryIntegration = Field(
+        default='context_extraction',
+        description="Technique for the integration of history",
     )
 
     # thematic control of interaction

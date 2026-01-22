@@ -206,29 +206,65 @@ def create_chat_workflow() -> ChatStateGraphType:
         # not for streaming
 
         query: str = state.get("query", "")
+
         if state['messages']:
             messages: list[str] = [
                 str(m.content)
                 for m in state['messages']
                 if isinstance(m.content, str)
             ]
-            # TODO: configure this through context
-            config = ConfigSettings()
-            model = create_runnable("summarizer", config.aux)
-            summary: str = await model.ainvoke(
-                {'text': "\n---\n".join(messages)}
-            )
-            summary = summary.replace('text', 'chat')
+            match runtime.context.chat_settings.history_integration:
+                case 'none':
+                    pass
+                case 'summary':
+                    # TODO: configure this through context
+                    config = ConfigSettings()
+                    model = create_runnable("summarizer", config.aux)
+                    summary: str = await model.ainvoke(
+                        {
+                            'text': "\n---\n".join(messages),
+                        }
+                    )
+                    summary = summary.replace('text', 'chat')
 
-            # re-weight summary and query
-            weight: int = ceil(
-                len(summary.split()) / len(query.split())
-            )
-            query = " ".join([query] * weight)
+                    # re-weight summary and query
+                    weight: int = ceil(
+                        len(summary.split()) / len(query.split())
+                    )
+                    query = " ".join([query] * weight)
 
-            # join summary and query
-            query = f"{summary}\n\nUser query: {query}"
+                    # join summary and query
+                    query = f"{summary}\n\nQuery: {query}"
+                case 'context_extraction':
+                    model = create_runnable("chat_summarizer")
+                    summary: str = await model.ainvoke(
+                        {
+                            'text': "\n---\n".join(messages),
+                            'query': query,
+                        }
+                    )
+                    summary = summary.replace('text', 'chat')
 
+                    # re-weight summary and query
+                    weight: int = ceil(
+                        len(summary.split()) / len(query.split())
+                    )
+                    query = " ".join([query] * weight)
+
+                    # join summary and query
+                    query = f"{summary}\n\nQuery: {query}"
+                case 'rewrite':
+                    model = create_runnable("rewrite_query")
+                    query: str = await model.ainvoke(
+                        {
+                            'text': "\n---\n".join(messages),
+                            'query': query,
+                        }
+                    )
+
+        print("============")
+        print(f"{query}")
+        print("------------")
         return {
             "query_prompt": query,
         }
@@ -301,7 +337,7 @@ def create_chat_workflow() -> ChatStateGraphType:
             query=query,
         )
 
-        print("\n==================")
+        print("\n???????????????")
         print(formatted_query)
 
         return {"query_prompt": formatted_query}
