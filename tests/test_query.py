@@ -203,7 +203,7 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
             result = await consume_create_chat_stream(iterator)
             print(f"Result length: {len(result)} characters")
             print(f"First 100 chars: {result[:100]}...")
-            # must be closed down
+            # please close
             await context.retriever.close_client()  # type: ignore
             self.assertTrue(len(result) > 0)
 
@@ -224,7 +224,7 @@ from lmm.utils.logging import (
 from lmm_education.config.appchat import CheckResponse
 
 
-class TestQueryValidated(unittest.IsolatedAsyncioTestCase):
+class TestQueryMalformed(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.llm: BaseChatModel = create_model_from_settings(
             ConfigSettings().major
@@ -503,7 +503,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
             final_stream: tier_3_iterator = (
                 terminal_field_change_adapter(
                     stream_raw,
-                    source_nodes=["generate"],
+                    source_nodes=["generate", "validate_query"],
                     on_terminal_state=partial(
                         log_function,
                         client_host="unknown",
@@ -760,6 +760,7 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
             ) from e
 
         self.assertTrue(len(result) > 0)
+        print(result)
         self.assertTrue(result.startswith("CONTEXT"))
         self.assertIn("END CONTEXT--", result)
 

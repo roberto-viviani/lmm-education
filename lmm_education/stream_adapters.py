@@ -660,6 +660,8 @@ async def field_change_adapter(
             ...
         ```
     """
+    # NOTE: this function is deprecated and may be removed. The
+    # problem is that
     if on_field_change is None:
         async for mode, event in multi_mode_stream:
             yield (mode, event)
@@ -686,11 +688,21 @@ async def field_change_adapter(
                                     )
                                 else:
                                     content = callback_fun(value)  # type: ignore
-                                msg = BaseMessageChunk(
-                                    content=content,
-                                    type="user",
-                                )
-                                yield ("messages", (msg, {}))
+                                yield (field, content)
+                                # insert this into the "generate" node stream
+                                # msg = BaseMessageChunk(
+                                #     content=content,
+                                #     type="user",
+                                # )
+                                # yield (
+                                #     "messages",
+                                #     (
+                                #         msg,
+                                #         {
+                                #             'langgraph_node': "generate"
+                                #         },
+                                #     ),
+                                # )
                             except Exception as e:
                                 # Log the error but don't stop stream
                                 logger.error(
@@ -883,7 +895,7 @@ async def terminal_field_change_adapter(
         Callable[[StateT], Any]
         | Callable[[StateT], Awaitable[Any]]
         | None
-    ),
+    ) = None,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
     """

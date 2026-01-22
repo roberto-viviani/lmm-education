@@ -31,6 +31,26 @@ are edited, you can set up an ingest-evaluate loop:
 # append True to ingest the file 'LogisticRegression.md'
 python -m lmm_education.ingest LogisticRegression.md True
 python -m lmm_education.query 'what is logistic regression?'
+
+Main functions:
+
+- `create_chat_stream` and `create_chat_stringstream`: these functions
+set up streams or LangGraph 'states' and of text, respectively, to
+stream from the graph. They take as arguments the input to the graph
+(i.e., the query text), a history of previous messages, a Workflow
+context object for the graph, and optional parameters to configure the
+function of the graph (validation of query) or the stream (logging
+the exchange to a database).
+- `query` and `aquery`: they take the query text and execute the
+query, streaming the result. The provide an interface to config.toml,
+but the settings contained there can be overridden by arguments.
+Internally, they create a chat stream with a Workflow context
+initialized from the config.toml parameters.
+
+These two layers of functions handle construction of a streamable
+graph to execute a query by taking care of the two layers of possible
+specifications, i.e. from config.toml and for the components of the
+graph.
 ```
 """
 
@@ -91,8 +111,8 @@ from .stream_adapters import (
     stream_graph_updates,
     stateful_validation_adapter,
     tier_3_adapter,
-    field_change_adapter,
     terminal_tier1_adapter,
+    terminal_field_change_adapter,
 )
 from .logging_db import (
     ChatDatabaseInterface,
@@ -158,7 +178,7 @@ def create_chat_stream(
     history: list[dict[str, str]] | None,
     context: ChatWorkflowContext,
     *,
-    print_context: bool = False,
+    stream_updates: bool = False,
     validate: CheckResponse | Literal[False] | None = None,
     database_log: (
         bool | tuple[TextIOBase, TextIOBase] | tuple[str, str]
@@ -202,16 +222,18 @@ def create_chat_stream(
     Args:
         querytext: The user's query text
         history: List of previous message exchanges (Gradio format)
-        context: a ChatWorkflowContext object for dependencies
-        print_context: streams the results of the context query
+        context: a ChatWorkflowContext object for dependencies to be
+            injected into the graph
+        stream_updates: streams an updates channel (default to False)
         validate: if None, validates response using settings from
             context object. If False, carries out no validation. If a
             CheckReponse object, overrides the settings from
             the context object.
         database_log: if False (default), carries out no database
-            logging. If True, carries out database logging with the
-            settings defined in the context. If a tuple of
-            streams or file paths is provided, it uses those streams
+            logging of the exchanges. If True, carries out database
+            logging with the settings defined in the context object,
+            i.e. the files where the database is located. If a tuple
+            of streams or file paths is provided, it uses those streams
             for logging.
         logger: Logger instance for info and error reporting
 
@@ -308,7 +330,7 @@ def create_chat_stream(
     # Set up the stream
     raw_stream: tier_1_iterator = (
         stream_graph_updates(workflow, initial_state, context)
-        if print_context
+        if stream_updates
         else stream_graph_state(workflow, initial_state, context)
     )
 
@@ -334,20 +356,6 @@ def create_chat_stream(
             buffer_size=response_settings.initial_buffer_size,
             error_message=context.chat_settings.MSG_WRONG_CONTENT,
             logger=logger,
-        )
-
-    # print context
-    ctxtp: Callable[[str], str] = lambda c: (
-        "CONTEXT:\n" + c + "\nEND CONTEXT------\n\n"
-    )
-    if print_context:
-        tier_1_stream = field_change_adapter(
-            tier_1_stream,
-            on_field_change={"context": ctxtp},  # {
-            #     "context": lambda c: "CONTEXT:\n"
-            #     + c
-            #     + "\nEND CONTEXT------\n\n"
-            # },
         )
 
     if dblogger:
@@ -391,16 +399,18 @@ def create_chat_stringstream(
     Args:
         querytext: The user's query text
         history: List of previous message exchanges (Gradio format)
-        context: a ChatWorkflowContext object for dependencies
-        print_context: streams the results of the context query
+        context: a ChatWorkflowContext object for dependencies to be
+            injected into the graph
+        print_content: streams the retrieved context (default to False)
         validate: if None, validates response using settings from
             context object. If False, carries out no validation. If a
             CheckReponse object, overrides the settings from
             the context object.
         database_log: if False (default), carries out no database
-            logging. If True, carries out database logging with the
-            settings defined in the context. If a tuple of
-            streams or file paths is provided, it uses those streams
+            logging of the exchanges. If True, carries out database
+            logging with the settings defined in the context object,
+            i.e. the files where the database is located. If a tuple
+            of streams or file paths is provided, it uses those streams
             for logging.
         logger: Logger instance for info and error reporting
 
@@ -414,18 +424,31 @@ def create_chat_stringstream(
         settings or failure to acquire resources).
     """
 
-    return tier_3_adapter(
-        create_chat_stream(
-            querytext=querytext,
-            history=history,
-            context=context,
-            print_context=print_context,
-            validate=validate,
-            database_log=database_log,
-            logger=logger,
-        ),
-        source_nodes=["generate"],
+    stream: tier_1_iterator = create_chat_stream(
+        querytext=querytext,
+        history=history,
+        context=context,
+        stream_updates=print_context,
+        validate=validate,
+        database_log=database_log,
+        logger=logger,
     )
+
+    if print_context:
+        return terminal_field_change_adapter(
+            stream,
+            source_nodes=["generate", "validate_query"],
+            on_field_change={
+                "context": lambda c: "CONTEXT:\n"
+                + c
+                + "\nEND CONTEXT------\n\n"
+            },
+        )
+    else:
+        return tier_3_adapter(
+            stream,
+            source_nodes=["generate", "validate_query"],
+        )
 
 
 def query(
@@ -439,7 +462,8 @@ def query(
     logger: LoggerBase = ConsoleLogger(),
 ) -> Iterator[str]:
     """
-    Synchronous generator that yields text graph stream.
+    Synchronous generator that yields a text stream from the graph
+    coding the RAG chatting workflow.
 
     This is a convenience wrapper that allows synchronous code to
     consume the streaming response from the language model. It
@@ -449,9 +473,9 @@ def query(
     Args:
         querystr: The query text to send to the language model
         model_settings: Language model settings (or 'major', 'minor',
-            'aux')
+            'aux'). If None (default) take settings from config.toml
         chat_settings: Chat settings for the query
-        print_context: If True, print the RAG context to the logger
+        print_context: If True, streams the RAG context
         validate_content: If True, validate response content
         allowed_content: List of allowed content types for validation
         logger: Logger instance for error reporting
@@ -468,6 +492,7 @@ def query(
 
     Example:
         ```python
+        # assumes a RAG vector database has been created
         for text in query("What is logistic regression?"):
             print(text, end="", flush=True)
         print()
@@ -503,14 +528,15 @@ async def aquery(
     logger: LoggerBase = ConsoleLogger(),
 ) -> AsyncIterator[str]:
     """
-    Asynchronous generator that yields text from the graph stream.
+    Asynchronous generator that yields a text stream from the graph
+    coding the RAG chatting workflow.
 
     Args:
         querystr: The query text to send to the language model
         model_settings: Language model settings (or 'major', 'minor',
-            'aux')
+            'aux'). If None (default) take settings from config.toml
         chat_settings: Chat settings for the query
-        print_context: If True, print the RAG context in the output
+        print_context: If True, streams the RAG context
         validate_content: If True, validate response content
         allowed_content: List of allowed content types for validation
         client: Optional pre-configured Qdrant client
