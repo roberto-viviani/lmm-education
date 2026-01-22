@@ -104,7 +104,7 @@ from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.language_models.langchain.runnables import RunnableType
 
 # Import ChatState for domain-specific adapters
-from lmm_education.chat_graph import ChatState
+from .chat_graph import ChatState
 from lmm_education.background_task_manager import schedule_task
 
 

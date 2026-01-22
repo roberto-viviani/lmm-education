@@ -97,14 +97,14 @@ from .config.appchat import (
     CheckResponse,
     load_settings as load_chat_settings,
 )
-from .chat_graph import (
+from lmm_education.models.langchain.workflows.chat_graph import (
     ChatStateGraphType,
     ChatState,
     ChatWorkflowContext,
     workflow_library,
     graph_logger,
 )
-from .stream_adapters import (
+from lmm_education.models.langchain.workflows.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     stream_graph_state,

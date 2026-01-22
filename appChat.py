@@ -29,7 +29,9 @@ from lmm_education.config.appchat import (
     create_default_config_file as create_default_chat_config_file,
     CHAT_CONFIG_FILE,
 )
-from lmm_education.chat_graph import ChatWorkflowContext
+from lmm_education.models.langchain.workflows.chat_graph import (
+    ChatWorkflowContext,
+)
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
@@ -123,7 +125,9 @@ context = ChatWorkflowContext(
 
 # Logging.
 from lmm_education.logging_db import ChatDatabaseInterface
-from lmm_education.chat_graph import graph_logger
+from lmm_education.models.langchain.workflows.chat_graph import (
+    graph_logger,
+)
 from typing import Any
 from collections.abc import Coroutine
 from functools import partial
@@ -146,7 +150,7 @@ async_log_partial: AsyncLogfunType = partial(
 
 # Chat functions to use in gradio callback------------------
 from lmm_education.query import create_chat_stream
-from lmm_education.stream_adapters import (
+from lmm_education.models.langchain.workflows.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     terminal_field_change_adapter,
