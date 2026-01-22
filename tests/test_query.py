@@ -565,7 +565,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 #         validation."""
 #         print("Test query validation: Valid query")
 
-#         from lmm_education.stream_adapters import (
+#         from lmm_education.models.langchain.workflows.stream_adapters import (
 #             tier_1_iterator,
 #             stateful_validation_adapter,
 #         )
@@ -573,7 +573,9 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 #             create_chat_stream,
 #             create_initial_state,
 #         )
-#         from lmm_education.chat_graph import ChatState
+#         from lmm_education.models.langchain.workflows.chat_graph import (
+#             ChatState,
+#         )
 #         from lmm.language_models.langchain.runnables import (
 #             create_runnable,
 #         )
@@ -637,7 +639,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 #         rejection"""
 #         print("Test query validation: Invalid query")
 
-#         from lmm_education.stream_adapters import (
+#         from lmm_education.models.langchain.workflows.stream_adapters import (
 #             tier_1_iterator,
 #             stateful_validation_adapter,
 #         )
@@ -645,7 +647,9 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 #             create_chat_stream,
 #             create_initial_state,
 #         )
-#         from lmm_education.chat_graph import ChatState
+#         from lmm_education.models.langchain.workflows.chat_graph import (
+#             ChatState,
+#         )
 #         from lmm.language_models.langchain.runnables import (
 #             create_runnable,
 #         )
