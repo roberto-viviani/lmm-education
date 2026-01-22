@@ -176,6 +176,42 @@ QUERY: "{query}"
             env_settings,
         )
 
+    def from_instance(
+        self,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+        comment: str | None = None,
+        MSG_EMPTY_QUERY: str | None = None,
+        MSG_WRONG_CONTENT: str | None = None,
+        MSG_LONG_QUERY: str | None = None,
+        MSG_ERROR_QUERY: str | None = None,
+        SYSTEM_MESSAGE: str | None = None,
+        PROMPT_TEMPLATE: str | None = None,
+        max_query_word_count: int | None = None,
+        check_response: CheckResponse | None = None,
+        server: ServerSettings | None = None,
+        chat_database: ChatDatabase | None = None,
+    ) -> 'ChatSettings':
+        return ChatSettings(
+            title=title or self.title,
+            description=description or self.description,
+            comment=comment or self.comment,
+            MSG_EMPTY_QUERY=MSG_EMPTY_QUERY or self.MSG_EMPTY_QUERY,
+            MSG_WRONG_CONTENT=MSG_WRONG_CONTENT
+            or self.MSG_WRONG_CONTENT,
+            MSG_LONG_QUERY=MSG_LONG_QUERY or self.MSG_LONG_QUERY,
+            MSG_ERROR_QUERY=MSG_ERROR_QUERY or self.MSG_ERROR_QUERY,
+            SYSTEM_MESSAGE=SYSTEM_MESSAGE or self.SYSTEM_MESSAGE,
+            PROMPT_TEMPLATE=PROMPT_TEMPLATE or self.PROMPT_TEMPLATE,
+            max_query_word_count=(
+                max_query_word_count or self.max_query_word_count
+            ),
+            check_response=check_response or self.check_response,
+            server=server or self.server,
+            chat_database=chat_database or self.chat_database,
+        )
+
     def __init__(self, **data: Any) -> None:
         """
         Initialize ChatSettings with file existence verification.

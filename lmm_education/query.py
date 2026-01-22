@@ -630,17 +630,18 @@ async def aquery(
         return
 
     # Create dependency injection object
-    context = ChatWorkflowContext(
-        llm=llm,
-        retriever=retriever,
-        chat_settings=chat_settings,
-        logger=logger,
-    )  # override config settings
     response_settings = CheckResponse(
         check_response=validate_content,
         allowed_content=allowed_content,
+    )  # this for override config settings
+    context = ChatWorkflowContext(
+        llm=llm,
+        retriever=retriever,
+        chat_settings=chat_settings.from_instance(
+            check_response=response_settings
+        ),
+        logger=logger,
     )
-    context.chat_settings.check_response = response_settings
 
     # Get the iterator and consume it
     try:

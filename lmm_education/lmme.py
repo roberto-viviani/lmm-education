@@ -515,7 +515,7 @@ def query(
         logger.error(str(e))
         raise typer.Exit(1)
 
-    # this is a workaround for the qdrant bug when clients
+    # this is a workaround for the qdrant issue when clients
     # are closed during garbage collection. We close all
     # clients explicitly prior to exiting when this routine
     # is called from the CLI, i.e. here Python is exiting.
