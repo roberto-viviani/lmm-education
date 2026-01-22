@@ -422,6 +422,9 @@ async def stateful_validation_adapter(
     validation_complete: bool = False
     captured_state: ChatState | None = None
     modified_state: ChatState | None = None
+    # by default, we set the metadata such that the content
+    # is streamed.
+    metadata: dict[str, Any] = {'langgraph_node': "generate"}
 
     async def _validate_content(content: str) -> tuple[bool, str]:
         """Validate content with retry logic."""
@@ -479,7 +482,7 @@ async def stateful_validation_adapter(
 
         # Validation logic only applies to messages
         if mode == "messages" and not validation_complete:
-            chunk, _ = event
+            chunk, metadata = event
             buffer_chunks.append((mode, event))
             buffer_text += chunk.text
 
@@ -504,7 +507,10 @@ async def stateful_validation_adapter(
                     # Yield rejection message
                     yield (
                         "messages",
-                        (AIMessageChunk(content=error_message), {}),
+                        (
+                            AIMessageChunk(content=error_message),
+                            metadata,
+                        ),
                     )
 
                     # Modify state to reflect rejection
@@ -567,9 +573,11 @@ async def stateful_validation_adapter(
                 f"Content rejected with classification: "
                 f"{classification}"
             )
+            # the metadata will be the last captured, or a default
+            # from the "generate" node to allow streaming
             yield (
                 "messages",
-                (AIMessageChunk(content=error_message), {}),
+                (AIMessageChunk(content=error_message), metadata),
             )
 
             if captured_state:
@@ -952,7 +960,14 @@ async def terminal_field_change_adapter(
         if mode == "messages":
             if source_nodes:
                 chunk, metadata = event  # Extract chunk and metadata
-                if metadata["langgraph_node"] in source_nodes:
+                try:
+                    if metadata["langgraph_node"] in source_nodes:
+                        yield chunk.text
+                except Exception as e:
+                    logger.error(
+                        f"Could not retrieve langgraph_node property"
+                        f" in terminal_field_change_adapter:\n{e}"
+                    )
                     yield chunk.text
             else:
                 chunk, _ = event
@@ -1012,6 +1027,8 @@ async def terminal_field_change_adapter(
 async def tier_3_adapter(
     multi_mode_stream: tier_1_iterator,
     source_nodes: list[str] = [],
+    *,
+    logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
     """
     Terminal adapter: de-multiplexes multi-mode stream to messages
@@ -1042,7 +1059,14 @@ async def tier_3_adapter(
         if mode == "messages":
             if source_nodes:
                 chunk, metadata = event  # Extract chunk and metadata
-                if metadata["langgraph_node"] in source_nodes:
+                try:
+                    if metadata["langgraph_node"] in source_nodes:
+                        yield chunk.text
+                except Exception as e:
+                    logger.error(
+                        f"Could not retrieve langgraph_node property"
+                        f" in terminal_field_change_adapter:\n{e}"
+                    )
                     yield chunk.text
             else:
                 chunk, _ = event
