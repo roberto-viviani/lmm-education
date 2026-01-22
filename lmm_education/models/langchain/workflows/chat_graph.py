@@ -262,9 +262,6 @@ def create_chat_workflow() -> ChatStateGraphType:
                         }
                     )
 
-        print("============")
-        print(f"{query}")
-        print("------------")
         return {
             "query_prompt": query,
         }
