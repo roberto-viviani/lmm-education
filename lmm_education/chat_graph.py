@@ -169,10 +169,12 @@ def create_chat_workflow() -> ChatStateGraphType:
         Compiled StateGraph ready for streaming
     """
 
-    async def validate_query(
+    def validate_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:  # ChatState:
+    ) -> dict[str, str | AIMessage]:
         """Validate the user's query for length and content."""
+        # note: separate node hier, as this needs be streamed.
+
         query: str = state.get("query", "")
         settings: ChatSettings = runtime.context.chat_settings
 
@@ -194,17 +196,32 @@ def create_chat_workflow() -> ChatStateGraphType:
                 ),
             }
 
-        # integrate with history
+        return {'status': "valid"}  # no change, everything ok.
+
+    async def integrate_history(
+        state: ChatState, runtime: Runtime[ChatWorkflowContext]
+    ) -> dict[str, str | AIMessage]:
+        """Integrate query with history"""
+        # not for streaming
+
+        query: str = state.get("query", "")
         if state['messages']:
             messages: list[str] = [
-                str(m.content) for m in state['messages']  # type: ignore
+                str(m.content)
+                for m in state['messages']
+                if isinstance(m.content, str)
             ]
+            # TODO: configure this through context
             config = ConfigSettings()
             model = create_runnable("summarizer", config.aux)
             summary: str = await model.ainvoke(
                 {'text': "\n---\n".join(messages)}
             )
-            query = f"Context from previous interaction: {summary}\n\nUser query: {query}"
+            summary = summary.replace('text', 'chat')
+            query = (
+                f"Context from previous interaction: "
+                f"{summary}\n\nUser query: {query}"
+            )
 
         normalized_query: str = query.replace(
             "the textbook", "the context provided"
@@ -218,6 +235,7 @@ def create_chat_workflow() -> ChatStateGraphType:
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:
         """Retrieve relevant documents from vector store."""
+
         query: str = state["query_prompt"]
         config: ChatWorkflowContext = runtime.context
 
@@ -261,6 +279,7 @@ def create_chat_workflow() -> ChatStateGraphType:
     ) -> dict[str, str | AIMessage]:
         """Format the query with retrieved context using prompt
         template."""
+
         context: str = state.get("context", "")
         query: str = state["query_prompt"]
         settings: ChatSettings = runtime.context.chat_settings
@@ -295,6 +314,8 @@ def create_chat_workflow() -> ChatStateGraphType:
             but when using astream() with stream_mode="messages",
             you'll receive chunks as they're generated.
         """
+        # for streaming
+
         config: ChatWorkflowContext = runtime.context
         messages = prepare_messages_for_llm(
             state, config.system_message
@@ -332,6 +353,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     # Add nodes
     workflow.add_node("validate_query", validate_query)
+    workflow.add_node("integrate_history", integrate_history)
     workflow.add_node("retrieve_context", retrieve_context)
     workflow.add_node("format_query", format_query)
     workflow.add_node("generate", generate)
@@ -342,10 +364,11 @@ def create_chat_workflow() -> ChatStateGraphType:
         "validate_query",
         should_retrieve,
         {
-            "retrieve": "retrieve_context",
+            "retrieve": "integrate_history",
             "error": END,
         },
     )
+    workflow.add_edge("integrate_history", "retrieve_context")
     workflow.add_edge("retrieve_context", "format_query")
     workflow.add_edge("format_query", "generate")
     workflow.add_edge("generate", END)
