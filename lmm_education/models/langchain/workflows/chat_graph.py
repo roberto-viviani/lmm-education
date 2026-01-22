@@ -21,6 +21,7 @@ previously conflated in the history parameter.
 # ruff: noqa: E402
 
 from typing import TypedDict, Literal, Annotated
+from math import ceil
 
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
@@ -218,17 +219,18 @@ def create_chat_workflow() -> ChatStateGraphType:
                 {'text': "\n---\n".join(messages)}
             )
             summary = summary.replace('text', 'chat')
-            query = (
-                f"Context from previous interaction: "
-                f"{summary}\n\nUser query: {query}"
-            )
 
-        normalized_query: str = query.replace(
-            "the textbook", "the context provided"
-        )
+            # re-weight summary and query
+            weight: int = ceil(
+                len(summary.split()) / len(query.split())
+            )
+            query = " ".join([query] * weight)
+
+            # join summary and query
+            query = f"{summary}\n\nUser query: {query}"
 
         return {
-            "query_prompt": normalized_query,
+            "query_prompt": query,
         }
 
     async def retrieve_context(
@@ -281,7 +283,8 @@ def create_chat_workflow() -> ChatStateGraphType:
         template."""
 
         context: str = state.get("context", "")
-        query: str = state["query_prompt"]
+        query: str = state["query"]
+
         settings: ChatSettings = runtime.context.chat_settings
 
         # Convert LaTeX delimiters for display
@@ -297,6 +300,9 @@ def create_chat_workflow() -> ChatStateGraphType:
             context=formatted_context,
             query=query,
         )
+
+        print("\n==================")
+        print(formatted_query)
 
         return {"query_prompt": formatted_query}
 
