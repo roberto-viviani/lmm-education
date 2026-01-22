@@ -4,7 +4,6 @@ import asyncio
 import gradio as gr
 from functools import partial
 
-# from lmm_education.apputils import async_log_factory, AsyncLogfuncType
 from lmm_education.config.config import (
     ConfigSettings,
     export_settings,
