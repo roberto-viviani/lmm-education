@@ -6,62 +6,80 @@ model about the content of the video.
 # errors line initiates with blank for strings
 # flake8: noqa
 
-# basic imports
 import os
 import time
+from datetime import datetime
+from collections.abc import (
+    AsyncGenerator,
+    Callable,
+)
 import json
-from typing import TypedDict, NamedTuple
-from collections.abc import Callable
 
+# Libraries
 import gradio as gr
+from langchain_core.language_models import BaseChatModel
 
-# logs
+# lmm_education and lmm
+from lmm_education.models.langchain.workflows.chat_graph import (
+    ChatWorkflowContext,
+)
+from lmm.language_models.langchain.models import (
+    create_model_from_settings,
+)
+from lmm.utils.hash import generate_random_string
+
+# Logging of info and errors. Set up first to allow
+# logging errors suring the rest of the setup.
 import logging
-from lmm.utils.logging import FileConsoleLogger # fmt: skip
+from lmm.utils.logging import FileConsoleLogger  # fmt: skip
+
 logger = FileConsoleLogger(
-    "LM Markdown for Education - Videocast",
-    "appVideocast.log",
+    "LM Markdown for Education",
+    "appWebcast.log",
     console_level=logging.INFO,
     file_level=logging.ERROR,
 )
 
-# settings.
-from lmm_education.apputils import async_log_factory, AsyncLogfuncType
-from lmm_education.config.config import (
-    ConfigSettings,
-    load_settings,
+# The appbase module centralizes set up of all app-modules such as
+# the present one.
+try:
+    from lmm_education.appbase import appbase as base
+except Exception as e:
+    logger.error(f"Could not start application. {e}")
+    exit()
+
+# This is displayed on the chatbot, as specified in the chat
+# config file.
+title: str = base.chat_settings.title
+description: str = base.chat_settings.description
+
+# We now set up the major language model used for chatting.
+# By default, we use the 'major' category set up in config.toml,
+# but this may be changed manually here.
+try:
+    llm: BaseChatModel = create_model_from_settings(
+        base.settings.major
+    )
+except Exception as e:
+    logger.error(f"Could not create LLM: {e}")
+    exit()
+
+# Create dependency injection object. The graph uses a dependency
+# injection object, which we load with the objects created at setup.
+context = ChatWorkflowContext(
+    llm=llm,
+    retriever=base.retriever,
+    chat_settings=base.chat_settings,
+    logger=logger,
 )
-from lmm_education.config.appchat import (
-    ChatSettings,
-    load_settings as load_chat_settings,
-)
+
+# - Lecture list------------------------------------------------
+# Load the lecture list from the json file defining the script
 from lmm_education.config.appwebcast import (
     SOURCE_DIR,
     SLIDE_GAP,
 )
 
-settings: ConfigSettings | None = load_settings()
-if settings is None:
-    exit()
-
-chat_settings: ChatSettings | None = load_chat_settings(logger=logger)
-if chat_settings is None:
-    exit()
-
-
-# RAGS imports
-from openai import OpenAI
-
-aiclient = OpenAI()
-
-# check if there is a file 'lecture_list.json' in the Sources directory. If not, exit.
-if not os.path.exists(f'{SOURCE_DIR}lecture_list.json'):
-    logger.error(
-        f"lecture_list.json not found in {SOURCE_DIR} directory."
-    )
-    exit()
-
-# Load the lecture list from the json file defining the script
 with open(f"{SOURCE_DIR}lecture_list.json", "r") as file:
     lecture_list = json.load(file)
 
@@ -95,21 +113,203 @@ if video_file_missing:
     exit(1)
 
 
-# load retriever
-from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-    AsyncQdrantVectorStoreRetriever as Retriever,
+# -Database------------------------------------------------------
+# Logging of exchange in database. The exchange may be graph-
+# -specific: we load graph_logger from the same graph definition
+# we will be using later.
+from lmm_education.logging_db import ChatDatabaseInterface
+from lmm_education.models.langchain.workflows.chat_graph import (
+    graph_logger,
 )
-from langchain_core.retrievers import BaseRetriever
+from typing import Any
+from collections.abc import Coroutine
+from functools import partial
+import atexit
 
-# TODO: revise from_config_settings with logger and None result
-try:
-    retriever: BaseRetriever = Retriever.from_config_settings()
-except Exception as e:
-    logger.error(f"Could not open database: {e}")
-    exit(1)
+# We use the database as specified in config.toml.
+logging_database: ChatDatabaseInterface
+logging_database = ChatDatabaseInterface.from_config()
+
+# Register cleanup handler to ensure files are closed
+# on exit. The database will already be closed if the
+# app is run through main.
+atexit.register(logging_database.close)
+
+AsyncLogfunType = partial[Coroutine[Any, Any, None]]
+async_log_partial: AsyncLogfunType = partial(
+    graph_logger, database=logging_database, context=context
+)
+
+# Chat functions to use in gradio callback------------------
+from lmm_education.query import create_chat_stream
+from lmm_education.models.langchain.workflows.stream_adapters import (
+    tier_1_iterator,
+    tier_3_iterator,
+    terminal_field_change_adapter,
+)
+
+# centralize used latex style, perhaps depending
+# on model.
+from lmm_education.apputils import preproc_markdown_factory
+
+_preproc_for_markdown: Callable[[str], str] = (
+    preproc_markdown_factory(base.settings.major)
+)
 
 
-# ========== STATE MANAGEMENT FUNCTIONS ==========
+# Callback for Gradio to call when a chat message is sent.
+async def gradio_callback_fn(
+    querytext: str,
+    history: list[dict[str, str]],
+    request: gr.Request,
+    async_log: AsyncLogfunType | None = None,
+) -> AsyncGenerator[str, None]:
+    """
+    This function is called by the gradio framework each time the
+    user posts a new message in the chatbot. The user message is the
+    querytext, the history the list of previous exchanges.
+    request is a wrapper around FastAPI information, used to write a
+    session ID in the logs. Note we collect IP address.
+
+    The content of the response is streamed using the appropriate
+    chat_function from lmm_education.query.
+    """
+
+    # this only to override closure in testing
+    if async_log is None:
+        async_log = async_log_partial
+
+    # Safely extract client host and session hash
+    client_host: str = getattr(
+        getattr(request, "client", None), "host", "[in-process]"
+    )
+    session_hash: str = getattr(request, "session_hash", "[none]")
+
+    # Create stream
+    buffer: str = ""
+    try:
+        stream_raw: tier_1_iterator = create_chat_stream(
+            querytext=querytext,
+            history=history or None,
+            context=context,
+            validate=context.chat_settings.check_response,
+            database_log=False,  # do downstream in on_terminal_state
+            logger=logger,
+        )
+
+        stream: tier_3_iterator = terminal_field_change_adapter(
+            stream_raw,
+            source_nodes=["generate", "validate_query"],
+            on_terminal_state=partial(
+                async_log,
+                client_host=client_host,
+                session_hash=session_hash,
+                timestamp=None,  # will be set at time of msg
+                record_id=None,  # handled by logger
+            ),
+        )
+    except Exception as e:
+        logger.error(f"Could not create stream: {e}")
+        yield context.chat_settings.MSG_ERROR_QUERY
+        return
+
+    try:
+        # Stream and yield for Gradio
+        async for item in stream:
+            buffer += _preproc_for_markdown(item)
+            yield buffer
+
+    except Exception as e:
+        logger.error(
+            f"{client_host}: {e}\nOFFENDING QUERY:\n{querytext}\n\n"
+        )
+        buffer = str(e)
+        yield context.chat_settings.MSG_ERROR_QUERY
+        return
+
+    return
+
+
+async def vote(
+    data: gr.LikeData,
+    request: gr.Request,
+    logging_db: ChatDatabaseInterface | None = None,
+):
+    """
+    Async function to log user reactions (like/dislike) to messages.
+    """
+    # this to override closure for testing purposes
+    if logging_db is None:
+        logging_db = logging_database
+
+    record_id = generate_random_string()
+    reaction = "approved" if data.liked else "disapproved"
+
+    # Safely extract client host and session hash
+    client_host: str = getattr(
+        getattr(request, "client", None), "host", "unknown"
+    )
+    session_hash: str = getattr(request, "session_hash", "unknown")
+
+    logging_db.schedule_message(
+        record_id=record_id,
+        client_host=client_host,
+        session_hash=session_hash,
+        timestamp=datetime.now(),
+        message_count=0,
+        model_name="",
+        interaction_type="USER REACTION",
+        query=reaction,
+        response="",
+    )
+
+
+def clearchat() -> None:
+    pass
+
+
+async def postcomment(
+    comment: object,
+    request: gr.Request,
+    logging_db: ChatDatabaseInterface | None = None,
+):
+    """
+    Async function to log user comments.
+    """
+    # this to override closure for testing purposes
+    if logging_db is None:
+        logging_db = logging_database
+
+    record_id = generate_random_string()
+
+    # Safely extract client host and session hash
+    client_host: str = getattr(
+        getattr(request, "client", None), "host", "unknown"
+    )
+    session_hash: str = getattr(request, "session_hash", "unknown")
+
+    logging_db.schedule_message(
+        record_id=record_id,
+        client_host=client_host,
+        session_hash=session_hash,
+        timestamp=datetime.now(),
+        message_count=0,
+        model_name="",
+        interaction_type="USER COMMENT",
+        query=str(comment),
+        response="",
+    )
+
+
+ldelims: list[dict[str, str | bool]] = [
+    {"left": "$$", "right": "$$", "display": True},
+    {"left": "$", "right": "$", "display": False},
+    {"left": r"\[", "right": r"\]", "display": True},
+    {"left": r"\(", "right": r"\)", "display": False},
+]
+
+# =Gradio interface: state management functions-----------------
+from typing import TypedDict, NamedTuple
 
 
 class SessionStateDict(TypedDict):
@@ -500,218 +700,6 @@ def _toggle_autoplay(
     return (button_text, new_mode, history)
 
 
-# ========== CHATBOT FUNCTIONS ===================
-
-# We need to define fn and fn_checked here, rather than
-# importing them, as we need to get the closure with the
-# present vector database, not that in appChat.
-# The signature of these functions is determined by
-# Gradio so it is not clear if it makes sense to pass
-# in the vector database.
-# Furthermore, just importing from appChat will result
-# in a new model-level instantiation of the retriever
-# from the same database. Hence, we need to copy all relevant
-# functions instead of importing them.
-
-from datetime import datetime
-import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator
-from langchain_core.messages import BaseMessageChunk
-from langchain_core.language_models import BaseChatModel
-from lmm.utils.hash import generate_random_string
-
-# logs
-from lmm.utils.logging import FileConsoleLogger # fmt: skip
-logger = FileConsoleLogger(
-    "LM Markdown for Education",
-    "appChat.log",
-    console_level=logging.INFO,
-    file_level=logging.ERROR,
-)
-DATABASE_FILE = "messages.csv"
-CONTEXT_DATABASE_FILE = "queries.csv"
-
-# Initialize CSV database files with headers if they don't exist
-if not os.path.exists(DATABASE_FILE):
-    with open(DATABASE_FILE, "w", encoding='utf-8') as f:
-        f.write(
-            "record_id,client_host,session_hash,timestamp,history_length,model_name,interaction_type,query,response\n"
-        )
-
-if not os.path.exists(CONTEXT_DATABASE_FILE):
-    with open(CONTEXT_DATABASE_FILE, "w", encoding='utf-8') as f:
-        f.write("record_id,evaluation,context,classification\n")
-
-# Set up a global container of active tasks (used by logging)
-active_logs: set[asyncio.Task[None]] = set()
-async_log: AsyncLogfuncType = async_log_factory(
-    DATABASE_FILE, CONTEXT_DATABASE_FILE, logger
-)
-
-
-# Create chat engine.
-from langchain_core.prompts import PromptTemplate # fmt: skip
-prompt: PromptTemplate = PromptTemplate.from_template(
-    chat_settings.PROMPT_TEMPLATE
-)
-
-from lmm.language_models.langchain.models import (
-    create_model_from_settings,
-)
-
-llm: BaseChatModel = create_model_from_settings(settings.major)
-
-from lmm_education.query import (
-    chat_function,
-    chat_function_with_validation,
-)
-
-# Chat functions to use in gradio callback
-# (imported again to be explicit - linter may show duplicate warning)
-
-# Type for async generator chat functions (now returns AsyncIterator directly)
-AsyncChatfuncType = Callable[..., AsyncIterator[BaseMessageChunk]]
-_chat_function: AsyncChatfuncType
-
-if chat_settings.check_response.check_response:
-    _chat_function = chat_function_with_validation
-else:
-    _chat_function = chat_function
-
-# centralize used latex style, perhaps depending
-# on model.
-from lmm_education.apputils import preproc_markdown_factory
-
-_preproc_for_markdown: Callable[[str], str] = (
-    preproc_markdown_factory(settings.major)
-)
-
-
-# Callback for Gradio to call when a chat message is sent.
-async def gradio_callback_fn(
-    querytext: str, history: list[dict[str, str]], request: gr.Request
-) -> AsyncGenerator[str, None]:
-    """
-    This function is called by the gradio framework each time the
-    user posts a new message in the chatbot. The user message is the
-    querytext, the history the list of previous exchanges.
-    request is a wrapper around FastAPI information, used to write a
-    session ID in the logs. Note we collect IP address.
-
-    The content of the response is streamed using the appropriate
-    chat_function from lmm_education.query.
-    """
-
-    # Get iterator from refactored chat_function
-    # Note: chat_function is now an async generator that returns
-    # AsyncIterator directly, not a coroutine
-    buffer: str = ""
-    if chat_settings is None:
-        raise ValueError("Unreachable code reached")
-    try:
-        response_iter: AsyncIterator[BaseMessageChunk] = (
-            _chat_function(
-                querytext=querytext,
-                history=history,
-                retriever=retriever,
-                llm=llm,
-                chat_settings=chat_settings,
-                system_msg=chat_settings.SYSTEM_MESSAGE,
-                logger=logger,
-            )
-        )
-
-        # Stream and yield for Gradio
-        async for item in response_iter:
-            buffer += _preproc_for_markdown(item.text)
-            yield buffer
-
-        # Non-blocking logging hook - fires after streaming completes
-        record_id: str = generate_random_string()
-        model_name: str = settings.major.get_model_name()  # type: ignore
-        logtask: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
-            async_log(
-                record_id=record_id,
-                client_host=request.client.host,  # type: ignore
-                session_hash=request.session_hash or 'unknown',
-                timestamp=datetime.now(),
-                interaction_type="MESSAGE",
-                history=history,
-                query=querytext,
-                response=buffer,
-                model_name=model_name,
-            )
-        )
-        active_logs.add(logtask)
-        logtask.add_done_callback(active_logs.discard)
-
-    except Exception as e:
-        logger.error(
-            f"{request.client.host}: "  # type: ignore (dynamic properties)
-            f"{e}\nOFFENDING QUERY:\n{querytext}\n\n"
-        )
-        buffer = str(e)
-        yield chat_settings.MSG_ERROR_QUERY
-        return
-
-    return
-
-
-async def vote(data: gr.LikeData, request: gr.Request):
-    """
-    Async function to log user reactions (like/dislike) to messages.
-    """
-    record_id = generate_random_string()
-    reaction = "approved" if data.liked else "disapproved"
-
-    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (confused)
-        async_log(
-            record_id=record_id,
-            client_host=request.client.host,  # type: ignore
-            session_hash=request.session_hash or 'unknown',
-            timestamp=datetime.now(),
-            interaction_type="USER REACTION",
-            history=[],
-            query=reaction,
-            response="",
-            model_name="",
-        )
-    )
-    active_logs.add(task)
-    task.add_done_callback(active_logs.discard)
-
-
-async def postcomment(comment: object, request: gr.Request):
-    """
-    Async function to log user comments.
-    """
-    record_id = generate_random_string()
-
-    task: asyncio.Task[None] = asyncio.create_task(  # type: ignore (pyright confused)
-        async_log(
-            record_id=record_id,
-            client_host=request.client.host,  # type: ignore
-            session_hash=request.session_hash or 'unknown',
-            timestamp=datetime.now(),
-            interaction_type="USER COMMENT",
-            history=[],
-            query=str(comment),
-            response="",
-            model_name="",
-        )
-    )
-    active_logs.add(task)
-    task.add_done_callback(active_logs.discard)
-
-
-ldelims: list[dict[str, str | bool]] = [
-    {"left": "$$", "right": "$$", "display": True},
-    {"left": "$", "right": "$", "display": False},
-    {"left": r"\[", "right": r"\]", "display": True},
-    {"left": r"\(", "right": r"\)", "display": False},
-]
-
-
 # ========== INTERFACE ===========================
 
 # Create a Gradio interface to play the video slides
@@ -808,7 +796,7 @@ with gr.Blocks() as videocast:
                 chatbot=chat,
             )
             comment_label = gr.Markdown(
-                chat_settings.comment, visible=False
+                base.chat_settings.comment, visible=False
             )
             comment = gr.Textbox(
                 label="Comment:",
@@ -941,48 +929,25 @@ with gr.Blocks() as videocast:
 
 if __name__ == "__main__":
     # run the app
-    from lmm_education.config.appchat import ChatSettings
-    from lmm.utils.logging import ConsoleLogger
 
-    logger = ConsoleLogger()
-
+    settings = base.chat_settings
     try:
-        chat_settings = ChatSettings()
-    except Exception as e:
-        logger.error("Could not load chat settings:\n" + str(e))
-        exit()
-
-    if chat_settings.server.mode == "local":
-        videocast.launch(
-            server_port=chat_settings.server.port,
-            show_api=False,
-            # auth=('accesstoken', 'hackerbrücke'),
-        )
-    else:
-        # allow public access on internet computer
-        videocast.launch(
-            server_name='85.124.80.91',  # probably not necessary
-            server_port=chat_settings.server.port,
-            show_api=False,
-            # decomment to create login
-            # auth=('accesstoken', 'hackerbrücke'),
-        )
-
-    # cleanup - asyncio diagnostics after Gradio closes
-    from lmm_education.apputils import shutdown
-
-    # Check if there's a running loop
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # No running loop - just use asyncio.run()
-        asyncio.run(shutdown(active_logs))
-    else:
-        # Loop is running - use it directly
-        if loop.is_running():
-            import nest_asyncio  # type: ignore[reportMissingTypeStubs]
-
-            nest_asyncio.apply()  # type: ignore
-            loop.run_until_complete(shutdown(active_logs))
+        if settings.server.mode == "local":
+            videocast.launch(
+                server_port=settings.server.port,
+                show_api=False,
+                # auth=('accesstoken', 'hackerbrücke'),
+            )
         else:
-            asyncio.run(shutdown(active_logs))
+            # allow public access on internet computer
+            videocast.launch(
+                server_name='85.124.80.91',  # probably not necessary
+                server_port=settings.server.port,
+                show_api=False,
+                # decomment to create login
+                # auth=('accesstoken', 'hackerbrücke'),
+            )
+    except Exception as e:
+        logger.error(f"Could not run the app: {e}")
+    finally:
+        logging_database.close()

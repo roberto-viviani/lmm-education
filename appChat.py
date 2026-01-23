@@ -5,29 +5,18 @@ Entry point for the RAG model chat application.
 # ruff: noqa: E402
 
 from datetime import datetime
-import os
 from collections.abc import (
     AsyncGenerator,
     Callable,
 )
 
-
+# Libraries
 import gradio as gr
-from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
 # lmm_education and lmm
-from lmm_education.config.config import (
-    ConfigSettings,
-    load_settings,
-    create_default_config_file,
-    DEFAULT_CONFIG_FILE,
-)
 from lmm_education.config.appchat import (
     ChatSettings,
-    load_settings as load_chat_settings,
-    create_default_config_file as create_default_chat_config_file,
-    CHAT_CONFIG_FILE,
 )
 from lmm_education.models.langchain.workflows.chat_graph import (
     ChatWorkflowContext,
@@ -37,7 +26,8 @@ from lmm.language_models.langchain.models import (
 )
 from lmm.utils.hash import generate_random_string
 
-# logs
+# Logging of info and errors. Set up first to allow
+# logging errors suring the rest of the setup.
 import logging
 from lmm.utils.logging import FileConsoleLogger  # fmt: skip
 
@@ -48,82 +38,43 @@ logger = FileConsoleLogger(
     file_level=logging.ERROR,
 )
 
-# Config files. If config.toml does not exist, create it
-if not os.path.exists(DEFAULT_CONFIG_FILE):
-    create_default_config_file(DEFAULT_CONFIG_FILE)
-    logger.info(
-        f"{DEFAULT_CONFIG_FILE} created in app folder, change as appropriate"
-    )
-
-settings: ConfigSettings | None = load_settings()
-if settings is None:
-    logger.error("Could not load settings")
-    exit()
-
-if not os.path.exists(CHAT_CONFIG_FILE):
-    create_default_chat_config_file(CHAT_CONFIG_FILE)
-    logger.info(
-        f"{CHAT_CONFIG_FILE} created in app folder, change as appropriate"
-    )
-
-chat_settings: ChatSettings | None = load_chat_settings()
-if chat_settings is None:
-    logger.error("Could not load chat settings")
-    exit()
-
-# This is displayed on the chatbot. Change it as appropriate
-title: str = chat_settings.title
-description: str = chat_settings.description
-
-#  create retriever
-from langchain_core.retrievers import BaseRetriever
-from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-    AsyncQdrantVectorStoreRetriever as QdrantRetriever,
-)
-
-# will return grouped retriever if appropriate
+# The appbase module centralizes set up of all app-modules such as
+# the present one.
 try:
-    retriever: BaseRetriever = QdrantRetriever.from_config_settings()
+    from lmm_education.appbase import appbase as base
 except Exception as e:
-    logger.error(f"Could not create retriever: {e}")
+    logger.error(f"Could not start application. {e}")
     exit()
 
+# This is displayed on the chatbot, as specified in the chat
+# config file.
+title: str = base.chat_settings.title
+description: str = base.chat_settings.description
+
+# We now set up the major language model used for chatting.
+# By default, we use the 'major' category set up in config.toml,
+# but this may be changed manually here.
 try:
-    llm: BaseChatModel = create_model_from_settings(settings.major)
+    llm: BaseChatModel = create_model_from_settings(
+        base.settings.major
+    )
 except Exception as e:
     logger.error(f"Could not create LLM: {e}")
     exit()
 
-# An embedding engine object is created here just to load the engine.
-# This avoids the first query to take too long. The object is cached
-# internally, so we do not actually use the embedding object here.
-from lmm.language_models.langchain.runnables import create_embeddings
-from requests import ConnectionError
-
-try:
-    embedding: Embeddings = create_embeddings()
-    if "SentenceTransformer" not in settings.embeddings.dense_model:
-        embedding.embed_query("Test data")
-except ConnectionError as e:
-    print("Could not connect to the model provider -- no internet?")
-    print(f"Error message:\n{e}")
-    exit()
-except Exception as e:
-    print(
-        "Could not connect to the model provider due to a system error."
-    )
-    print(f"Error message:\n{e}")
-    exit()
-
-# Create dependency injection object
+# Create dependency injection object. The graph uses a dependency
+# injection object, which we load with the objects created at setup.
 context = ChatWorkflowContext(
     llm=llm,
-    retriever=retriever,
-    chat_settings=chat_settings,
+    retriever=base.retriever,
+    chat_settings=base.chat_settings,
     logger=logger,
 )
 
-# Logging.
+# -Database------------------------------------------------------
+# Logging of exchange in database. The exchange may be graph-
+# -specific: we load graph_logger from the same graph definition
+# we will be using later.
 from lmm_education.logging_db import ChatDatabaseInterface
 from lmm_education.models.langchain.workflows.chat_graph import (
     graph_logger,
@@ -161,7 +112,7 @@ from lmm_education.models.langchain.workflows.stream_adapters import (
 from lmm_education.apputils import preproc_markdown_factory
 
 _preproc_for_markdown: Callable[[str], str] = (
-    preproc_markdown_factory(settings.major)
+    preproc_markdown_factory(base.settings.major)
 )
 
 
@@ -193,12 +144,6 @@ async def gradio_callback_fn(
     )
     session_hash: str = getattr(request, "session_hash", "[none]")
 
-    # chat_settings is captured by closure, but type checker...
-    if chat_settings is None:
-        raise ValueError(
-            "Unreachable code reached: in gradio_callback_fn"
-        )
-
     # Create stream
     buffer: str = ""
     try:
@@ -206,7 +151,7 @@ async def gradio_callback_fn(
             querytext=querytext,
             history=history or None,
             context=context,
-            validate=chat_settings.check_response,
+            validate=context.chat_settings.check_response,
             database_log=False,  # do downstream in on_terminal_state
             logger=logger,
         )
@@ -224,7 +169,7 @@ async def gradio_callback_fn(
         )
     except Exception as e:
         logger.error(f"Could not create stream: {e}")
-        yield chat_settings.MSG_ERROR_QUERY
+        yield context.chat_settings.MSG_ERROR_QUERY
         return
 
     try:
@@ -238,7 +183,7 @@ async def gradio_callback_fn(
             f"{client_host}: {e}\nOFFENDING QUERY:\n{querytext}\n\n"
         )
         buffer = str(e)
-        yield chat_settings.MSG_ERROR_QUERY
+        yield context.chat_settings.MSG_ERROR_QUERY
         return
 
     return
@@ -315,7 +260,7 @@ async def postcomment(
     )
 
 
-# create the app-------------------------------------
+# Gradio app definition ---------------------------------------------
 # latex delimeters for gradio.
 ldelims: list[dict[str, str | bool]] = [
     {"left": "$$", "right": "$$", "display": True},
@@ -344,7 +289,7 @@ with gr.Blocks() as app:
         save_history=True,
         chatbot=chatbot,
     )
-    gr.Markdown(chat_settings.comment)
+    gr.Markdown(base.chat_settings.comment)
     comment = gr.Textbox(label="Comment:", submit_btn="Post comment")
     comment.submit(fn=postcomment, inputs=comment, outputs=comment)
 
@@ -352,16 +297,11 @@ with gr.Blocks() as app:
 if __name__ == "__main__":
     # run the app
 
+    settings: ChatSettings = base.chat_settings
     try:
-        chat_settings = ChatSettings()
-    except Exception as e:
-        logger.error("Could not load chat settings:\n" + str(e))
-        exit()
-
-    try:
-        if chat_settings.server.mode == "local":
+        if settings.server.mode == "local":
             app.launch(
-                server_port=chat_settings.server.port,
+                server_port=settings.server.port,
                 show_api=False,
                 auth=("accesstoken", "hackerbrücke"),
             )
@@ -369,7 +309,7 @@ if __name__ == "__main__":
             # allow public access on internet computer
             app.launch(
                 server_name="85.124.80.91",  # keep this
-                server_port=chat_settings.server.port,
+                server_port=settings.server.port,
                 show_api=False,
                 auth=("accesstoken", "hackerbrücke"),
             )
