@@ -21,6 +21,8 @@ import atexit
 original_settings = ConfigSettings()
 atexit.register(export_settings, original_settings)
 
+# switch on for interactive debug
+print_messages: bool = False
 
 def setUpModule():
     settings = ConfigSettings(
@@ -102,23 +104,24 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             initial_state, context=context
         )
 
-        print("===================================")
-        print(
-            f"There are {len(end_state["messages"])} messages in the end state\n"
-        )
-        messages = end_state["messages"]
-        counter = 0
-        for m in messages:
-            counter += 1
-            print(f"MESSAGE {counter}:")
-            print(m)
-            print("------\n")
+        if print_messages:
+            print("===================================")
+            msgs = end_state["messages"]
+            print(
+                f"There are {len(msgs)} messages in the end state\n"
+            )
+            counter = 0
+            for m in msgs:
+                counter += 1
+                print(f"MESSAGE {counter}:")
+                print(m)
+                print("------\n")
 
-        print(
-            f"\nThere is {"a" if end_state["response"] else "no"} response"
-        )
-        if end_state['response']:
-            print(end_state['response'])
+            resp = end_state["response"]
+            if resp:
+                print(f"Response: {resp}")
+            else:
+                print("No response")
 
         self.assertGreater(len(end_state["response"]), 0)
 
@@ -144,9 +147,10 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             )
             text = text + str(chunk.text)  # type: ignore
 
-        print("===================================")
-        print(f"There were {counter} chunks:\n")
-        print(text)
+        if print_messages:
+            print("===================================")
+            print(f"There were {counter} chunks:\n")
+            print(text)
 
         self.assertGreater(len(text), 0)
 
@@ -167,24 +171,24 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             counter += 1
             end_state = event  # type: ignore
 
-        print("===================================")
-        print(f"There were {counter} chunks:\n")
-        print(
-            f"There are {len(end_state["messages"])} messages in the end state\n"
-        )
-        print(
-            f"There is {"a" if end_state["response"] else "no"} response in the end state\n"
-        )
-        messages = end_state["messages"]
-        counter = 0
-        for m in messages:
-            counter += 1
-            print(f"MESSAGE {counter}:")
-            print(m)
-            print("------\n")
-
-        if end_state['response']:
-            print(f"RESPONSE:\n{end_state['response']}")
+        if print_messages:
+            print("===================================")
+            print(f"There were {counter} chunks:\n")
+            msgs = end_state["messages"]
+            print(
+                f"There are {len(msgs)} messages in the end state\n"
+            )
+            resp = end_state["response"]
+            if resp:
+                print(f"Response: {resp}")
+            else:
+                print("No response")
+            counter = 0
+            for m in msgs:
+                counter += 1
+                print(f"MESSAGE {counter}:")
+                print(m)
+                print("------\n")
 
         self.assertTrue(end_state['response'])
 
@@ -202,13 +206,15 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             initial_state, context=context, stream_mode="updates"
         ):
             counter += 1
-            print("======================")
-            print(f"Chunk event {counter}:\n")
-            for k in event.keys():
-                print(f"{k}: {event[k]}\n")
+            if print_messages:
+                print("======================")
+                print(f"Chunk event {counter}:\n")
+                for k in event.keys():
+                    print(f"{k}: {event[k]}\n")
 
-        print("===================================")
-        print(f"There were {counter} chunks")
+        if print_messages:
+            print("===================================")
+            print(f"There were {counter} chunks")
 
         self.assertGreater(counter, 0)
 
@@ -235,36 +241,41 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             if mode == "messages":
                 counter_msg += 1
                 chunk, meta = event
-                print(
-                    f"message {counter_msg} from "
-                    f"{meta['langgraph_node']} node: "  # type: ignore
-                    f"{chunk.text}"  # type: ignore
-                )
+                if print_messages:
+                    print(
+                        f"message {counter_msg} from "
+                        f"{meta['langgraph_node']} node: "  # type: ignore
+                        f"{chunk.text}"  # type: ignore
+                    )
                 text = text + str(chunk.text)  # type: ignore
             elif mode == "values":
                 counter_val += 1
                 end_state = event
 
-        print("===================================")
-        print(
-            f"There were {counter} chunks ({counter_msg} "
-            f"messages and {counter_val} values):\n"
-        )
-        print(text)
-        print("---------")
-        print(
-            f"\nThere are {len(end_state["messages"])} messages in the end state\n"
-        )
-        messages = end_state["messages"]
-        counter = 0
-        for m in messages:
-            counter += 1
-            print(f"MESSAGE {counter}:")
-            print(m)
-            print("------\n")
+        if print_messages:
+            print("===================================")
+            print(
+                f"There were {counter} chunks ({counter_msg} "
+                f"messages and {counter_val} values):\n"
+            )
+            print(text)
+        if print_messages:
+            msgs = end_state["messages"]
+            print("---------")
+            print(
+                f"\nThere are {len(msgs)} messages in the end state\n"
+            )
+            counter = 0
+            for m in msgs:
+                counter += 1
+                if print_messages:
+                    print(f"MESSAGE {counter}:")
+                    print(m)
+                    print("------\n")
 
-        if end_state['response']:
-            print(f"RESPONSE:\n{end_state['response']}")
+        if print_messages and end_state['response']:
+            resp = end_state['response']
+            print(f"RESPONSE:\n{resp}")
 
         self.assertTrue(end_state['response'])
 

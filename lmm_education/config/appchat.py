@@ -154,6 +154,11 @@ QUERY: "{query}"
         default='context_extraction',
         description="Technique for the integration of history",
     )
+    history_length: int = Field(
+        default=2,
+        ge=0,
+        description="Number of exchanges to include in history",
+    )
 
     # thematic control of interaction
     check_response: CheckResponse = Field(

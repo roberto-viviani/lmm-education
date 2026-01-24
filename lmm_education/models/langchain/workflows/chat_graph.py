@@ -206,14 +206,20 @@ def create_chat_workflow() -> ChatStateGraphType:
         # not for streaming
 
         query: str = state.get("query", "")
+        context: ChatWorkflowContext = runtime.context
 
-        if state['messages']:
-            messages: list[str] = [
-                str(m.content)
-                for m in state['messages']
-                if isinstance(m.content, str)
-            ]
-            match runtime.context.chat_settings.history_integration:
+        messages: list[str] = [
+            str(m.content)
+            for m in state['messages']
+            if isinstance(m.content, str)
+        ]
+        if not messages:
+            return {
+                "query_prompt": query,
+            }
+
+        try:
+            match context.chat_settings.history_integration:
                 case 'none':
                     pass
                 case 'summary':
@@ -245,7 +251,8 @@ def create_chat_workflow() -> ChatStateGraphType:
                     )
                     summary = summary.replace('text', 'chat')
 
-                    # re-weight summary and query
+                    # re-weight summary and query. We repeat query
+                    # to increase its wieght in the embedding.
                     weight: int = ceil(
                         len(summary.split()) / len(query.split())
                     )
@@ -261,6 +268,10 @@ def create_chat_workflow() -> ChatStateGraphType:
                             'query': query,
                         }
                     )
+
+        except Exception as e:
+            context.logger.error(f"Error integrating history: {e}")
+            pass
 
         return {
             "query_prompt": query,
@@ -282,6 +293,7 @@ def create_chat_workflow() -> ChatStateGraphType:
                 [d.page_content for d in documents]
             )
 
+            # TODO: include doc id in logging (revise db schema)
             # Store document metadata for logging
             # doc_metadata: list[dict[str, Any]] = [
             #     {
@@ -302,8 +314,10 @@ def create_chat_workflow() -> ChatStateGraphType:
                 f"Error retrieving from vector database:\n{e}"
             )
             settings: ChatSettings = config.chat_settings
+            # TODO: ensure this is streamed
             return {
                 "status": "error",
+                "response": settings.MSG_ERROR_QUERY,
                 "messages": AIMessage(
                     content=settings.MSG_ERROR_QUERY
                 ),
@@ -334,9 +348,6 @@ def create_chat_workflow() -> ChatStateGraphType:
             query=query,
         )
 
-        print("\n???????????????")
-        print(formatted_query)
-
         return {"query_prompt": formatted_query}
 
     async def generate(
@@ -357,7 +368,7 @@ def create_chat_workflow() -> ChatStateGraphType:
 
         config: ChatWorkflowContext = runtime.context
         messages = prepare_messages_for_llm(
-            state, config.system_message
+            state, config, config.system_message
         )
 
         # Stream the response - chunks will be emitted by astream()
@@ -439,8 +450,9 @@ workflow_library: LazyLoadingDict[str, ChatStateGraphType] = (
 
 def prepare_messages_for_llm(
     state: ChatState,
+    context: ChatWorkflowContext,
     system_message: str = "",
-    history_window: int = 4,
+    history_window: int | None = None,
 ) -> list[tuple[str, str]]:
     """
     Prepare messages for LLM invocation from state.
@@ -457,6 +469,9 @@ def prepare_messages_for_llm(
     Returns:
         List of (role, content) tuples for LLM invocation
     """
+    if history_window is None:
+        history_window = context.chat_settings.history_length
+
     messages: list[tuple[str, str]] = []
 
     if system_message:
@@ -557,7 +572,9 @@ async def graph_logger(
                                 }
                             )
                         )
-                        validation = validation_res.upper()
+                        validation = str(
+                            validation_res.strip().upper()
+                        )
                     except Exception as e:
                         logger.error(
                             f"Could not connect to aux model to validate context: {e}"
