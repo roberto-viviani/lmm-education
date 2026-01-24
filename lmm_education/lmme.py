@@ -14,6 +14,20 @@ app = typer.Typer()
 
 
 @app.command()
+def terminal() -> None:
+    """Opens a lmme terminal."""
+
+    from .lme import main
+    import asyncio
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Catch the very final exit if needed
+        pass
+
+
+@app.command()
 def create_default_config_file() -> None:
     """
     Create default configuration files, or reset the configuration

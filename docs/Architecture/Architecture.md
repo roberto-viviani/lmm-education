@@ -30,7 +30,7 @@ In a chat application, the important callback is the one that provides the messa
 
 LM markdown for education offers two alternative CLIs. The first CLI can be invoked from a bash or Powershell terminal pointing to the folder where LM markdown for education was installed. Commands have the form lmme command [subcommand|--parameters ...]. Type `lmme --help` for a list and short explanation of all available commands. They may take some time since at each invocation the Python interpreter and all libraries must be reloaded.
 
-The second CLI is invoked from Python. It is started by the line `python -m lmm_education.lme`. Type `help`for a list and short explanation of the same available commands. This second CLI preloads Python and all libraries, so that at each subsequent invocation the response is very fast. The first CLI is most useful when one need to call LM markdown for education with only one or two commands. The second CLI is probably the most practical choice when the interaction with the language model is more intensive.
+To load the library, keep it in memory and start a terminal that accepts the same commands, type `lmme terminal`. Type `help`for a list and short explanation of the same available commands. This second CLI preloads Python and all libraries, so that at each subsequent invocation the response is very fast. The first CLI is most useful when one need to call LM markdown for education with only one or two commands. The second CLI is probably the most practical choice when the interaction with the language model is more intensive.
 
 ## Configuration and management
 

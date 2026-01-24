@@ -12,7 +12,7 @@ The process of curation allows the RAG author to be part of the loop that create
 
 LM markdown for education allows the RAG author to interact with the language model at each step using a _command language interface_ (CLI), used together with a text editor with the markdown files open. There are two CLI interfaces available. The first allows to give commands directly from bash (Linux/Max) or Powershell (Windoes). This interface is most useful when one needs to send just one or two commands. Its drawback is that it starts the Python interpreter and all libraries each time that a command is given, and this takes time (especially when using a local library to interact with the language model). The second starts the Python interpreter with an internal small CLI interpreter program. This first start takes some time to run, but once it has run all other commands are executed very much more quickly.
 
-The first CLI interface is accessed by typing the command `lmme` from the command window, followed by the subcommands one wants to execute. The second interface is accessed by starting Python with `python -m lmm_education.lme`. This starts the CLI interpreter, and all subsequent subcommands may be given from here.  
+The first CLI interface is accessed by typing the command `lmme` from the command window, followed by the subcommands one wants to execute. The second interface is accessed by the command `lmme terminal`. This starts the CLI interpreter, and all subsequent subcommands may be given from here. 
 
 ## Step 1: preparing content
 
@@ -48,7 +48,7 @@ To send the message to the model, first **make sure to have saved the file with 
 lmme scan-messages Lecture01.md
 ```
 
-Alternatively, after having started the internal CLI interpreter with `python -m lmm_education.lme`:
+Alternatively, after having started the internal CLI interpreter with `lmme terminal`:
 
 ```
 > scan_messages Lecture01.md
@@ -103,7 +103,7 @@ When you are finished with interacting with the language model, you can remove t
 lmme scan-clear-messages Lecture01.md
 ```
 
-or, in internal CLI interpreter,
+or, in the internal CLI interpreter started with `lmme terminal`,
 
 ```
 > scan_clear_messages Lecture01.md
@@ -170,7 +170,7 @@ To have LM markdown generate the annotations for inspection, i.e. without ingest
 lmme scan-rag Lecture01.md
 ```
 
-or after starting the internal CLI with `python -m lmm_education.lme`:
+or after starting the internal CLI with `lmme terminal`:
 
 ```
 > scan_rag Lecture01.md
@@ -210,7 +210,7 @@ You can check which headings have changed and will be recomputed from the CLI,
 lmme scan-changed-titles Lecture01.md
 ```
 
-or, after having started the internal CLI with `python -m lmm_education.lme`:
+or, after having started the internal CLI with `lmme terminal`:
 
 ```
 > scan_changed_titles Lecture01.md
@@ -343,7 +343,7 @@ lmme ingest AddedMaterial.md
 lmme querydb "What is the reason to add a family parameter to glm call?"
 ```
 
-or, after having started the internal CLI with `python -m lmm_education.lme`:
+or, after having started the internal CLI with `lmme terminal`:
 
 ```
 > ingest AddedMaterial.md
@@ -371,7 +371,7 @@ After you are satisfied with the way the material is being retrieved from the da
 lmme query "What are observational studies?"
 ```
 
-or, after having started the internal CLI with `python -m lmm_education.lme`:
+or, after having started the internal CLI with `lmme terminal`:
 
 ```
 > query "What are observational studies?"
@@ -392,7 +392,7 @@ The configuration file contains three model specifications: `major`, `minor`, an
 lmme query "What are observational studies?" --model minor --temperature 0.2
 ```
 
-or, after having started the internal CLI with `python -m lmm_education.lme`:
+or, after having started the internal CLI with `lmme terminal`:
 
 ```
 > query "What are observational studies?" --model minor --temperature 0.2
