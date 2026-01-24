@@ -9,9 +9,6 @@ handles:
 - Context retrieval from vector store
 - Query formatting with retrieved context
 - LLM response generation
-
-The state object (ChatState) cleanly separates concerns that were
-previously conflated in the history parameter.
 """
 
 # LangGraph missing type stubs
@@ -35,6 +32,7 @@ from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
+from langgraph.constants import TAG_NOSTREAM
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -64,24 +62,30 @@ class ChatState(TypedDict):
     Attributes:
         messages: Conversation history as LangChain messages
         status: status of the graph
-        query_text: The current user query (possibly formatted with
-            context)
+        query: The current user query
+        query_prompt: Internal processed query text
+        query_classification: Semantic categorization of query
         context: Retrieved context from vector store
+        response: Collects response for logging to database
     """
 
     # Conversation messages (uses LangGraph's message reducer)
     messages: Annotated[list[BaseMessage], add_messages]
     status: ChatStatus
 
-    # Query processing - required field
+    # Query processing
     query: str
     query_prompt: str
-    query_classification: str
+    query_classification: str  # (set by stream object)
 
-    # RAG context
+    # context from vector database
     context: str
 
-    # response
+    # response. We need to collect this separately because
+    # the streaming will include lmm streams, but these will
+    # not be in the 'messages' field. Also, if cached stream
+    # is manually added to 'messages', will be streamed twice.
+    # This field will be read by a stream object.
     response: str
 
 
@@ -152,6 +156,8 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     START → validate_query → [conditional]
                                 ↓ valid
+                            integrate_history
+                                ↓ valid
                             retrieve_context → format_query →
                                                     generate → END
                                 ↓ invalid
@@ -174,7 +180,6 @@ def create_chat_workflow() -> ChatStateGraphType:
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:
         """Validate the user's query for length and content."""
-        # note: separate node hier, as this needs be streamed.
 
         query: str = state.get("query", "")
         settings: ChatSettings = runtime.context.chat_settings
@@ -229,7 +234,8 @@ def create_chat_workflow() -> ChatStateGraphType:
                     summary: str = await model.ainvoke(
                         {
                             'text': "\n---\n".join(messages),
-                        }
+                        },
+                        config={'tags': [TAG_NOSTREAM]},
                     )
                     summary = summary.replace('text', 'chat')
 
@@ -247,7 +253,8 @@ def create_chat_workflow() -> ChatStateGraphType:
                         {
                             'text': "\n---\n".join(messages),
                             'query': query,
-                        }
+                        },
+                        config={'tags': [TAG_NOSTREAM]},
                     )
                     summary = summary.replace('text', 'chat')
 
@@ -266,7 +273,8 @@ def create_chat_workflow() -> ChatStateGraphType:
                         {
                             'text': "\n---\n".join(messages),
                             'query': query,
-                        }
+                        },
+                        config={'tags': [TAG_NOSTREAM]},
                     )
 
         except Exception as e:
@@ -314,7 +322,6 @@ def create_chat_workflow() -> ChatStateGraphType:
                 f"Error retrieving from vector database:\n{e}"
             )
             settings: ChatSettings = config.chat_settings
-            # TODO: ensure this is streamed
             return {
                 "status": "error",
                 "response": settings.MSG_ERROR_QUERY,
@@ -371,7 +378,8 @@ def create_chat_workflow() -> ChatStateGraphType:
             state, config, config.system_message
         )
 
-        # Stream the response - chunks will be emitted by astream()
+        # Stream the response - chunks will be emitted by
+        # LangGreaph's astream, even if not 'yielded'
         response_chunks: list[str] = []
         async for chunk in config.llm.astream(messages):
             # Extract text from chunk safely
@@ -383,7 +391,7 @@ def create_chat_workflow() -> ChatStateGraphType:
             else:
                 response_chunks.append(str(chunk))
 
-        # Store complete response in state (for non-streaming access)
+        # Store complete response in state (for logging)
         complete_response = "".join(response_chunks)
 
         return {

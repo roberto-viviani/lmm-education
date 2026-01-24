@@ -505,7 +505,6 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
             final_stream: tier_3_iterator = (
                 terminal_field_change_adapter(
                     stream_raw,
-                    source_nodes=["generate", "validate_query"],
                     on_terminal_state=partial(
                         log_function,
                         client_host="unknown",

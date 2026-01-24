@@ -437,7 +437,6 @@ def create_chat_stringstream(
     if print_context:
         return terminal_field_change_adapter(
             stream,
-            source_nodes=["generate", "validate_query"],
             on_field_change={
                 "context": lambda c: "CONTEXT:\n"
                 + c
@@ -447,7 +446,6 @@ def create_chat_stringstream(
     else:
         return tier_3_adapter(
             stream,
-            source_nodes=["generate", "validate_query"],
         )
 
 
