@@ -469,7 +469,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         configuration"""
         print("Test 3 (log): Appchat query")
         from lmm_education.query import create_chat_stream
-        from lmm_education.models.langchain.workflows.stream_adapters import (
+        from lmm_education.models.langchain.stream_adapters import (
             tier_1_iterator,
             tier_3_iterator,
             terminal_field_change_adapter,

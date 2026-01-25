@@ -101,7 +101,7 @@ async_log_partial: AsyncLogfunType = partial(
 
 # Chat functions to use in gradio callback------------------
 from lmm_education.query import create_chat_stream
-from lmm_education.models.langchain.workflows.stream_adapters import (
+from lmm_education.models.langchain.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     terminal_field_change_adapter,

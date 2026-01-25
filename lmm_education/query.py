@@ -104,15 +104,17 @@ from lmm_education.models.langchain.workflows.chat_graph import (
     workflow_library,
     graph_logger,
 )
-from lmm_education.models.langchain.workflows.stream_adapters import (
+from lmm_education.models.langchain.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     stream_graph_state,
     stream_graph_updates,
-    stateful_validation_adapter,
-    tier_3_adapter,
+    tier_1_to_3_adapter,
     terminal_tier1_adapter,
     terminal_field_change_adapter,
+)
+from lmm_education.models.langchain.workflows.stream_adapters import (
+    stateful_validation_adapter,
 )
 from .logging_db import (
     ChatDatabaseInterface,
@@ -444,7 +446,7 @@ def create_chat_stringstream(
             },
         )
     else:
-        return tier_3_adapter(
+        return tier_1_to_3_adapter(
             stream,
         )
 
