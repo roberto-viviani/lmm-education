@@ -9,6 +9,64 @@ handles:
 - Context retrieval from vector store
 - Query formatting with retrieved context
 - LLM response generation
+
+The graph is parametrized by dependencies injected through a
+ChatWorkflowContext object. This object includes:
+
+llm: BaseChatModel, an initialized LangChain object wrapping the model
+retriever: BaseRetriever, an object wrapping the vector database
+system_message: str, a system message overriding defaults
+chat_settings: ChatSettings, an objects that loads the appchat.toml
+    settings automatically, or allows them to be overridden when given
+logger: LoggerBase, a logger object for errors printing
+
+The remaining settings are used by streams to log the interaction to
+a database. Except for .database, they are not set here.
+
+database: ChatDatabaseInterface, the names of the files of the database
+client_host: str = "<unknown>", filled in internally
+session_hash: str = "<unknown>", filled in internally
+
+To create a dependency injection using the config.toml settings, call
+
+```python
+context = ChatWorkflowContext.from_default_config()
+```
+
+The graph is designed for being used as a stream. The graph is created
+as follows,
+
+```python
+workflow = create_chat_workflow()
+state: ChatState = create_initial_state("What is logistic regression?")
+dependencies = ChatWorkflowContext.from_default_config()
+stream = workflow.astream(state, stream_mode="messages",
+                context=dependencies)
+```
+
+after which the stream may be consumed directly. Note that this is a
+LangGraph stream, returning tuples of (chunk, metadata):
+
+```python
+async for chunk, metadata in stream:
+    ...
+    print(chunk.text, sep="", flush=True)
+```
+
+Use stream adapters from the stream_adapters module to set up and
+transform the stream. For example, to emit strings:
+
+```python
+from lmm_education.models.langchain.workflows.stream_adapters import (
+    tier_2_to_3_adapter
+)
+text_stream = tier_2_zo_3_adapter(stream)
+async for txt in text_stream:
+    print(txt, sep="", flush=True)
+```
+
+The function graph_logger supports writing the user/llm interaction to
+a database, and is meant to be used by a streaming object.
 """
 
 # LangGraph missing type stubs
@@ -154,23 +212,13 @@ def create_chat_workflow() -> ChatStateGraphType:
 
     The graph implements the following flow:
 
-    START → validate_query → [conditional]
-                                ↓ valid
-                            integrate_history
-                                ↓ valid
-                            retrieve_context → format_query →
-                                                    generate → END
-                                ↓ invalid
-                            END
-
-    The generate node uses llm.astream() to produce streaming output.
-    Dependency injection handled at the level of streaming call
-    through context argument. Use
-    ```python
-    workflow.astream(state, stream_mode="messages",
-                    context=workflow_context)
-    ```
-    to consume the stream.
+    START               ---> validate query
+    validat _query      -.-> END [empty query]
+                        -.-> END [long query]
+                        -.-> integrate history
+    integrate history   ---> retrieve context
+    retrieve context    ---> format query
+    format query        ---> generate
 
     Returns:
         Compiled StateGraph ready for streaming

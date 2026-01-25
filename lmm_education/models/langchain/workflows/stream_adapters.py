@@ -1078,3 +1078,24 @@ async def tier_3_adapter(
 # ===================================================================
 # Tier 2 Adapters - Message-Only
 # ===================================================================
+
+
+async def tier_2_to_3_adapter(
+    messages_stream: tier_2_iterator,
+    source_nodes: list[str] = [],
+    *,
+    logger: LoggerBase = ConsoleLogger(),
+) -> tier_3_iterator:
+    async for chunk, metadata in messages_stream:
+        if source_nodes:
+            try:
+                if metadata["langgraph_node"] in source_nodes:
+                    yield chunk.text
+            except Exception as e:
+                logger.error(
+                    f"Could not retrieve langgraph_node property"
+                    f" in tier_2_to_3_adapter:\n{e}"
+                )
+                yield chunk.text
+        else:
+            yield chunk.text
