@@ -92,6 +92,7 @@ Tier 1 to tier 3 adapters:
 # flake8: noqa  (too long lines)
 
 import asyncio
+import copy
 from typing import Protocol, TypeVar, Any, Hashable, Literal
 from collections.abc import (
     AsyncIterator,
@@ -235,14 +236,15 @@ def stream_graph_state(
         raw_stream = stream_graph_state(workflow, initial_state,
                                         context)
 
-        # Apply adapters#########################################
+        # Apply adapters
         validated_stream = stateful_validation_adapter(raw_stream,
             ...)
-        message_stream = terminal_demux_adapter(validated_stream,
-            on_terminal_state=log_fn)###########################
+        terminal_stream = terminal_tier_1_adapter(validated_stream,
+            on_terminal_state=log_fn)
+        text_stream = tier_1_to_3_adapter(terminal_stream)
 
         # Consume for display
-        async for chunk in message_stream:
+        async for chunk in text_stream:
             print(chunk.text, end="")
         ```
     """
@@ -295,7 +297,7 @@ def stream_graph_updates(
             context)
 
         # Apply change-reactive adapters
-        reactive_stream = field_change_adapter(
+        reactive_stream = field_change_tier_1_adapter(
             raw_stream,
             on_field_change={
                 "status": handle_status_change,
@@ -304,12 +306,13 @@ def stream_graph_updates(
         )
 
         # Apply other adapters
-        message_stream = terminal_demux_adapter(reactive_stream,
+        terminal_stream = terminal_tier_1_adapter(reactive_stream,
             on_terminal_state=log_fn)
+        text_stream = tier_1_to_3_adapter(terminal_stream)
 
         # Consume for display
-        async for chunk in message_stream:
-            print(chunk.text, end="")
+        async for chunk in text_stream:
+            print(chunk, end="")
         ```
     """
     return graph.astream(
@@ -325,7 +328,7 @@ def stream_graph_messages(
     context: BaseModel,
 ) -> tier_2_iterator:
     """
-    Entry point for streaming a LangGraph workflow with messagess
+    Entry point for streaming a LangGraph workflow with messages
     output.
 
     This function configures the graph to stream only messages,
@@ -340,7 +343,7 @@ def stream_graph_messages(
 
     Returns:
         AsyncIterator yielding 'event' tuples of (BaseMessageChunk,
-        metadata) for messages (tier 2 iterator)
+        dict[str, Any]) for messages (tier 2 iterator)
 
     Example:
         ```python
@@ -371,8 +374,8 @@ async def field_change_tier_1_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
     on_field_change: (
-        dict[str, Callable[[Any], Awaitable[str]]]
-        | dict[str, Callable[[Any], str]]
+        dict[str, Callable[[Any], Awaitable[str | None]]]
+        | dict[str, Callable[[Any], str | None]]
         | None
     ) = None,
     logger: LoggerBase = ConsoleLogger(),
@@ -392,15 +395,17 @@ async def field_change_tier_1_adapter(
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         on_field_change: Dict mapping field names to async callbacks.
-            Each callback receives the new field value as its
-            argument. If the callback has no return statement or
-            returns None, the field updated value is not changed. If
-            the callback returns a value, the field updated value is
-            set to that value.
+            Each callback receives the updated field value as its
+            argument. If the callback returns a value, a deep copy of
+            the event is created with the field value replaced by the
+            callback's return value. If the callback returns None, the
+            event is passed through unchanged.
             Callbacks are invoked when those fields are updated.
+        logger: Logger to use for error logging
 
     Yields:
-        All (mode, event) tuples from the stream
+        All (mode, event) tuples from the stream. Update events are
+        deep-copied if any registered callback returns a non-None value.
 
     Example:
         ```python
@@ -431,15 +436,16 @@ async def field_change_tier_1_adapter(
     async for mode, event in multi_mode_stream:
         # React to field changes via "updates" events
         if mode == "updates" and isinstance(event, dict):
+            # Deep copy to avoid modifying the original event
+            event_copy = copy.deepcopy(event)  # type: ignore
+            modified = False
+
             # event format: {node_name: {field_name: value, ...}}
-            for node_name, changes in event.items():  # type: ignore[union-attr]
+            for node_name, changes in event_copy.items():  # type: ignore[union-attr]
                 if isinstance(changes, dict):
                     for field, value in changes.items():  # type: ignore[union-attr]
                         if field in on_field_change:
-                            callback_fun: (
-                                Callable[[Any], Awaitable[str]]
-                                | Callable[[Any], str]
-                            ) = on_field_change[field]
+                            callback_fun = on_field_change[field]
                             try:
                                 content: str | None = None
                                 if asyncio.iscoroutinefunction(
@@ -450,9 +456,10 @@ async def field_change_tier_1_adapter(
                                     )
                                 else:
                                     content = callback_fun(value)  # type: ignore
-                                if content is None:
-                                    content = str(value)  # type: ignore
-                                yield (field, content)
+                                if content is not None:
+                                    # Actually modify the field in the copy
+                                    changes[field] = content
+                                    modified = True
                             except Exception as e:
                                 # Log the error but don't stop stream
                                 logger.error(
@@ -461,8 +468,11 @@ async def field_change_tier_1_adapter(
                                 )
                                 pass
 
-        # Always yield the event unchanged
-        yield (mode, event)
+            # Yield the modified copy if we made changes, otherwise the original
+            yield (mode, event_copy if modified else event)
+        else:
+            # For non-update events, yield unchanged
+            yield (mode, event)
 
 
 async def terminal_tier1_adapter(
@@ -478,7 +488,8 @@ async def terminal_tier1_adapter(
     """
     Tier 1 terminal adapter that calls a callback with the terminal
     state. The tier 1 iterator must have been created with the
-    "values" stream mode.
+    "values" stream mode for the on_terminal_state callback to be
+    called.
 
     This adapter:
     - Captures the terminal state (last "values" event)
@@ -494,7 +505,7 @@ async def terminal_tier1_adapter(
 
     Example:
         ```python
-        messages = terminal_demux_adapter(
+        messages = terminal_tier1_adapter(
             multi_mode_stream,
             on_terminal_state=lambda s: logger.log(s),
         )
@@ -534,19 +545,18 @@ async def terminal_tier1_adapter(
 
 async def tier_1_to_2_adapter(
     multi_mode_stream: tier_1_iterator,
-    source_nodes: list[str] = [],
+    source_nodes: list[str] | None = None,
     *,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_2_iterator:
     """
-    Terminal adapter: de-multiplexes multi-mode stream to messages
-    only.
+    Terminal adapter: filters multi-mode stream to messages only.
+    Non-message events are discarded.
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         source_nodes: the source nodes one wants to stream. If
-        omitted, all nodes will be streamed (only concerns the
-        'messages' stream)
+        omitted or None, all nodes will be streamed
         logger: logger to use for error logging
 
     Yields:
@@ -564,7 +574,8 @@ async def tier_1_to_2_adapter(
         async for mode, event in multi_mode_stream:
             if mode == "messages":
                 try:
-                    if event["langgraph_node"] in source_nodes:
+                    _, metadata = event
+                    if metadata["langgraph_node"] in source_nodes:
                         yield event
                 except Exception as e:
                     logger.error(
@@ -589,18 +600,19 @@ async def tier_1_to_2_adapter(
 
 async def tier_2_to_3_adapter(
     messages_stream: tier_2_iterator,
-    source_nodes: list[str] = [],
+    source_nodes: list[str] | None = None,
     *,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
     """
-    Transforms a tier 2 iterator into a tier 3 iterator.
+    Transforms a tier 2 iterator into a tier 3 iterator. 'metadata'
+    information from the tier 2 iterator is discarded.
 
     Args:
         messages_stream: Source stream with (chunk, metadata) tuples
         source_nodes: the source nodes one wants to stream. If
-        omitted, all nodes will be streamed (only concerns the
-        'messages' stream)
+        omitted or None, all nodes will be streamed.
+        logger: Logger to use for logging
 
     Yields:
         strings (tier 3 iterator)
@@ -611,7 +623,6 @@ async def tier_2_to_3_adapter(
 
         async for chunk in messages:
             yield chunk
-        ```
     """
     async for chunk, metadata in messages_stream:
         if source_nodes:
@@ -635,9 +646,13 @@ async def tier_2_to_3_adapter(
 
 async def terminal_field_change_adapter(
     multi_mode_stream: tier_1_iterator,
-    source_nodes: list[str] = [],
+    source_nodes: list[str] | None = None,
     *,
-    on_field_change: dict[str, Callable[[Any], str]] | None = None,
+    on_field_change: (
+        dict[str, Callable[[Any], Awaitable[str | None]]]
+        | dict[str, Callable[[Any], str | None]]
+        | None
+    ) = None,
     on_terminal_state: (
         Callable[[StateT], Any]
         | Callable[[StateT], Awaitable[Any]]
@@ -655,26 +670,31 @@ async def terminal_field_change_adapter(
     The callback given to on_terminal_state is called after
     streaming (may be used, for example, for logging the exchange).
     The output of this callback is not injected into the tier 3
-    stream.
+    stream. The stream must have been created with the 'values' mode
+    for this callback to be called.
 
     This adapter:
     - Extracts and yields only the text of messages chunks and
-        the return of the on_field_change callback
+        the return of the on_field_change callback. Any other
+        information from the 'updates' stream is discarded.
     - Captures the terminal state (last "values" event), and
-        invokes an optional callback with the terminal state
+        invokes an optional callback with the terminal state.
+    - State information is discarded in the output stream.
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         source_nodes: the source nodes one wants to stream. If
-            omitted, all nodes will be streamed (only concerns the
-            'messages' stream).
+            omitted or None, all nodes will be streamed (only
+            concerns the 'messages' stream).
         on_field_change: Dict mapping field names to async callbacks.
-            Each callback receives the new field value as its
+            Each callback receives the updated field value as its
             argument, and returns a string that is injected into the
-            tier 3 stream.
+            tier 3 stream. If the callback returns None, no string is
+            injected.
             Callbacks are invoked when those fields are updated.
         on_terminal_state: Optional callback for terminal state.
             The callback receives Mapping[str, Any] type.
+        logger: Logger to use for error logging
 
     Yields:
         strings (tier 3 iterator)
@@ -728,20 +748,20 @@ async def terminal_field_change_adapter(
                 if isinstance(changes, dict):
                     for field, value in changes.items():  # type: ignore[union-attr]
                         if field in on_field_change:
-                            callback_fun: (
-                                Callable[[Any], Awaitable[str]]
-                                | Callable[[Any], str]
-                            ) = on_field_change[field]
+                            callback_fun = on_field_change[field]
                             try:
+                                content: str | None = None
                                 if asyncio.iscoroutinefunction(
                                     callback_fun
                                 ):
-                                    content: str = await callback_fun(
+                                    content = await callback_fun(
                                         value
                                     )
                                 else:
                                     content = callback_fun(value)  # type: ignore
-                                yield content
+                                # Only yield if callback returned a value
+                                if content is not None:
+                                    yield content
                             except Exception as e:
                                 # Log the error but don't stop stream
                                 logger.error(
@@ -772,18 +792,20 @@ async def terminal_field_change_adapter(
 
 async def tier_1_to_3_adapter(
     multi_mode_stream: tier_1_iterator,
-    source_nodes: list[str] = [],
+    source_nodes: list[str] | None = None,
     *,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
     """
-    Transforms a tier 1 iterator into a tier 3 iterator.
+    Transforms a tier 1 iterator into a tier 3 iterator. All
+    information from the 'updates' and 'values' streams is discarded.
 
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         source_nodes: the source nodes one wants to stream. If
-        omitted, all nodes will be streamed (only concerns the
-        'messages' stream)
+        omitted or None, all nodes will be streamed (only concerns
+        the 'messages' stream).
+        logger: Logger to use for error logging
 
     Yields:
         strings (tier 3 iterator)

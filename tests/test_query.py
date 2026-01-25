@@ -59,7 +59,7 @@ atexit.register(export_settings, original_settings)
 def _print_state(state: dict[str, str]) -> None:  # type: ignore (not accessed)
     for fld in state.keys():
         print(
-            f"{fld}: {state[fld][:22]}{"..." if len(state[fld]) > 21 else ""}"
+            f"{fld}: {state[fld][:22]}{'...' if len(state[fld]) > 21 else ''}"
         )
 
 
