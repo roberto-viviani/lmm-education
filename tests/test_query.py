@@ -526,11 +526,10 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         logtext: str = stream.getvalue()
-        print(f"LOGTEXT\n{logtext}")
-        self.assertGreater(len(logtext), 0)
+        print(f"LOGTEXT\n{logtext[:120]}...")
         self.assertIn("MESSAGE", logtext)
         logcontext: str = stream_context.getvalue()
-        print(f"LOGCONTEXT\n{logcontext}")
+        print(f"LOGCONTEXT\n{logcontext[:120]}...")
         self.assertGreater(len(logcontext), 0)
 
         print("✓ Passed\n")
