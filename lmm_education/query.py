@@ -113,7 +113,7 @@ from lmm_education.models.langchain.stream_adapters import (
     terminal_tier1_adapter,
     terminal_field_change_adapter,
 )
-from lmm_education.models.langchain.workflows.stream_adapters import (
+from lmm_education.models.langchain.workflows.chat_stream_adapters import (
     stateful_validation_adapter,
 )
 from .logging_db import (
@@ -342,6 +342,10 @@ def create_chat_stream(
         # Initialize the validation model
         allowed_content = response_settings.allowed_content
         try:
+            # the allowed content here introduces categories that
+            # the model uses to classify responses. The model will
+            # always add categories such as 'general knowledge' to
+            # this list.
             validator_model: RunnableType = create_runnable(
                 "allowed_content_validator",
                 allowed_content=allowed_content,  # type: ignore
@@ -351,10 +355,16 @@ def create_chat_stream(
                 f"Could not initialize validation model: {e}"
             ) from e
 
+        # the allowed content here lists the acceptable categories.
+        # It should be equal to the categories sent to the model above
+        # or a subset of it.
         tier_1_stream = stateful_validation_adapter(
             raw_stream,
             validator_model=validator_model,
-            allowed_content=response_settings.allowed_content,
+            allowed_content=allowed_content,
+            source_nodes=[
+                "generate"
+            ],  # Only validate LLM-generated content
             buffer_size=response_settings.initial_buffer_size,
             error_message=context.chat_settings.MSG_WRONG_CONTENT,
             logger=logger,

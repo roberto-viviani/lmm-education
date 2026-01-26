@@ -5,7 +5,7 @@ directly and understands the semantics of the "status" field.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, TypedDict
 
 from langchain_core.messages import AIMessageChunk
 
@@ -15,7 +15,11 @@ from lmm.language_models.langchain.runnables import RunnableType
 from ..stream_adapters import tier_1_iterator
 
 # Import ChatState for domain-specific adapters
-from .chat_graph import ChatState
+from .chat_graph import ChatState, create_initial_state
+
+
+class EmptyState(TypedDict):
+    pass
 
 
 async def stateful_validation_adapter(
@@ -23,6 +27,7 @@ async def stateful_validation_adapter(
     *,
     validator_model: RunnableType,
     allowed_content: list[str],
+    source_nodes: list[str] | None = None,
     buffer_size: int = 320,
     error_message: str = "Content not allowed",
     max_retries: int = 2,
@@ -42,10 +47,18 @@ async def stateful_validation_adapter(
       * Releases buffered content
       * Continues streaming normally
 
+    If validation is not available (for example, network failure or
+    server error), the adapter will log a diagnostic message to the
+    logger and continue streaming normally.
+
     Args:
         multi_mode_stream: Source stream yielding (mode, event) tuples
         validator_model: Runnable for content classification
         allowed_content: List of allowed content categories
+        source_nodes: List of graph node names whose messages should be
+            validated. If None, all message streams are validated. Use
+            this to exclude error messages from nodes like 'validate_query'
+            and only validate LLM-generated content from nodes like 'generate'.
         buffer_size: Characters to buffer before validation
         error_message: Message to yield if validation fails
         max_retries: Validation retry attempts
@@ -53,18 +66,28 @@ async def stateful_validation_adapter(
 
     Yields:
         (mode, event) tuples with potentially modified state
+
+    Note:
+        This adapter may be used only on graphs that use the ChatState
+        state, or of derived types. The graph must emit a 'values'
+        chunk before streaming from the language model or in the
+        'messages' stream.
     """
     buffer_chunks: list[tuple[str, Any]] = []
     buffer_text: str = ""
     validation_complete: bool = False
-    captured_state: ChatState | None = None  # state from graph
-    modified_state: ChatState | None = None  # state to yield
-    # by default, we set the metadata to the 'generate' node, which
-    # is the node that is streaming the content, so that when
-    # source_node is set, it will lead to streaming all this content.
-    metadata: dict[str, Any] = {'langgraph_node': "generate"}
+    # captured in 'message' stream
+    metadata: dict[str, Any] = {}
+    # captured in 'values' stream (state from graph)
+    captured_state: ChatState = create_initial_state("")
+    # state values changes by validation
+    modified_state: dict[str, str] = {}
 
-    async def _validate_content(content: str) -> tuple[bool, str]:
+    class ValidationResult(TypedDict):
+        is_valid: bool
+        classification: str
+
+    async def _validate_content(content: str) -> ValidationResult:
         """Validate content with retry logic."""
         for attempt in range(max_retries + 1):
             try:
@@ -80,9 +103,13 @@ async def stateful_validation_adapter(
                     "apology",
                     "human interaction",
                 ]:
-                    return True, classification
+                    return ValidationResult(
+                        is_valid=True, classification=classification
+                    )
                 else:
-                    return False, classification
+                    return ValidationResult(
+                        is_valid=False, classification=classification
+                    )
 
             except Exception as e:
                 logger.warning(
@@ -95,107 +122,108 @@ async def stateful_validation_adapter(
                         f"Content checker failed after "
                         f"{max_retries + 1} attempts: {e}"
                     )
-                    return True, "validation_unavailable"
+                    return ValidationResult(
+                        is_valid=False,
+                        classification="validation_unavailable",
+                    )
 
                 await asyncio.sleep(0.5 * (attempt + 1))
 
-        return True, "validation_error"
+        return ValidationResult(
+            is_valid=False, classification="validation_error"
+        )
 
     async for mode, event in multi_mode_stream:
-        # Track latest state for potential modification
-        if mode == "values":
-            captured_state = event
-            # The 'response' field update will arrive after the
-            # llm output has finished streaming. Copy it into
-            # the captured_state modified by streaming.
-            if (
-                modified_state
-                and captured_state
-                and captured_state['response']
-            ):
-                modified_state['response'] = captured_state[
-                    'response'
-                ]
-            yield (mode, event)
+        match mode:
+            case "values":
+                # Track latest state for potential modification
+                captured_state = event
+                yield (mode, event)
 
-        # Validation logic only applies to messages
-        if mode == "messages" and not validation_complete:
-            chunk, metadata = event
-            buffer_chunks.append((mode, event))
-            buffer_text += chunk.text
+            case "messages" if not validation_complete:
+                # Validation logic for streamed data in the messages mode
+                chunk, metadata = event
 
-            if len(buffer_text) >= buffer_size:
-                # Validate buffered content
-                query: str = (
-                    captured_state['query'] if captured_state else ""
-                )
-                is_valid, classification = await _validate_content(
-                    query + "\n\n" + buffer_text + "..."
-                )
-                validation_complete = True
+                # Filter by source node if specified
+                if source_nodes is not None:
+                    node_name = metadata.get("langgraph_node", "")
+                    if node_name not in source_nodes:
+                        # Pass through without validation
+                        yield (mode, event)
+                        continue
 
-                if not is_valid:
-                    # Validation failed - yield rejection and
-                    # modified state
-                    logger.info(
-                        f"Content rejected with classification: "
-                        f"{classification}"
+                buffer_chunks.append((mode, event))
+                buffer_text += chunk.text
+
+                if len(buffer_text) >= buffer_size:
+                    # Validate buffered content
+                    query: str = (
+                        captured_state['query'] if captured_state else ""
                     )
-
-                    # Yield rejection message
-                    yield (
-                        "messages",
-                        (
-                            AIMessageChunk(content=error_message),
-                            metadata,
-                        ),
+                    validation_result = await _validate_content(
+                        query + "\n\n" + buffer_text + "..."
                     )
+                    validation_complete = True
 
-                    # Modify state to reflect rejection
-                    if captured_state:
+                    if not validation_result["is_valid"]:
+                        # Validation failed - yield rejection and
+                        # modified state
+                        logger.info(
+                            f"Content rejected with classification: "
+                            f"{validation_result['classification']}"
+                        )
+
+                        # Yield rejection message
+                        yield (
+                            "messages",
+                            (
+                                AIMessageChunk(content=error_message),
+                                metadata,
+                            ),
+                        )
+
+                        # Save change state values to reflect rejection
                         modified_state = {
-                            **captured_state,
                             "response": error_message,
-                            "query_classification": classification,
+                            "query_classification": validation_result[
+                                "classification"
+                            ],
                             "status": "rejected",
                         }
-                        yield ("values", modified_state)
+                        yield (
+                            "values",
+                            {**captured_state, **modified_state},
+                        )
 
-                    return  # Stop streaming
+                        return  # Stop streaming
 
-                # Validation passed - release buffer
-                if classification == "validation_unavailable":
-                    logger.warning(
-                        "LLM exchange without content check "
-                        "(validation unavailable)"
-                    )
-                    if captured_state:
+                    # Validation passed - release buffer
+                    if (
+                        validation_result["classification"]
+                        == "validation_unavailable"
+                    ):
+                        logger.warning(
+                            "LLM exchange without content check "
+                            "(validation unavailable)"
+                        )
                         modified_state = {
-                            **captured_state,
-                            "query_classification": "NA",
+                            "query_classification": "<validation unavailable>",
                         }
-                        # do not yield state here, wait to end
-                        # updates not really valid (not in full state)
-                        # yield ("updates", {"query_classification": "NA"})
-                else:
-                    # record classification
-                    if captured_state:
+                    else:
+                        # record classification
                         modified_state = {
-                            **captured_state,
-                            "query_classification": classification,
+                            "query_classification": validation_result[
+                                "classification"
+                            ],
                         }
-                        # do not yield state here, wait to end
-                        # updates not really valid (not in full state)
-                        # yield ("updates", {"query_classification":
-                        #                       classification})
 
-                for buffered_mode, buffered_event in buffer_chunks:
-                    yield (buffered_mode, buffered_event)
+                    # Yield buffered stuff
+                    for buffered_mode, buffered_event in buffer_chunks:
+                        yield (buffered_mode, buffered_event)
 
-        else:  # if mode == "messages" and ...
-            # Pass through non-message events or post-validation
-            # messages
-            yield (mode, event)
+            case _:
+                # Pass through non-message events or post-validation messages
+                yield (mode, event)
     # end async for mode, event
 
     # Handle case where stream ended before buffer was full
@@ -203,40 +231,43 @@ async def stateful_validation_adapter(
         query_text: str = (
             captured_state['query'] if captured_state else ""
         )
-        is_valid, classification = await _validate_content(
+        validation_result = await _validate_content(
             query_text + "\n\n" + buffer_text
         )
 
-        if not is_valid:
+        if not validation_result["is_valid"]:
             logger.info(
                 f"Content rejected with classification: "
-                f"{classification}"
+                f"{validation_result['classification']}"
             )
-            # the metadata will be the last captured, or a default
-            # from the "generate" node to allow streaming
+            # the metadata will be the last captured
+            if not metadata:
+                # this is unrecheable because buffer_text was tested
+                # as not empty, and buffer_text can fill only if chunks
+                # are read in with the metadata
+                raise ValueError(
+                    "Unreacheable code reached: empty metadata "
+                    "in stateful_validation_adapter"
+                )
             yield (
                 "messages",
                 (AIMessageChunk(content=error_message), metadata),
             )
 
-            if captured_state:
-                modified_state = {
-                    **captured_state,
-                    "status": "rejected",
-                    "response": error_message,
-                    "query_classification": classification,
-                }
-                yield ("values", modified_state)
+            modified_state = {
+                "status": "rejected",
+                "response": error_message,
+                "query_classification": validation_result["classification"],
+            }
+            yield ("values", {**captured_state, **modified_state})
             return
 
         else:
-            if captured_state:
-                modified_state = {
-                    **captured_state,
-                    "query_classification": classification,
-                }
+            modified_state = {
+                "query_classification": validation_result["classification"],
+            }
 
-        if classification == "validation_unavailable":
+        if validation_result["classification"] == "validation_unavailable":
             logger.warning(
                 f"LLM exchange without content check: "
                 f"{buffer_text[:100]}..."
@@ -248,6 +279,6 @@ async def stateful_validation_adapter(
 
     # Yield final state to override previous "values"
     if modified_state:
-        yield ("values", modified_state)
+        yield ("values", {**captured_state, **modified_state})
     else:
         logger.warning("validation adapter: modified state not set")

@@ -423,11 +423,11 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         logtext: str = stream.getvalue()
-        print(f"LOGTEXT\n{logtext}")
+        print(f"LOGTEXT\n{logtext[:120]}...")
         self.assertGreater(len(logtext), 0)
         self.assertIn("MESSAGE", logtext)
         logcontext: str = stream_context.getvalue()
-        print(f"LOGCONTEXT\n{logcontext}")
+        print(f"LOGCONTEXT\n{logcontext[:120]}...")
         self.assertGreater(len(logcontext), 0)
 
         print("✓ Passed\n")
@@ -563,8 +563,10 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 #         validation."""
 #         print("Test query validation: Valid query")
 
-#         from lmm_education.models.langchain.workflows.stream_adapters import (
+#         from lmm_education.models.langchain.stream_adapters import (
 #             tier_1_iterator,
+#         )
+#         from lmm_education.models.langchain.workflows.chat_stream_adapters import (
 #             stateful_validation_adapter,
 #         )
 #         from lmm_education.query import (
@@ -637,8 +639,10 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 #         rejection"""
 #         print("Test query validation: Invalid query")
 
-#         from lmm_education.models.langchain.workflows.stream_adapters import (
+#         from lmm_education.models.langchain.stream_adapters import (
 #             tier_1_iterator,
+#         )
+#         from lmm_education.models.langchain.workflows.chat_stream_adapters import (
 #             stateful_validation_adapter,
 #         )
 #         from lmm_education.query import (
@@ -764,7 +768,7 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
             ) from e
 
         self.assertTrue(len(result) > 0)
-        print(result)
+        print(f"CONTEXT\n{result[:120]}...")
         self.assertTrue(result.startswith("CONTEXT"))
         self.assertIn("END CONTEXT--", result)
 

@@ -28,6 +28,11 @@ class CheckResponse(BaseModel):
         le=12000,
         description="buffer size to send to model to check content",
     )
+    # TODO: implement this in chat_stream_adapters
+    continue_on_fail: bool = Field(
+        default=True,
+        description="validate response if server model not available",
+    )
 
     @model_validator(mode="after")
     def validate_allowed_content(self) -> Self:
