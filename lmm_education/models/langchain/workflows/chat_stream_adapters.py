@@ -5,7 +5,7 @@ directly and understands the semantics of the "status" field.
 """
 
 import asyncio
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from langchain_core.messages import AIMessageChunk
 
@@ -22,6 +22,9 @@ class EmptyState(TypedDict):
     pass
 
 
+ValidationStatus = Literal["valid", "invalid", "unavailable", "error"]
+
+
 async def stateful_validation_adapter(
     multi_mode_stream: tier_1_iterator,
     *,
@@ -31,6 +34,7 @@ async def stateful_validation_adapter(
     buffer_size: int = 320,
     error_message: str = "Content not allowed",
     max_retries: int = 2,
+    continue_on_fail: bool = False,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_1_iterator:
     """
@@ -46,10 +50,10 @@ async def stateful_validation_adapter(
     - If validation passes:
       * Releases buffered content
       * Continues streaming normally
-
-    If validation is not available (for example, network failure or
-    server error), the adapter will log a diagnostic message to the
-    logger and continue streaming normally.
+    - If validation is unavailable (network/service failure):
+      * Behavior depends on continue_on_fail parameter
+      * If continue_on_fail=True: allows content through with warning (fail-open)
+      * If continue_on_fail=False: rejects content for safety (fail-closed)
 
     Args:
         multi_mode_stream: Source stream yielding (mode, event) tuples
@@ -61,17 +65,20 @@ async def stateful_validation_adapter(
             and only validate LLM-generated content from nodes like 'generate'.
         buffer_size: Characters to buffer before validation
         error_message: Message to yield if validation fails
-        max_retries: Validation retry attempts
+        max_retries: Validation retry attempts before marking unavailable
+        continue_on_fail: If True, content is allowed when validation fails
+            (fail-open). If False, content is rejected when validation fails
+            (fail-closed). Defaults to False for safety.
         logger: Logger for diagnostics
 
     Yields:
         (mode, event) tuples with potentially modified state
 
     Note:
-        This adapter may be used only on graphs that use the ChatState
-        state, or of derived types. The graph must emit a 'values'
-        chunk before streaming from the language model or in the
-        'messages' stream.
+        This adapter works with streams that emit 'messages' events only,
+        or combined 'messages' + 'values' events. If no 'values' events are
+        emitted, the adapter will yield a final state containing validation
+        metadata merged with an empty initial state.
     """
     buffer_chunks: list[tuple[str, Any]] = []
     buffer_text: str = ""
@@ -84,8 +91,9 @@ async def stateful_validation_adapter(
     modified_state: dict[str, str] = {}
 
     class ValidationResult(TypedDict):
-        is_valid: bool
+        status: ValidationStatus
         classification: str
+        reason: str | None
 
     async def _validate_content(content: str) -> ValidationResult:
         """Validate content with retry logic."""
@@ -104,11 +112,15 @@ async def stateful_validation_adapter(
                     "human interaction",
                 ]:
                     return ValidationResult(
-                        is_valid=True, classification=classification
+                        status="valid",
+                        classification=classification,
+                        reason=None,
                     )
                 else:
                     return ValidationResult(
-                        is_valid=False, classification=classification
+                        status="invalid",
+                        classification=classification,
+                        reason=f"Classification '{classification}' not in allowed list",
                     )
 
             except Exception as e:
@@ -123,14 +135,17 @@ async def stateful_validation_adapter(
                         f"{max_retries + 1} attempts: {e}"
                     )
                     return ValidationResult(
-                        is_valid=False,
-                        classification="validation_unavailable",
+                        status="unavailable",
+                        classification="",
+                        reason=str(e),
                     )
 
                 await asyncio.sleep(0.5 * (attempt + 1))
 
         return ValidationResult(
-            is_valid=False, classification="validation_error"
+            status="error",
+            classification="",
+            reason="Unexpected: exhausted retries without returning",
         )
 
     async for mode, event in multi_mode_stream:
@@ -165,61 +180,91 @@ async def stateful_validation_adapter(
                     )
                     validation_complete = True
 
-                    if not validation_result["is_valid"]:
-                        # Validation failed - yield rejection and
-                        # modified state
-                        logger.info(
-                            f"Content rejected with classification: "
-                            f"{validation_result['classification']}"
-                        )
+                    match validation_result["status"]:
+                        case "valid":
+                            # Validation passed - release buffer
+                            modified_state = {
+                                "query_classification": validation_result[
+                                    "classification"
+                                ],
+                            }
+                            # Yield buffered content
+                            for buffered_mode, buffered_event in buffer_chunks:
+                                yield (buffered_mode, buffered_event)
 
-                        # Yield rejection message
-                        yield (
-                            "messages",
-                            (
-                                AIMessageChunk(content=error_message),
-                                metadata,
-                            ),
-                        )
+                        case "invalid":
+                            # Validation failed - reject and stop
+                            logger.info(
+                                f"Content rejected with classification: "
+                                f"{validation_result['classification']}"
+                            )
 
-                        # Save change state values to reflect rejection
-                        modified_state = {
-                            "response": error_message,
-                            "query_classification": validation_result[
-                                "classification"
-                            ],
-                            "status": "rejected",
-                        }
-                        yield (
-                            "values",
-                            {**captured_state, **modified_state},
-                        )
+                            # Yield rejection message
+                            yield (
+                                "messages",
+                                (
+                                    AIMessageChunk(content=error_message),
+                                    metadata,
+                                ),
+                            )
 
-                        return  # Stop streaming
+                            # Save changed state values to reflect rejection
+                            modified_state = {
+                                "response": error_message,
+                                "query_classification": validation_result[
+                                    "classification"
+                                ],
+                                "status": "rejected",
+                            }
+                            yield (
+                                "values",
+                                {**captured_state, **modified_state},
+                            )
 
-                    # Validation passed - release buffer
-                    if (
-                        validation_result["classification"]
-                        == "validation_unavailable"
-                    ):
-                        logger.warning(
-                            "LLM exchange without content check "
-                            "(validation unavailable)"
-                        )
-                        modified_state = {
-                            "query_classification": "<validation unavailable>",
-                        }
-                    else:
-                        # record classification
-                        modified_state = {
-                            "query_classification": validation_result[
-                                "classification"
-                            ],
-                        }
+                            return  # Stop streaming
 
-                    # Yield buffered stuff
-                    for buffered_mode, buffered_event in buffer_chunks:
-                        yield (buffered_mode, buffered_event)
+                        case "unavailable" | "error":
+                            # Validator failed
+                            if continue_on_fail:
+                                # Fail-open: allow content through
+                                logger.warning(
+                                    f"Validation {validation_result['status']}: "
+                                    f"{validation_result['reason']}. "
+                                    f"Continuing without validation (continue_on_fail=True)"
+                                )
+                                modified_state = {
+                                    "query_classification": f"<validation {validation_result['status']}>",
+                                }
+                                # Yield buffered content
+                                for buffered_mode, buffered_event in buffer_chunks:
+                                    yield (buffered_mode, buffered_event)
+                            else:
+                                # Fail-closed: reject for safety
+                                logger.error(
+                                    f"Validation {validation_result['status']}: "
+                                    f"{validation_result['reason']}. "
+                                    f"Rejecting content (continue_on_fail=False)"
+                                )
+                                # Yield rejection message
+                                yield (
+                                    "messages",
+                                    (
+                                        AIMessageChunk(content=error_message),
+                                        metadata,
+                                    ),
+                                )
+                                # Save changed state
+                                modified_state = {
+                                    "response": error_message,
+                                    "query_classification": f"<validation {validation_result['status']}>",
+                                    "status": "rejected",
+                                }
+                                yield (
+                                    "values",
+                                    {**captured_state, **modified_state},
+                                )
+                                return  # Stop streaming
+
 
             case _:
                 # Pass through non-message events or post-validation messages
@@ -235,47 +280,83 @@ async def stateful_validation_adapter(
             query_text + "\n\n" + buffer_text
         )
 
-        if not validation_result["is_valid"]:
-            logger.info(
-                f"Content rejected with classification: "
-                f"{validation_result['classification']}"
-            )
-            # the metadata will be the last captured
-            if not metadata:
-                # this is unrecheable because buffer_text was tested
-                # as not empty, and buffer_text can fill only if chunks
-                # are read in with the metadata
-                raise ValueError(
-                    "Unreacheable code reached: empty metadata "
-                    "in stateful_validation_adapter"
+        match validation_result["status"]:
+            case "valid":
+                # Validation passed
+                modified_state = {
+                    "query_classification": validation_result["classification"],
+                }
+                # Yield buffered chunks
+                for buffered_mode, buffered_event in buffer_chunks:
+                    yield (buffered_mode, buffered_event)
+
+            case "invalid":
+                # Validation failed
+                logger.info(
+                    f"Content rejected with classification: "
+                    f"{validation_result['classification']}"
                 )
-            yield (
-                "messages",
-                (AIMessageChunk(content=error_message), metadata),
-            )
+                # the metadata will be the last captured
+                if not metadata:
+                    # this is unreachable because buffer_text was tested
+                    # as not empty, and buffer_text can fill only if chunks
+                    # are read in with the metadata
+                    raise ValueError(
+                        "Unreachable code reached: empty metadata "
+                        "in stateful_validation_adapter"
+                    )
+                yield (
+                    "messages",
+                    (AIMessageChunk(content=error_message), metadata),
+                )
 
-            modified_state = {
-                "status": "rejected",
-                "response": error_message,
-                "query_classification": validation_result["classification"],
-            }
-            yield ("values", {**captured_state, **modified_state})
-            return
+                modified_state = {
+                    "status": "rejected",
+                    "response": error_message,
+                    "query_classification": validation_result["classification"],
+                }
+                yield ("values", {**captured_state, **modified_state})
+                return
 
-        else:
-            modified_state = {
-                "query_classification": validation_result["classification"],
-            }
+            case "unavailable" | "error":
+                # Validator failed
+                if continue_on_fail:
+                    # Fail-open
+                    logger.warning(
+                        f"Validation {validation_result['status']}: "
+                        f"{validation_result['reason']}. "
+                        f"Continuing without validation (continue_on_fail=True)"
+                    )
+                    modified_state = {
+                        "query_classification": f"<validation {validation_result['status']}>",
+                    }
+                    # Yield buffered chunks
+                    for buffered_mode, buffered_event in buffer_chunks:
+                        yield (buffered_mode, buffered_event)
+                else:
+                    # Fail-closed
+                    logger.error(
+                        f"Validation {validation_result['status']}: "
+                        f"{validation_result['reason']}. "
+                        f"Rejecting content (continue_on_fail=False)"
+                    )
+                    if not metadata:
+                        raise ValueError(
+                            "Unreachable code reached: empty metadata "
+                            "in stateful_validation_adapter"
+                        )
+                    yield (
+                        "messages",
+                        (AIMessageChunk(content=error_message), metadata),
+                    )
+                    modified_state = {
+                        "status": "rejected",
+                        "response": error_message,
+                        "query_classification": f"<validation {validation_result['status']}>",
+                    }
+                    yield ("values", {**captured_state, **modified_state})
+                    return
 
-        if validation_result["classification"] == "validation_unavailable":
-            logger.warning(
-                f"LLM exchange without content check: "
-                f"{buffer_text[:100]}..."
-            )
-
-        # Yield all buffered chunks
-        for buffered_mode, buffered_event in buffer_chunks:
-            yield (buffered_mode, buffered_event)
 
     # Yield final state to override previous "values"
     if modified_state:

@@ -367,6 +367,7 @@ def create_chat_stream(
             ],  # Only validate LLM-generated content
             buffer_size=response_settings.initial_buffer_size,
             error_message=context.chat_settings.MSG_WRONG_CONTENT,
+            continue_on_fail=response_settings.continue_on_fail,
             logger=logger,
         )
 
