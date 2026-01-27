@@ -11,7 +11,13 @@ responses and can reject content mid-stream.
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownArgumentType=false
 
+# pyright: reportArgumentType=false
+# pyright: reportOptionalSubscript=false
+# pyright: reportUnusedVariable=false
+
 import unittest
+
+from typing import Any
 
 from langchain_core.messages import AIMessageChunk
 from lmm.utils.logging import LoglistLogger
@@ -178,7 +184,7 @@ class MockValidator:
 # ================================================================
 
 
-async def consume_stream(stream) -> list[tuple[str, any]]:
+async def consume_stream(stream) -> list[tuple[str, Any]]:
     """Consume an async iterator and return all items as a list."""
     items = []
     async for item in stream:
@@ -187,7 +193,7 @@ async def consume_stream(stream) -> list[tuple[str, any]]:
 
 
 def get_messages_from_events(
-    events: list[tuple[str, any]],
+    events: list[tuple[str, Any]],
 ) -> list[str]:
     """Extract message text from stream events."""
     messages = []
@@ -199,7 +205,7 @@ def get_messages_from_events(
 
 
 def get_final_state(
-    events: list[tuple[str, any]],
+    events: list[tuple[str, Any]],
 ) -> ChatState | None:
     """Get the last state from stream events."""
     for mode, event in reversed(events):
@@ -527,7 +533,7 @@ class TestEdgeCases(unittest.IsolatedAsyncioTestCase):
 
         # Should work correctly without values events
         self.assertEqual(messages, ["Hello", " world"])
-        
+
         # Should yield a final state with validation metadata
         self.assertIsNotNone(final_state)
         self.assertEqual(
@@ -577,8 +583,7 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
         logs = logger.get_logs()
         self.assertTrue(
             any(
-                "Continuing without validation" in log
-                for log in logs
+                "Continuing without validation" in log for log in logs
             )
         )
 
@@ -639,7 +644,7 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
             max_retries=2,  # Fail 3 times total
         )
 
-        events = await consume_stream(adapted)
+        events = await consume_stream(adapted)  # noqa
 
         # Should have tried 3 times (initial + 2 retries)
         self.assertEqual(validator.call_count, 3)
@@ -670,7 +675,7 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
 
         # With fail-closed, content should be rejected
         self.assertEqual(messages, ["Content not allowed"])
-        
+
         # Should have special classification
         self.assertIsNotNone(final_state)
         self.assertEqual(final_state["status"], "rejected")
@@ -784,7 +789,7 @@ class TestBufferBehavior(unittest.IsolatedAsyncioTestCase):
             buffer_size=10,
         )
 
-        events = await consume_stream(adapted)
+        events = await consume_stream(adapted)  # noqa
 
         # Validator should be called once buffer reaches 10
         self.assertEqual(validator.call_count, 1)
