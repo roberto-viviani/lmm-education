@@ -101,7 +101,7 @@ from lmm_education.models.langchain.workflows.chat_graph import (
     ChatStateGraphType,
     ChatState,
     ChatWorkflowContext,
-    workflow_library,
+    workflow_factory,
     graph_logger,
 )
 from lmm_education.models.langchain.stream_adapters import (
@@ -168,7 +168,7 @@ def create_initial_state(
         messages=messages,
         status="valid",  # Will be validated by workflow
         query=querytext,
-        query_prompt="",
+        refined_query="",
         query_classification="",
         context="",
         response="",
@@ -314,10 +314,10 @@ def create_chat_stream(
 
         dblogger = _log_state
 
-    # Fetch graph from workflow library
+    # Fetch workflow graph form factory
     wfname = "query"
     try:
-        workflow: ChatStateGraphType = workflow_library[wfname]
+        workflow: ChatStateGraphType = workflow_factory(wfname)
     except Exception as e:
         raise ValueError(
             f"Could not create workflow {wfname}:\n{e}"
