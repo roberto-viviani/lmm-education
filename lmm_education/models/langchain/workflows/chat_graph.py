@@ -173,11 +173,15 @@ class ChatWorkflowContext(BaseModel):
 
     llm: BaseChatModel
     retriever: BaseRetriever
-    system_message: str = "You are a helpful assistant"
+    system_message: str = "You are a helpful assistant"  # maybe empty
     chat_settings: ChatSettings = Field(default_factory=ChatSettings)
-    client_host: str = "<unknown>"
-    session_hash: str = "<unknown>"
     logger: LoggerBase = Field(default_factory=ConsoleLogger)
+
+    # fields set dynamically at construction
+    client_host: str = Field(default="<unknown>", gt=5)
+    session_hash: str = Field(default="<unknown>", gt=5)
+
+    # database log of interactions
     database: ChatDatabaseInterface | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -498,6 +502,7 @@ def create_chat_workflow() -> ChatStateGraphType:
     workflow.add_node(
         "generate",
         generate,
+        # automatically retry network issues and rate limits
         retry_policy=RetryPolicy(
             max_attempts=3, initial_interval=1.0
         ),
