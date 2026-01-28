@@ -285,9 +285,8 @@ class TestValidationFlow(unittest.IsolatedAsyncioTestCase):
         # Final state should show rejection
         self.assertIsNotNone(final_state)
         self.assertEqual(final_state["status"], "rejected")
-        self.assertEqual(
-            final_state["response"], "Content not allowed"
-        )
+        # should get rejeted response from model
+        self.assertIn("The answer", final_state["response"])
         self.assertEqual(
             final_state["query_classification"], "physics"
         )

@@ -173,7 +173,9 @@ async def stateful_validation_adapter(
                 if len(buffer_text) >= buffer_size:
                     # Validate buffered content
                     query: str = (
-                        captured_state['query'] if captured_state else ""
+                        captured_state['query']
+                        if captured_state
+                        else ""
                     )
                     validation_result = await _validate_content(
                         query + "\n\n" + buffer_text + "..."
@@ -189,7 +191,10 @@ async def stateful_validation_adapter(
                                 ],
                             }
                             # Yield buffered content
-                            for buffered_mode, buffered_event in buffer_chunks:
+                            for (
+                                buffered_mode,
+                                buffered_event,
+                            ) in buffer_chunks:
                                 yield (buffered_mode, buffered_event)
 
                         case "invalid":
@@ -203,14 +208,16 @@ async def stateful_validation_adapter(
                             yield (
                                 "messages",
                                 (
-                                    AIMessageChunk(content=error_message),
+                                    AIMessageChunk(
+                                        content=error_message
+                                    ),
                                     metadata,
                                 ),
                             )
 
                             # Save changed state values to reflect rejection
                             modified_state = {
-                                "response": error_message,
+                                "response": buffer_text,
                                 "query_classification": validation_result[
                                     "classification"
                                 ],
@@ -236,8 +243,14 @@ async def stateful_validation_adapter(
                                     "query_classification": f"<validation {validation_result['status']}>",
                                 }
                                 # Yield buffered content
-                                for buffered_mode, buffered_event in buffer_chunks:
-                                    yield (buffered_mode, buffered_event)
+                                for (
+                                    buffered_mode,
+                                    buffered_event,
+                                ) in buffer_chunks:
+                                    yield (
+                                        buffered_mode,
+                                        buffered_event,
+                                    )
                             else:
                                 # Fail-closed: reject for safety
                                 logger.error(
@@ -249,22 +262,26 @@ async def stateful_validation_adapter(
                                 yield (
                                     "messages",
                                     (
-                                        AIMessageChunk(content=error_message),
+                                        AIMessageChunk(
+                                            content=error_message
+                                        ),
                                         metadata,
                                     ),
                                 )
                                 # Save changed state
                                 modified_state = {
-                                    "response": error_message,
+                                    "response": buffer_text,
                                     "query_classification": f"<validation {validation_result['status']}>",
                                     "status": "rejected",
                                 }
                                 yield (
                                     "values",
-                                    {**captured_state, **modified_state},
+                                    {
+                                        **captured_state,
+                                        **modified_state,
+                                    },
                                 )
                                 return  # Stop streaming
-
 
             case _:
                 # Pass through non-message events or post-validation messages
@@ -284,7 +301,9 @@ async def stateful_validation_adapter(
             case "valid":
                 # Validation passed
                 modified_state = {
-                    "query_classification": validation_result["classification"],
+                    "query_classification": validation_result[
+                        "classification"
+                    ],
                 }
                 # Yield buffered chunks
                 for buffered_mode, buffered_event in buffer_chunks:
@@ -312,8 +331,10 @@ async def stateful_validation_adapter(
 
                 modified_state = {
                     "status": "rejected",
-                    "response": error_message,
-                    "query_classification": validation_result["classification"],
+                    "response": buffer_text,
+                    "query_classification": validation_result[
+                        "classification"
+                    ],
                 }
                 yield ("values", {**captured_state, **modified_state})
                 return
@@ -331,7 +352,10 @@ async def stateful_validation_adapter(
                         "query_classification": f"<validation {validation_result['status']}>",
                     }
                     # Yield buffered chunks
-                    for buffered_mode, buffered_event in buffer_chunks:
+                    for (
+                        buffered_mode,
+                        buffered_event,
+                    ) in buffer_chunks:
                         yield (buffered_mode, buffered_event)
                 else:
                     # Fail-closed
@@ -347,16 +371,21 @@ async def stateful_validation_adapter(
                         )
                     yield (
                         "messages",
-                        (AIMessageChunk(content=error_message), metadata),
+                        (
+                            AIMessageChunk(content=error_message),
+                            metadata,
+                        ),
                     )
                     modified_state = {
                         "status": "rejected",
-                        "response": error_message,
+                        "response": buffer_text,
                         "query_classification": f"<validation {validation_result['status']}>",
                     }
-                    yield ("values", {**captured_state, **modified_state})
+                    yield (
+                        "values",
+                        {**captured_state, **modified_state},
+                    )
                     return
-
 
     # Yield final state to override previous "values"
     if modified_state:
