@@ -5,15 +5,9 @@ Tests the stateful_validation_adapter which validates streaming LLM
 responses and can reject content mid-stream.
 """
 
-# pyright: reportUnknownParameterType=false
-# pyright: reportMissingParameterType=false
-# pyright: reportUnknownVariableType=false
-# pyright: reportUnknownMemberType=false
-# pyright: reportUnknownArgumentType=false
-
+# pyright: basic
 # pyright: reportArgumentType=false
 # pyright: reportOptionalSubscript=false
-# pyright: reportUnusedVariable=false
 
 import unittest
 

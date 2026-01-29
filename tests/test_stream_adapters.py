@@ -5,11 +5,7 @@ These tests use mock async iterators to test adapter functions in isolation,
 avoiding dependencies on LangGraph internals.
 """
 
-# pyright: reportUnknownParameterType=false
-# pyright: reportMissingParameterType=false
-# pyright: reportUnknownVariableType=false
-# pyright: reportUnknownMemberType=false
-# pyright: reportUnknownArgumentType=false
+# pyright: basic
 
 import unittest
 import asyncio
