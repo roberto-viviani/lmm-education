@@ -178,8 +178,8 @@ class ChatWorkflowContext(BaseModel):
     logger: LoggerBase = Field(default_factory=ConsoleLogger)
 
     # fields set dynamically at construction
-    client_host: str = Field(default="<unknown>", gt=5)
-    session_hash: str = Field(default="<unknown>", gt=5)
+    client_host: str = Field(default="<unknown>", min_length=6)
+    session_hash: str = Field(default="<unknown>", min_length=6)
 
     # database log of interactions
     database: ChatDatabaseInterface | None = None
@@ -436,17 +436,17 @@ def create_chat_workflow() -> ChatStateGraphType:
         )
 
         # Stream the response - chunks will be emitted by
-        # LangGreaph's astream, even if not 'yielded'
+        # LangGraph's astream, even if not 'yielded'
         response_chunks: list[str] = []
         try:
             async for chunk in config.llm.astream(messages):
-                # Extract text from chunk safely
-                if hasattr(chunk, "text") and callable(chunk.text):
-                    response_chunks.append(chunk.text)
-                elif hasattr(chunk, "content"):
+                # Extract text from AIMessageChunk
+                # LLM.astream() returns AIMessageChunk objects with .content attribute
+                if hasattr(chunk, "content"):
                     content: str = str(chunk.content)  # type: ignore
                     response_chunks.append(content)
                 else:
+                    # Fallback for unexpected chunk types
                     response_chunks.append(str(chunk))
         except Exception as e:
             context: ChatWorkflowContext = runtime.context
@@ -518,7 +518,9 @@ def create_chat_workflow() -> ChatStateGraphType:
         "integrate_history",
         continue_if_no_error("retrieve_context"),
     )
-    workflow.add_edge("retrieve_context", "format_query")
+    workflow.add_conditional_edges(
+        "retrieve_context", 
+        continue_if_no_error("format_query"))
     workflow.add_edge("format_query", "generate")
     workflow.add_edge("generate", END)
 
