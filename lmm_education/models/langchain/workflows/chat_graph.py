@@ -441,9 +441,10 @@ def create_chat_workflow() -> ChatStateGraphType:
         try:
             async for chunk in config.llm.astream(messages):
                 # Extract text from AIMessageChunk
-                # LLM.astream() returns AIMessageChunk objects with .content attribute
-                if hasattr(chunk, "content"):
-                    content: str = str(chunk.content)  # type: ignore
+                # LLM.astream() returns AIMessageChunk objects. We
+                # only stream text here
+                if hasattr(chunk, "text"):
+                    content: str = chunk.text
                     response_chunks.append(content)
                 else:
                     # Fallback for unexpected chunk types
@@ -519,8 +520,8 @@ def create_chat_workflow() -> ChatStateGraphType:
         continue_if_no_error("retrieve_context"),
     )
     workflow.add_conditional_edges(
-        "retrieve_context", 
-        continue_if_no_error("format_query"))
+        "retrieve_context", continue_if_no_error("format_query")
+    )
     workflow.add_edge("format_query", "generate")
     workflow.add_edge("generate", END)
 
