@@ -8,11 +8,7 @@ import io
 import logging
 from collections.abc import AsyncIterator
 
-from langchain_core.language_models import BaseChatModel
 from langchain_core.retrievers import BaseRetriever
-from lmm.language_models.langchain.models import (
-    create_model_from_settings,
-)
 from lmm_education.query import (
     create_chat_stringstream,
     ChatWorkflowContext,
@@ -106,9 +102,6 @@ def tearDownModule():
 
 class TestQuery(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
         self.retriever: BaseRetriever = (
             AsyncQdrantRetriever.from_config_settings()
         )
@@ -120,7 +113,6 @@ class TestQuery(unittest.IsolatedAsyncioTestCase):
         ),
     ) -> ChatWorkflowContext:
         return ChatWorkflowContext(
-            llm=self.llm,
             retriever=self.retriever,
             chat_settings=chat_settings,
         )
@@ -226,9 +218,6 @@ from lmm_education.config.appchat import CheckResponse
 
 class TestQueryMalformed(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
         self.retriever: BaseRetriever = (
             AsyncQdrantRetriever.from_config_settings()
         )
@@ -237,7 +226,6 @@ class TestQueryMalformed(unittest.IsolatedAsyncioTestCase):
         self, chat_settings: ChatSettings = ChatSettings()
     ) -> ChatWorkflowContext:
         return ChatWorkflowContext(
-            llm=self.llm,
             retriever=self.retriever,
             chat_settings=chat_settings,
         )
@@ -328,9 +316,6 @@ class TestQueryMalformed(unittest.IsolatedAsyncioTestCase):
 
 class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
         self.retriever: BaseRetriever = (
             AsyncQdrantRetriever.from_config_settings()
         )
@@ -342,7 +327,6 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         ),
     ) -> ChatWorkflowContext:
         return ChatWorkflowContext(
-            llm=self.llm,
             retriever=self.retriever,
             chat_settings=chat_settings,
         )
@@ -537,181 +521,8 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 
 # This commented out because it uses a real model. Decomment
 # to test rejection of queries.
-# class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
-#     def setUp(self):
-#         from langchain_openai import ChatOpenAI
-
-#         self.llm: BaseChatModel = ChatOpenAI(name="gpt-4.1-mini")
-#         self.retriever: BaseRetriever = (
-#             AsyncQdrantRetriever.from_config_settings()
-#         )
-
-#     def get_workflow_context(
-#         self,
-#         chat_settings: ChatSettings = ChatSettings(
-#             check_response=CheckResponse(check_response=False)
-#         ),
-#     ) -> ChatWorkflowContext:
-#         return ChatWorkflowContext(
-#             llm=self.llm,
-#             retriever=self.retriever,
-#             chat_settings=chat_settings,
-#         )
-
-#     async def test_valid_query(self):
-#         """Test a normal query (if LLM is available) with
-#         validation."""
-#         print("Test query validation: Valid query")
-
-#         from lmm_education.models.langchain.stream_adapters import (
-#             tier_1_iterator,
-#         )
-#         from lmm_education.models.langchain.workflows.chat_stream_adapters import (
-#             stateful_validation_adapter,
-#         )
-#         from lmm_education.query import (
-#             create_chat_stream,
-#             create_initial_state,
-#         )
-#         from lmm_education.models.langchain.workflows.chat_graph import (
-#             ChatState,
-#         )
-#         from lmm.language_models.langchain.runnables import (
-#             create_runnable,
-#         )
-
-#         stream = io.StringIO()
-#         stream_context = io.StringIO()
-
-#         try:
-#             iterator_raw: tier_1_iterator = create_chat_stream(
-#                 "What is a linear model?",
-#                 None,
-#                 self.get_workflow_context(),
-#                 database_log=(stream, stream_context),
-#             )
-#             iterator: tier_1_iterator = stateful_validation_adapter(
-#                 iterator_raw,
-#                 validator_model=create_runnable(
-#                     "allowed_content_validator",
-#                     user_settings={"model": "OpenAI/gpt-4.1-nano"},
-#                     system_prompt="You are a helpful assistant",
-#                     allowed_content=["statistics", "R programming"],
-#                 ),
-#                 allowed_content=["statistics", "R programming"],
-#             )
-
-#             state: ChatState = create_initial_state(
-#                 "What is a linear model?"
-#             )
-#             counter = 0
-#             async for mode, event in iterator:
-#                 if mode == "values":
-#                     counter += 1
-#                     state = event
-
-#             print("\n=========================")
-#             print(f"status: {state["status"]}")
-#             print(f"classification: {state["query_classification"]}")
-#             print("--------------------------\n")
-
-#         except Exception as e:
-#             print(
-#                 f"Error in TestQueryRejection.test_valid_query: {e}\n"
-#             )
-#             return
-
-#         self.assertGreater(counter, 0)
-#         self.assertEqual(state["status"], "valid")
-
-#         await asyncio.sleep(0.1)
-
-#         logtext: str = stream.getvalue()
-#         self.assertGreater(len(logtext), 0)
-#         self.assertIn("MESSAGE", logtext)
-#         logcontext: str = stream_context.getvalue()
-#         self.assertGreater(len(logcontext), 0)
-
-#         print("✓ Passed\n")
-
-#     async def test_invalid_query(self):
-#         """Test an invalid query (if LLM is available) with
-#         rejection"""
-#         print("Test query validation: Invalid query")
-
-#         from lmm_education.models.langchain.stream_adapters import (
-#             tier_1_iterator,
-#         )
-#         from lmm_education.models.langchain.workflows.chat_stream_adapters import (
-#             stateful_validation_adapter,
-#         )
-#         from lmm_education.query import (
-#             create_chat_stream,
-#             create_initial_state,
-#         )
-#         from lmm_education.models.langchain.workflows.chat_graph import (
-#             ChatState,
-#         )
-#         from lmm.language_models.langchain.runnables import (
-#             create_runnable,
-#         )
-
-#         stream = io.StringIO()
-#         stream_context = io.StringIO()
-
-#         try:
-#             iterator_raw: tier_1_iterator = create_chat_stream(
-#                 "Why is the sky blue?",
-#                 None,
-#                 self.get_workflow_context(),
-#                 database_log=(stream, stream_context),
-#             )
-#             iterator: tier_1_iterator = stateful_validation_adapter(
-#                 iterator_raw,
-#                 validator_model=create_runnable(
-#                     "allowed_content_validator",
-#                     user_settings={"model": "OpenAI/gpt-4.1-nano"},
-#                     system_prompt="You are a helpful assistant",
-#                     allowed_content=["statistics", "R programming"],
-#                 ),
-#                 allowed_content=["statistics", "R programming"],
-#                 error_message="This content cannot be streamed",
-#             )
-
-#             state: ChatState = create_initial_state(
-#                 "What is a linear model?"
-#             )
-#             counter = 0
-#             async for mode, event in iterator:
-#                 if mode == "values":
-#                     counter += counter
-#                     state = event
-
-#             print("\n=========================")
-#             print(f"status: {state["status"]}")
-#             print(f"classification: {state["query_classification"]}")
-#             print("--------------------------\n")
-
-#         except Exception as e:
-#             print(
-#                 f"Error in TestQueryRejection.test_invalid_query: {e}\n"
-#             )
-#             return
-
-#         self.assertEqual(state["status"], "rejected")
-
-#         # note that here the streams do not contain the rejection,
-#         # because the validation stream has been applied after the
-#         # logging stream. You need a new model with a real aux model
-
-#         print("✓ Passed\n")
-
-
-class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
+class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
         self.retriever: BaseRetriever = (
             AsyncQdrantRetriever.from_config_settings()
         )
@@ -723,7 +534,172 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
         ),
     ) -> ChatWorkflowContext:
         return ChatWorkflowContext(
-            llm=self.llm,
+            retriever=self.retriever,
+            chat_settings=chat_settings,
+        )
+
+    async def test_valid_query(self):
+        """Test a normal query (if LLM is available) with
+        validation."""
+        print("Test query validation: Valid query")
+
+        from lmm_education.models.langchain.stream_adapters import (
+            tier_1_iterator,
+        )
+        from lmm_education.models.langchain.workflows.chat_stream_adapters import (
+            stateful_validation_adapter,
+        )
+        from lmm_education.query import (
+            create_chat_stream,
+            create_initial_state,
+        )
+        from lmm_education.models.langchain.workflows.chat_graph import (
+            ChatState,
+        )
+        from lmm.language_models.langchain.runnables import (
+            create_runnable,
+        )
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        try:
+            iterator_raw: tier_1_iterator = create_chat_stream(
+                "What is a linear model?",
+                None,
+                self.get_workflow_context(),
+                database_log=(stream, stream_context),
+            )
+            iterator: tier_1_iterator = stateful_validation_adapter(
+                iterator_raw,
+                validator_model=create_runnable(
+                    "allowed_content_validator",
+                    user_settings={"model": "OpenAI/gpt-4.1-nano"},
+                    system_prompt="You are a helpful assistant",
+                    allowed_content=["statistics", "R programming"],
+                ),
+                allowed_content=["statistics", "R programming"],
+            )
+
+            state: ChatState = create_initial_state(
+                "What is a linear model?"
+            )
+            counter = 0
+            async for mode, event in iterator:
+                if mode == "values":
+                    counter += 1
+                    state = event
+
+            print("\n=========================")
+            print(f"status: {state["status"]}")
+            print(f"classification: {state["query_classification"]}")
+            print("--------------------------\n")
+
+        except Exception as e:
+            print(
+                f"Error in TestQueryRejection.test_valid_query: {e}\n"
+            )
+            return
+
+        self.assertGreater(counter, 0)
+        self.assertEqual(state["status"], "valid")
+
+        await asyncio.sleep(0.1)
+
+        logtext: str = stream.getvalue()
+        self.assertGreater(len(logtext), 0)
+        self.assertIn("MESSAGE", logtext)
+        logcontext: str = stream_context.getvalue()
+        self.assertGreater(len(logcontext), 0)
+
+        print("✓ Passed\n")
+
+    async def test_invalid_query(self):
+        """Test an invalid query (if LLM is available) with
+        rejection"""
+        print("Test query validation: Invalid query")
+
+        from lmm_education.models.langchain.stream_adapters import (
+            tier_1_iterator,
+        )
+        from lmm_education.models.langchain.workflows.chat_stream_adapters import (
+            stateful_validation_adapter,
+        )
+        from lmm_education.query import (
+            create_chat_stream,
+            create_initial_state,
+        )
+        from lmm_education.models.langchain.workflows.chat_graph import (
+            ChatState,
+        )
+        from lmm.language_models.langchain.runnables import (
+            create_runnable,
+        )
+
+        stream = io.StringIO()
+        stream_context = io.StringIO()
+
+        try:
+            iterator_raw: tier_1_iterator = create_chat_stream(
+                "Why is the sky blue?",
+                None,
+                self.get_workflow_context(),
+                database_log=(stream, stream_context),
+            )
+            iterator: tier_1_iterator = stateful_validation_adapter(
+                iterator_raw,
+                validator_model=create_runnable(
+                    "allowed_content_validator",
+                    user_settings={"model": "OpenAI/gpt-4.1-nano"},
+                    system_prompt="You are a helpful assistant",
+                    allowed_content=["statistics", "R programming"],
+                ),
+                allowed_content=["statistics", "R programming"],
+                error_message="This content cannot be streamed",
+            )
+
+            state: ChatState = create_initial_state(
+                "What is a linear model?"
+            )
+            counter = 0
+            async for mode, event in iterator:
+                if mode == "values":
+                    counter += counter
+                    state = event
+
+            print("\n=========================")
+            print(f"status: {state["status"]}")
+            print(f"classification: {state["query_classification"]}")
+            print("--------------------------\n")
+
+        except Exception as e:
+            print(
+                f"Error in TestQueryRejection.test_invalid_query: {e}\n"
+            )
+            return
+
+        self.assertEqual(state["status"], "rejected")
+
+        # note that here the streams do not contain the rejection,
+        # because the validation stream has been applied after the
+        # logging stream. You need a new model with a real aux model
+
+        print("✓ Passed\n")
+
+
+class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.retriever: BaseRetriever = (
+            AsyncQdrantRetriever.from_config_settings()
+        )
+
+    def get_workflow_context(
+        self,
+        chat_settings: ChatSettings = ChatSettings(
+            check_response=CheckResponse(check_response=False)
+        ),
+    ) -> ChatWorkflowContext:
+        return ChatWorkflowContext(
             retriever=self.retriever,
             chat_settings=chat_settings,
         )

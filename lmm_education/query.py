@@ -70,14 +70,10 @@ from langchain_core.messages import (
     AIMessage,
 )
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.language_models.chat_models import BaseChatModel
 
 # LM markdown
 from lmm.utils.logging import ConsoleLogger, LoggerBase
 from lmm.config.config import LanguageModelSettings
-from lmm.language_models.langchain.models import (
-    create_model_from_settings,
-)
 from lmm.language_models.langchain.runnables import (
     create_runnable,
     RunnableType,
@@ -602,15 +598,6 @@ async def aquery(
             yield errmsg
             return
 
-    try:
-        llm: BaseChatModel = create_model_from_settings(
-            model_settings
-        )
-    except Exception as e:
-        logger.error(f"Could not load language model: {e}")
-        yield f"Could not load language model: {e}"
-        return
-
     if chat_settings is None:
         chat_settings = load_chat_settings(logger=logger)
         if chat_settings is None:
@@ -646,7 +633,6 @@ async def aquery(
         allowed_content=allowed_content,
     )  # this for override config settings
     context = ChatWorkflowContext(
-        llm=llm,
         retriever=retriever,
         chat_settings=chat_settings.from_instance(
             check_response=response_settings

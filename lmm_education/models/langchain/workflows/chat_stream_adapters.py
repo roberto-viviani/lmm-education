@@ -15,7 +15,7 @@ from lmm.language_models.langchain.runnables import RunnableType
 from ..stream_adapters import tier_1_iterator
 
 # Import ChatState for domain-specific adapters
-from .chat_graph import ChatState, create_initial_state
+from .base import ChatState, create_initial_state
 
 
 class EmptyState(TypedDict):

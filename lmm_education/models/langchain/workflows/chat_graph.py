@@ -10,6 +10,10 @@ handles:
 - Query formatting with retrieved context
 - LLM response generation
 
+The graph manages a state of type ChatState, or of a derived class.
+The input is in the channel 'query', and the output in the channel
+`response`.
+
 The graph is parametrized by dependencies injected through a
 ChatWorkflowContext object. This object includes:
 
@@ -67,151 +71,211 @@ async for txt in text_stream:
 
 The function graph_logger supports writing the user/llm interaction to
 a database, and is meant to be used by a streaming object.
+
+Note:
+    to support streaming, the graph does not provide the output
+    in the `messages`, but in the `response` channel instead. When
+    used with `.ainvoke()`, extract the response from this key in
+    the returned state. When used with `.astream()`, consume the
+    stream.
 """
 
 # LangGraph missing type stubs
 # pyright: reportMissingTypeStubs=false
 # pyright: reportUnknownMemberType=false
 
-from typing import TypedDict, Literal, Annotated
 from collections.abc import Callable
 from math import ceil
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-from pydantic.config import ConfigDict
-
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
     BaseMessage,
-    HumanMessage,
     AIMessage,
 )
 from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
 from langgraph.constants import TAG_NOSTREAM
 from langgraph.types import RetryPolicy
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
 from langgraph.runtime import Runtime
-from langgraph.graph.state import CompiledStateGraph
 
+from lmm.utils.logging import LoggerBase
+from lmm.language_models.langchain.models import (
+    create_model_from_settings,
+)
 from lmm.language_models.langchain.runnables import (
     RunnableType,
     create_runnable,
 )
 from lmm.utils.hash import generate_random_string
-from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
 
 from lmm_education.config.config import ConfigSettings
 from lmm_education.config.appchat import ChatSettings
 from lmm_education.logging_db import ChatDatabaseInterface
 
-
-class ChatState(TypedDict):
-    """
-    State object for the chat workflow.
-
-    This typed dictionary replaces the misuse of the history parameter
-    for carrying metadata. Each field has a clear purpose:
-
-    Attributes:
-        messages: Conversation history as LangChain messages
-        status: status of the graph
-        query: The current user query
-        refined_query: Refined query integrating history
-        query_classification: Semantic categorization of query
-        context: Retrieved context from vector store
-        response: Collects response for logging to database
-    """
-
-    # Conversation messages (uses LangGraph's message reducer)
-    messages: Annotated[list[BaseMessage], add_messages]
-    status: Literal[
-        "valid", "empty_query", "long_query", "rejected", "error"
-    ]
-
-    # Query processing
-    query: str
-    refined_query: str
-    query_classification: str  # (set by stream object)
-
-    # context from vector database
-    context: str
-
-    # response. We need to collect this separately because
-    # the streaming will include lmm streams, but these will
-    # not be in the 'messages' field.
-    response: str
+from .base import (
+    ChatState,
+    ChatStateGraphType,
+    ChatWorkflowContext,
+    prepare_messages_for_llm,
+)
 
 
-def create_initial_state(query: str) -> ChatState:
-    """Creates a default initial state, set to a user query."""
+# class ChatState(TypedDict):
+#     """
+#     State object for the chat workflow.
 
-    return ChatState(
-        messages=[],
-        status="valid",
-        query=query,
-        refined_query="",
-        query_classification="",
-        context="",
-        response="",
-    )
+#     This typed dictionary replaces the misuse of the history parameter
+#     for carrying metadata. Each field has a clear purpose:
 
+#     Attributes:
+#         messages: Conversation history as LangChain messages
+#         status: status of the graph
+#         query: The current user query
+#         refined_query: Refined query integrating history
+#         query_classification: Semantic categorization of query
+#         context: Retrieved context from vector store
+#         response: Collects response for logging to database
+#     """
 
-# (inherit from BaseModel as dataclass cannot be used for context)
-class ChatWorkflowContext(BaseModel):
-    """
-    Configuration for the chat workflow.
+#     # Conversation messages (uses LangGraph's message reducer)
+#     messages: Annotated[list[BaseMessage], add_messages]
+#     status: Literal[
+#         "valid", "empty_query", "long_query", "rejected", "error"
+#     ]
 
-    Encapsulates all dependencies and settings needed by the workflow,
-    avoiding global state and making the workflow testable.
-    """
+#     # Query processing
+#     query: str
+#     refined_query: str
+#     query_classification: str  # (set by stream object)
 
-    llm: BaseChatModel
-    retriever: BaseRetriever
-    system_message: str = "You are a helpful assistant"  # maybe empty
-    chat_settings: ChatSettings = Field(default_factory=ChatSettings)
-    logger: LoggerBase = Field(default_factory=ConsoleLogger)
+#     # context from vector database
+#     context: str
 
-    # fields set dynamically at construction
-    client_host: str = Field(default="<unknown>", min_length=6)
-    session_hash: str = Field(default="<unknown>", min_length=6)
-
-    # database log of interactions
-    database: ChatDatabaseInterface | None = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @classmethod
-    def from_default_config(cls) -> 'ChatWorkflowContext':
-        from lmm_education.config.config import ConfigSettings
-        from lmm.language_models.langchain.models import (
-            create_model_from_settings,
-        )
-        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-            AsyncQdrantVectorStoreRetriever as AsyncRetriever,
-        )
-
-        config = ConfigSettings()
-        model = create_model_from_settings(config.major)
-
-        return ChatWorkflowContext(
-            llm=model,
-            retriever=AsyncRetriever.from_config_settings(),
-        )
+#     # response. We need to collect this separately because
+#     # the streaming will include lmm streams, but these will
+#     # not be in the 'messages' field.
+#     response: str
 
 
-# graph alias type
-ChatStateGraphType = CompiledStateGraph[
-    ChatState, ChatWorkflowContext, ChatState, ChatState
-]
+# def create_initial_state(query: str) -> ChatState:
+#     """Creates a default initial state, set to a user query."""
+
+#     return ChatState(
+#         messages=[],
+#         status="valid",
+#         query=query,
+#         refined_query="",
+#         query_classification="",
+#         context="",
+#         response="",
+#     )
 
 
-def create_chat_workflow() -> ChatStateGraphType:
+# # (inherit from BaseModel as dataclass cannot be used for context)
+# class ChatWorkflowContext(BaseModel):
+#     """
+#     Configuration for the chat workflow.
+
+#     Encapsulates all dependencies and settings needed by the workflow,
+#     avoiding global state and making the workflow testable.
+#     """
+
+#     llm: BaseChatModel
+#     retriever: BaseRetriever
+#     system_message: str = "You are a helpful assistant"  # maybe empty
+#     chat_settings: ChatSettings = Field(default_factory=ChatSettings)
+#     logger: LoggerBase = Field(default_factory=ConsoleLogger)
+
+#     # fields set dynamically at construction
+#     client_host: str = Field(default="<unknown>", min_length=6)
+#     session_hash: str = Field(default="<unknown>", min_length=6)
+
+#     # database log of interactions
+#     database: ChatDatabaseInterface | None = None
+
+#     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+#     @classmethod
+#     def from_default_config(cls) -> 'ChatWorkflowContext':
+#         from lmm_education.config.config import ConfigSettings
+#         from lmm.language_models.langchain.models import (
+#             create_model_from_settings,
+#         )
+#         from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+#             AsyncQdrantVectorStoreRetriever as AsyncRetriever,
+#         )
+
+#         config = ConfigSettings()
+#         model = create_model_from_settings(config.major)
+
+#         return ChatWorkflowContext(
+#             llm=model,
+#             retriever=AsyncRetriever.from_config_settings(),
+#         )
+
+
+# # graph alias type
+# ChatStateGraphType = CompiledStateGraph[
+#     ChatState, ChatWorkflowContext, ChatState, ChatState
+# ]
+
+
+# def prepare_messages_for_llm(
+#     state: ChatState,
+#     context: ChatWorkflowContext,
+#     system_message: str = "",
+#     history_window: int | None = None,
+# ) -> list[tuple[str, str]]:
+#     """
+#     Prepare messages for LLM invocation from state.
+
+#     This replaces the _prepare_messages function, using state instead
+#     of the history list.
+
+#     Args:
+#         state: Current chat state
+#         system_message: Optional system message to prepend
+#         history_window: Number of recent messages to include
+#             (defaults to 4)
+
+#     Returns:
+#         List of (role, content) tuples for LLM invocation
+#     """
+#     if history_window is None:
+#         history_window = context.chat_settings.history_length
+
+#     messages: list[tuple[str, str]] = []
+
+#     if system_message:
+#         messages.append(("system", system_message))
+
+#     # Add recent conversation history
+#     state_messages: list[BaseMessage] = state.get("messages", [])
+#     for msg in state_messages[-history_window:]:
+#         role: str = (
+#             "user" if isinstance(msg, HumanMessage) else "assistant"
+#         )
+#         content: str = ""
+#         try:
+#             content = str(msg.content)  # type: ignore (dict type)
+#         except Exception:
+#             pass
+#         messages.append((role, content))
+
+#     # Add the current formatted query
+#     messages.append(("user", state["refined_query"]))
+
+#     return messages
+
+
+def create_chat_workflow(
+    settings: ConfigSettings,
+    llm_major: BaseChatModel | None = None,
+) -> ChatStateGraphType:
     """
     Create the chat workflow graph with native streaming support.
 
@@ -226,6 +290,12 @@ def create_chat_workflow() -> ChatStateGraphType:
     retrieve context    ---> format query
     format query        ---> generate
     generate            ---> END
+
+    Args:
+        settings: a ConfigSettings object (for settings.major,
+            settings.minor, settings.aux)
+        llm_major: an override of settings.major (used to inject
+            a model for testing purposes)
 
     Returns:
         Compiled StateGraph ready for streaming
@@ -283,9 +353,9 @@ def create_chat_workflow() -> ChatStateGraphType:
                 case 'none':
                     pass
                 case 'summary':
-                    # TODO: configure this through context
-                    config = ConfigSettings()
-                    model = create_runnable("summarizer", config.aux)
+                    model = create_runnable(
+                        "summarizer", settings.aux
+                    )
                     summary: str = await model.ainvoke(
                         {
                             'text': "\n---\n".join(messages),
@@ -435,11 +505,15 @@ def create_chat_workflow() -> ChatStateGraphType:
             state, config, config.system_message
         )
 
+        llm: BaseChatModel = llm_major or create_model_from_settings(
+            settings.major
+        )
+
         # Stream the response - chunks will be emitted by
         # LangGraph's astream, even if not 'yielded'
         response_chunks: list[str] = []
         try:
-            async for chunk in config.llm.astream(messages):
+            async for chunk in llm.astream(messages):
                 # Extract text from AIMessageChunk
                 # LLM.astream() returns AIMessageChunk objects with .content attribute
                 if hasattr(chunk, "content"):
@@ -519,8 +593,8 @@ def create_chat_workflow() -> ChatStateGraphType:
         continue_if_no_error("retrieve_context"),
     )
     workflow.add_conditional_edges(
-        "retrieve_context", 
-        continue_if_no_error("format_query"))
+        "retrieve_context", continue_if_no_error("format_query")
+    )
     workflow.add_edge("format_query", "generate")
     workflow.add_edge("generate", END)
 
@@ -537,57 +611,9 @@ def workflow_factory(workflow_name: str) -> ChatStateGraphType:
     # more workflows.
     match workflow_name:
         case "query":  # only query at first chat
-            return create_chat_workflow()
+            return create_chat_workflow(ConfigSettings())
         case _:
             raise ValueError(f"Invalid workflow: {workflow_name}")
-
-
-def prepare_messages_for_llm(
-    state: ChatState,
-    context: ChatWorkflowContext,
-    system_message: str = "",
-    history_window: int | None = None,
-) -> list[tuple[str, str]]:
-    """
-    Prepare messages for LLM invocation from state.
-
-    This replaces the _prepare_messages function, using state instead
-    of the history list.
-
-    Args:
-        state: Current chat state
-        system_message: Optional system message to prepend
-        history_window: Number of recent messages to include
-            (defaults to 4)
-
-    Returns:
-        List of (role, content) tuples for LLM invocation
-    """
-    if history_window is None:
-        history_window = context.chat_settings.history_length
-
-    messages: list[tuple[str, str]] = []
-
-    if system_message:
-        messages.append(("system", system_message))
-
-    # Add recent conversation history
-    state_messages: list[BaseMessage] = state.get("messages", [])
-    for msg in state_messages[-history_window:]:
-        role: str = (
-            "user" if isinstance(msg, HumanMessage) else "assistant"
-        )
-        content: str = ""
-        try:
-            content = str(msg.content)  # type: ignore (dict type)
-        except Exception:
-            pass
-        messages.append((role, content))
-
-    # Add the current formatted query
-    messages.append(("user", state["refined_query"]))
-
-    return messages
 
 
 # -----------------------------------------------------------------
@@ -620,13 +646,20 @@ async def graph_logger(
     logger: LoggerBase = context.logger
 
     # info from state and context
-    model_name: str | None
-    model_name = context.llm.name
-    if not model_name:
-        if hasattr(context.llm, "model_name"):
-            model_name = str(context.llm.model_name)  # type: ignore
-    if not model_name:
-        model_name = "<unknown>"
+    model_name: str
+    settings = ConfigSettings()
+    model_name = (
+        settings.major.get_model_source()
+        + "/"
+        + settings.major.get_model_name()
+    )
+
+    # model_name = context.llm.name
+    # if not model_name:
+    #     if hasattr(context.llm, "model_name"):
+    #         model_name = str(context.llm.model_name)  # type: ignore
+    # if not model_name:
+    #     model_name = "<unknown>"
 
     messages: list[BaseMessage] = state.get("messages", [])
     status = state.get("status", "error")

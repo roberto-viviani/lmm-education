@@ -17,14 +17,10 @@ import json
 
 # Libraries
 import gradio as gr
-from langchain_core.language_models import BaseChatModel
 
 # lmm_education and lmm
 from lmm_education.models.langchain.workflows.chat_graph import (
     ChatWorkflowContext,
-)
-from lmm.language_models.langchain.models import (
-    create_model_from_settings,
 )
 from lmm.utils.hash import generate_random_string
 
@@ -53,21 +49,9 @@ except Exception as e:
 title: str = base.chat_settings.title
 description: str = base.chat_settings.description
 
-# We now set up the major language model used for chatting.
-# By default, we use the 'major' category set up in config.toml,
-# but this may be changed manually here.
-try:
-    llm: BaseChatModel = create_model_from_settings(
-        base.settings.major
-    )
-except Exception as e:
-    logger.error(f"Could not create LLM: {e}")
-    exit()
-
 # Create dependency injection object. The graph uses a dependency
 # injection object, which we load with the objects created at setup.
 context = ChatWorkflowContext(
-    llm=llm,
     retriever=base.retriever,
     chat_settings=base.chat_settings,
     logger=logger,

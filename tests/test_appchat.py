@@ -58,18 +58,11 @@ def tearDownModule():
 class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
-        from langchain_core.language_models import BaseChatModel
         from langchain_core.retrievers import BaseRetriever
-        from lmm.language_models.langchain.models import (
-            create_model_from_settings,
-        )
         from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
             AsyncQdrantVectorStoreRetriever as AsyncQdrantRetriever,
         )
 
-        self.llm: BaseChatModel = create_model_from_settings(
-            ConfigSettings().major
-        )
         self.retriever: BaseRetriever = (
             AsyncQdrantRetriever.from_config_settings()
         )
@@ -81,7 +74,6 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         ),
     ) -> ChatWorkflowContext:
         return ChatWorkflowContext(
-            llm=self.llm,
             retriever=self.retriever,
             chat_settings=chat_settings,
         )

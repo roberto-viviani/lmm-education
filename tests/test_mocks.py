@@ -11,6 +11,8 @@ node which uses various auxiliary models for history integration.
 from typing import Any
 from collections.abc import AsyncIterator
 
+from pydantic import ConfigDict
+
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
@@ -140,8 +142,7 @@ class MockRetriever(BaseRetriever):
     """
 
     # Pydantic model configuration to allow arbitrary attributes
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Declare fields that are not part of BaseRetriever
     documents: list[Document] = []
@@ -206,8 +207,7 @@ class MockLLM(BaseChatModel):
     """
 
     # Pydantic model configuration
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Declare fields
     responses: list[str] = []
