@@ -1,54 +1,26 @@
 """
-LangGraph-based chat workflow for RAG-enabled language model
-interactions.
+Default workflow for handling RAG interactions.
 
-This module provides a state-based graph architecture for processing
-chat queries with retrieval-augmented generation (RAG). The workflow
-handles:
+The workflow handles:
 - Query validation
+- Integration previous messages
 - Context retrieval from vector store
-- Query formatting with retrieved context
 - LLM response generation
 
-The graph manages a state of type ChatState, or of a derived class.
-The input is in the channel 'query', and the output in the channel
-`response`.
-
-The graph is parametrized by dependencies injected through a
-ChatWorkflowContext object. This object includes:
-
-llm: BaseChatModel, an initialized LangChain object wrapping the model
-retriever: BaseRetriever, an object wrapping the vector database
-system_message: str, a system message overriding defaults
-chat_settings: ChatSettings, an objects that loads the appchat.toml
-    settings automatically, or allows them to be overridden when given
-logger: LoggerBase, a logger object for errors printing
-
-The remaining settings are used by streams to log the interaction to
-a database. Except for .database, they are not set here.
-
-database: ChatDatabaseInterface, the names of the files of the database
-client_host: str = "<unknown>", filled in internally
-session_hash: str = "<unknown>", filled in internally
-
-To create a dependency injection using the config.toml settings, call
+The graph workflow is created with the `create_chat_workflow` function
+taking a CongiSettings argument to specify major, minor, and aux
+models:
 
 ```python
-context = ChatWorkflowContext.from_default_config()
-```
-
-The graph is designed for being used as a stream. The graph is created
-as follows,
-
-```python
-workflow = create_chat_workflow()
+settings = ConfigSettings()
+workflow = create_chat_workflow(settings)
 state: ChatState = create_initial_state("What is logistic regression?")
 dependencies = ChatWorkflowContext.from_default_config()
 stream = workflow.astream(state, stream_mode="messages",
                 context=dependencies)
 ```
 
-after which the stream may be consumed directly. Note that this is a
+After this, the stream may be consumed directly. Note that this is a
 LangGraph stream, returning tuples of (chunk, metadata):
 
 ```python
@@ -122,154 +94,6 @@ from .base import (
     ChatWorkflowContext,
     prepare_messages_for_llm,
 )
-
-
-# class ChatState(TypedDict):
-#     """
-#     State object for the chat workflow.
-
-#     This typed dictionary replaces the misuse of the history parameter
-#     for carrying metadata. Each field has a clear purpose:
-
-#     Attributes:
-#         messages: Conversation history as LangChain messages
-#         status: status of the graph
-#         query: The current user query
-#         refined_query: Refined query integrating history
-#         query_classification: Semantic categorization of query
-#         context: Retrieved context from vector store
-#         response: Collects response for logging to database
-#     """
-
-#     # Conversation messages (uses LangGraph's message reducer)
-#     messages: Annotated[list[BaseMessage], add_messages]
-#     status: Literal[
-#         "valid", "empty_query", "long_query", "rejected", "error"
-#     ]
-
-#     # Query processing
-#     query: str
-#     refined_query: str
-#     query_classification: str  # (set by stream object)
-
-#     # context from vector database
-#     context: str
-
-#     # response. We need to collect this separately because
-#     # the streaming will include lmm streams, but these will
-#     # not be in the 'messages' field.
-#     response: str
-
-
-# def create_initial_state(query: str) -> ChatState:
-#     """Creates a default initial state, set to a user query."""
-
-#     return ChatState(
-#         messages=[],
-#         status="valid",
-#         query=query,
-#         refined_query="",
-#         query_classification="",
-#         context="",
-#         response="",
-#     )
-
-
-# # (inherit from BaseModel as dataclass cannot be used for context)
-# class ChatWorkflowContext(BaseModel):
-#     """
-#     Configuration for the chat workflow.
-
-#     Encapsulates all dependencies and settings needed by the workflow,
-#     avoiding global state and making the workflow testable.
-#     """
-
-#     llm: BaseChatModel
-#     retriever: BaseRetriever
-#     system_message: str = "You are a helpful assistant"  # maybe empty
-#     chat_settings: ChatSettings = Field(default_factory=ChatSettings)
-#     logger: LoggerBase = Field(default_factory=ConsoleLogger)
-
-#     # fields set dynamically at construction
-#     client_host: str = Field(default="<unknown>", min_length=6)
-#     session_hash: str = Field(default="<unknown>", min_length=6)
-
-#     # database log of interactions
-#     database: ChatDatabaseInterface | None = None
-
-#     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-#     @classmethod
-#     def from_default_config(cls) -> 'ChatWorkflowContext':
-#         from lmm_education.config.config import ConfigSettings
-#         from lmm.language_models.langchain.models import (
-#             create_model_from_settings,
-#         )
-#         from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
-#             AsyncQdrantVectorStoreRetriever as AsyncRetriever,
-#         )
-
-#         config = ConfigSettings()
-#         model = create_model_from_settings(config.major)
-
-#         return ChatWorkflowContext(
-#             llm=model,
-#             retriever=AsyncRetriever.from_config_settings(),
-#         )
-
-
-# # graph alias type
-# ChatStateGraphType = CompiledStateGraph[
-#     ChatState, ChatWorkflowContext, ChatState, ChatState
-# ]
-
-
-# def prepare_messages_for_llm(
-#     state: ChatState,
-#     context: ChatWorkflowContext,
-#     system_message: str = "",
-#     history_window: int | None = None,
-# ) -> list[tuple[str, str]]:
-#     """
-#     Prepare messages for LLM invocation from state.
-
-#     This replaces the _prepare_messages function, using state instead
-#     of the history list.
-
-#     Args:
-#         state: Current chat state
-#         system_message: Optional system message to prepend
-#         history_window: Number of recent messages to include
-#             (defaults to 4)
-
-#     Returns:
-#         List of (role, content) tuples for LLM invocation
-#     """
-#     if history_window is None:
-#         history_window = context.chat_settings.history_length
-
-#     messages: list[tuple[str, str]] = []
-
-#     if system_message:
-#         messages.append(("system", system_message))
-
-#     # Add recent conversation history
-#     state_messages: list[BaseMessage] = state.get("messages", [])
-#     for msg in state_messages[-history_window:]:
-#         role: str = (
-#             "user" if isinstance(msg, HumanMessage) else "assistant"
-#         )
-#         content: str = ""
-#         try:
-#             content = str(msg.content)  # type: ignore (dict type)
-#         except Exception:
-#             pass
-#         messages.append((role, content))
-
-#     # Add the current formatted query
-#     messages.append(("user", state["refined_query"]))
-
-#     return messages
 
 
 def create_chat_workflow(

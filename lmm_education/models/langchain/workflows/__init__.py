@@ -1,0 +1,41 @@
+"""
+LangGraph-based chat workflows for RAG-enabled language model
+interactions.
+
+This package provides state-based workflows for processing chat
+queries with retrieval-augmented generation (RAG). The workflows
+handle:
+
+- Query validation
+- Context retrieval from vector store
+- LLM response generation
+
+The graph manages a state of type ChatState, or of a derived class.
+The input is in the channel 'query', and the output in the channel
+`response`.
+
+The graph is parametrized by dependencies injected through a
+ChatWorkflowContext object. This object includes:
+
+- retriever: BaseRetriever, an object wrapping the vector database
+- system_message: str, a system message overriding defaults
+- chat_settings: ChatSettings, an objects that loads the appchat.toml
+    settings automatically, or allows them to be overridden when given
+- logger: LoggerBase, a logger object for errors printing
+
+The remaining settings are used by streams to log the interaction to
+a database. Except for .database, they are not set here.
+
+- database: ChatDatabaseInterface, the names of the files of the database
+- client_host: str = "<unknown>", filled in internally
+- session_hash: str = "<unknown>", filled in internally
+
+To create a dependency injection using the config.toml settings, call
+
+```python
+context = ChatWorkflowContext.from_default_config()
+```
+
+The graphs are designed for being used as a stream.
+
+"""
