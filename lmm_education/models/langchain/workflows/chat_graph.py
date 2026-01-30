@@ -515,9 +515,10 @@ def create_chat_workflow(
         try:
             async for chunk in llm.astream(messages):
                 # Extract text from AIMessageChunk
-                # LLM.astream() returns AIMessageChunk objects with .content attribute
-                if hasattr(chunk, "content"):
-                    content: str = str(chunk.content)  # type: ignore
+                # LLM.astream() returns AIMessageChunk objects. We
+                # only stream text here
+                if hasattr(chunk, "text"):
+                    content: str = chunk.text
                     response_chunks.append(content)
                 else:
                     # Fallback for unexpected chunk types
