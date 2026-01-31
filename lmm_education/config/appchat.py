@@ -165,6 +165,12 @@ QUERY: "{query}"
         description="Number of exchanges to include in history",
     )
 
+    # workflow
+    workflow: Literal["workflow", "agent"] = Field(
+        default="workflow",
+        description="Workflow to use in interacting with language model",
+    )
+
     # thematic control of interaction
     check_response: CheckResponse = Field(
         default_factory=CheckResponse,
@@ -211,6 +217,9 @@ QUERY: "{query}"
         SYSTEM_MESSAGE: str | None = None,
         PROMPT_TEMPLATE: str | None = None,
         max_query_word_count: int | None = None,
+        history_integration: HistoryIntegration | None = None,
+        history_length: int | None = None,
+        workflow: str | None = None,
         check_response: CheckResponse | None = None,
         server: ServerSettings | None = None,
         chat_database: ChatDatabase | None = None,
@@ -229,6 +238,10 @@ QUERY: "{query}"
             max_query_word_count=(
                 max_query_word_count or self.max_query_word_count
             ),
+            history_integration=history_integration
+            or self.history_integration,
+            history_length=history_length or self.history_length,
+            workflow=workflow or self.workflow,
             check_response=check_response or self.check_response,
             server=server or self.server,
             chat_database=chat_database or self.chat_database,
