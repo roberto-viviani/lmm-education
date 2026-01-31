@@ -16,7 +16,7 @@ from lmm_education.workflows.langchain.chat_agent import (
 # pyright: basic
 # pyright: reportArgumentType=false
 
-print_messages: bool = True
+print_messages: bool = False
 print_response: bool = True
 
 
@@ -139,11 +139,12 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             "tool_caller",
         ):
             counter += 1
-            print(
-                f"message {counter} from "
-                f"{meta['langgraph_node']} node: "  # type: ignore
-                f"{chunk.text}"  # type: ignore
-            )
+            if print_messages:
+                print(
+                    f"message {counter} from "
+                    f"{meta['langgraph_node']} node: "  # type: ignore
+                    f"{chunk.text}"  # type: ignore
+                )
             text += chunk.text  # type: ignore
 
         if print_messages:

@@ -60,7 +60,7 @@ context = ChatWorkflowContext(
 # -specific: we load graph_logger from the same graph definition
 # we will be using later.
 from lmm_education.logging_db import ChatDatabaseInterface
-from lmm_education.workflows.langchain.chat_graph import (
+from lmm_education.workflows.langchain.base import (
     graph_logger,
 )
 from typing import Any
