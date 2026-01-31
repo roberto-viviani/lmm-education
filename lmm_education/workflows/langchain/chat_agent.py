@@ -128,14 +128,25 @@ def continue_after_tool_call(
     tool_node: str,
     next_node: str,
 ) -> Callable[[ChatState], str]:
-    """This function replaces the `tool_condition` utility
+    """Route after generate: check errors, then tool calls.
+
+    Note: This function replaces the `tool_condition` utility
     provided by LangGraph because the graph may return an empty
     message list when it does not call any tool. The graph
-    outputs to the `results` key, not `messages`."""
+    outputs to the `results` key, not `messages`. However,
+    the `tool_condition` function raises an error when the
+    message list is empty."""
 
     def _continuation(state: ChatState) -> str:
+        # No messages generated
         if not state.get('messages', []):
             return next_node
+        
+        # Error occurred in generate node
+        if state.get('status') == "error":
+            return END
+        
+        # Check if tools were called
         nextval = tools_condition(state)  # type: ignore
         return tool_node if nextval == 'tools' else next_node
 
@@ -312,8 +323,7 @@ QUERY: "{query}"
             config.logger.error(
                 f"Error retrieving from vector database:\n{e}"
             )
-            settings: ChatSettings = config.chat_settings
-            return settings.MSG_ERROR_QUERY
+            raise RuntimeError("Error retrieving from vector database") from e
 
     tools: list[BaseTool] = [retrieve_context]
 
@@ -325,6 +335,27 @@ QUERY: "{query}"
         Sequence[BaseMessage],
         AIMessage,
     ] = base_model.bind_tools(tools)
+
+    def check_tool_result(
+        state: ChatState, runtime: Runtime[ChatWorkflowContext]
+    ) -> dict[str, str | AIMessage]:
+        """Check if the tool execution resulted in an error."""
+        messages = state.get("messages", [])
+        if not messages:
+            return {}
+        
+        last_message = messages[-1]
+        
+        # Check if last message is a ToolMessage with error
+        if hasattr(last_message, "is_error") and last_message.is_error:
+            settings = runtime.context.chat_settings
+            return {
+                'status': "error",
+                'response': settings.MSG_ERROR_QUERY,
+                'messages': AIMessage(content=settings.MSG_ERROR_QUERY),
+            }
+        
+        return {'status': "valid"}  # Tool succeeded
 
     async def generate(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
@@ -404,6 +435,7 @@ QUERY: "{query}"
     workflow.add_node(
         "tool_caller", ToolNode(tools, name="tool_caller")
     )
+    workflow.add_node("check_tool_result", check_tool_result)
     workflow.add_node(
         "generate",
         generate,
@@ -427,6 +459,10 @@ QUERY: "{query}"
     workflow.add_conditional_edges(
         "generate", continue_after_tool_call("tool_caller", END)
     )
-    workflow.add_edge("tool_caller", "generate")
+    workflow.add_edge("tool_caller", "check_tool_result")
+    workflow.add_conditional_edges(
+        "check_tool_result",
+        continue_if_no_error("generate")
+    )
 
     return workflow.compile()
