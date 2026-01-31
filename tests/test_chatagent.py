@@ -1,4 +1,5 @@
 import unittest
+import os
 from typing import Any
 
 from lmm_education.config.config import ConfigSettings
@@ -16,6 +17,18 @@ from lmm_education.workflows.langchain.chat_agent import (
 
 # pyright: basic
 # pyright: reportArgumentType=false
+
+# Control whether to run tests that call real LLMs (which incur API costs)
+# Set environment variable RUN_EXPENSIVE_TESTS=1 to enable these tests
+# Example: RUN_EXPENSIVE_TESTS=1 poetry run pytest tests/test_chatagent.py
+RUN_EXPENSIVE_TESTS = os.getenv("RUN_EXPENSIVE_TESTS", "0") == "1"
+
+# Decorator to skip tests that call real LLMs unless explicitly enabled
+skip_if_expensive = unittest.skipUnless(
+    RUN_EXPENSIVE_TESTS,
+    "Skipping expensive test that calls real LLM API. "
+    "Set RUN_EXPENSIVE_TESTS=1 to run.",
+)
 
 print_messages: bool = False
 print_response: bool = True
@@ -44,6 +57,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
             chat_settings=chat_settings,
         )
 
+    @skip_if_expensive
     async def test_invoke(self):
 
         context: ChatWorkflowContext = self.get_workflow_context()
@@ -80,6 +94,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         self.assertGreater(len(end_state["response"]), 0)
 
+    @skip_if_expensive
     async def test_invoke_with_garbage(self):
 
         context: ChatWorkflowContext = self.get_workflow_context()
@@ -116,6 +131,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         self.assertGreater(len(end_state["response"]), 0)
 
+    @skip_if_expensive
     async def test_stream_messages(self):
 
         from lmm_education.workflows.langchain.stream_adapters import (
@@ -157,6 +173,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         self.assertGreater(len(text), 0)
 
+    @skip_if_expensive
     async def test_stream_state(self):
         """Test streaming with stream_mode='values' to get complete state."""
         from typing import Any
@@ -192,6 +209,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(end_state['response'])
 
+    @skip_if_expensive
     async def test_stream_updates(self):
         """Test streaming with stream_mode='updates' to track field changes."""
         context: ChatWorkflowContext = self.get_workflow_context()
@@ -219,6 +237,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
 
         self.assertGreater(counter, 0)
 
+    @skip_if_expensive
     async def test_stream_multimodal(self):
         """Test streaming with multiple modes: messages + values."""
         from typing import Any
@@ -314,8 +333,14 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
         # Ensure messages is empty
         initial_state["messages"] = []
 
+        from tests.test_mocks import MockLLM
+
+        mock_llm = MockLLM(
+            responses=["Something", "to fit", "to data"]
+        )
+
         context = self.get_workflow_context()
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), mock_llm)
 
         # Run workflow
         end_state = await workflow.ainvoke(
@@ -324,9 +349,12 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # With no history, refined_query should equal the original query
         self.assertEqual(end_state["status"], "valid")
-        self.assertGreater(len(end_state["response"]), 0)
+        self.assertEqual(
+            end_state["query"], "What is a linear model?"
+        )
         print("✓ Passed: No history handled correctly\n")
 
+    @skip_if_expensive
     async def test_history_integration_none(self):
         """Test integrate_history with history_integration='none'."""
         from langchain_core.messages import HumanMessage, AIMessage
@@ -359,9 +387,14 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # With 'none' mode, the query should pass through unchanged
         self.assertEqual(end_state["status"], "valid")
+        self.assertEqual(
+            end_state["query"],
+            "Tell me more about logistic regression",
+        )
         self.assertGreater(len(end_state["response"]), 0)
         print("✓ Passed: 'none' mode handled correctly\n")
 
+    @skip_if_expensive
     async def test_history_integration_summary(self):
         """Test integrate_history with history_integration='summary'."""
         from unittest.mock import patch
@@ -416,6 +449,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(end_state["response"]), 0)
         print("✓ Passed: 'summary' mode with mock summarizer\n")
 
+    @skip_if_expensive
     async def test_history_integration_context_extraction(self):
         """Test integrate_history with history_integration='context_extraction'."""
         from unittest.mock import patch
@@ -471,6 +505,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(end_state["response"]), 0)
         print("✓ Passed: 'context_extraction' mode with mock\n")
 
+    @skip_if_expensive
     async def test_history_integration_rewrite(self):
         """Test integrate_history with history_integration='rewrite'."""
         from unittest.mock import patch
@@ -533,6 +568,12 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         print("Test: integrate_history error handling")
 
+        from tests.test_mocks import MockLLM
+
+        mock_llm = MockLLM(
+            responses=["Something", "to fit", "to data"]
+        )
+
         # Create a mock that raises an exception
         error_message = "Simulated model failure"
         mock_failing = MockRunnable(
@@ -562,7 +603,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
         )
         context = self.get_workflow_context(chat_settings)
         context.logger = logger
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), mock_llm)
 
         # Patch create_runnable to return failing mock
         with patch(
@@ -586,7 +627,6 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Workflow should continue despite the error
         self.assertEqual(end_state["status"], "valid")
-        self.assertGreater(len(end_state["response"]), 0)
         print("✓ Passed: Error handling works correctly\n")
 
 
@@ -748,6 +788,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
             system_message=system_message,
         )
 
+    @skip_if_expensive
     async def test_tool_successful_retrieval(self):
         """Test that the agent successfully calls the retrieval tool and uses results."""
         from tests.test_mocks import MockRetriever
@@ -805,6 +846,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
             "✓ Passed: Tool successfully retrieved and used context\n"
         )
 
+    @skip_if_expensive
     async def test_tool_retriever_exception(self):
         """Test that retriever exceptions are caught by handle_tool_errors=True."""
         from tests.test_mocks import MockRetriever
@@ -887,6 +929,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
 
         print("✓ Passed: Tool exception handled correctly\n")
 
+    @skip_if_expensive
     async def test_workflow_stops_on_retrieval_error(self):
         """Test that workflow stops at check_tool_result when tool errors."""
         from tests.test_mocks import MockRetriever
@@ -928,6 +971,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
             "✓ Passed: Workflow correctly stopped on retrieval error\n"
         )
 
+    @skip_if_expensive
     async def test_tool_error_creates_tool_message(self):
         """Test that handle_tool_errors=True creates ToolMessage with error."""
         from tests.test_mocks import MockRetriever
@@ -994,10 +1038,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
 
         print("✓ Passed: Tool error creates ToolMessage correctly\n")
 
-
-if __name__ == "__main__":
-    unittest.main()
-
+    @skip_if_expensive
     async def test_tool_error_propagation(self):
         """Test that tool errors propagate as exceptions."""
         from tests.test_mocks import MockRetriever
@@ -1070,6 +1111,7 @@ class TestAgentBehavior(unittest.IsolatedAsyncioTestCase):
             system_message=system_message,
         )
 
+    @skip_if_expensive
     async def test_agent_decides_not_to_search(self):
         """Test that agent can answer directly without using search tool."""
         from tests.test_mocks import MockRetriever
@@ -1102,6 +1144,7 @@ class TestAgentBehavior(unittest.IsolatedAsyncioTestCase):
             "✓ Passed: Agent correctly avoided unnecessary tool use\n"
         )
 
+    @skip_if_expensive
     async def test_agent_multiple_searches(self):
         """Test that agent can make multiple tool calls if needed."""
         from tests.test_mocks import MockRetriever

@@ -289,8 +289,16 @@ class MockLLM(BaseChatModel):
     def _create_chunk(self, content: str) -> Any:
         """Create a mock chunk with the specified content attribute."""
         from unittest.mock import Mock
+        from langchain_core.messages import AIMessageChunk
 
-        chunk = Mock()
+        chunk = Mock(AIMessageChunk)
+        object.__setattr__(chunk, 'additional_kwargs', {})
+        object.__setattr__(chunk, 'response_metadata', {})
+        object.__setattr__(chunk, 'tool_call_chunks', [])
+        object.__setattr__(chunk, 'usage_metadata', {})
+        object.__setattr__(chunk, 'id', 0)
+        object.__setattr__(chunk, 'chunk_position', 0)
+
         if self.chunk_content_attr == "content":
             chunk.content = content
             if hasattr(chunk, "text"):
