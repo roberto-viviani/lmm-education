@@ -538,6 +538,28 @@ async def terminal_tier1_adapter(
                 logger.error(f"Error in on_terminal_state: {e}")
 
 
+async def tier_1_filter_messages_adapter(
+    stream: tier_1_iterator, exclude_nodes: list[str]
+) -> tier_1_iterator:
+    """
+    Filter out message chunks from the stream that come
+    from the excluded nodes (for example, to exclude tool messages).
+
+    Args:
+        stream: a multimodal tier 1 iterator
+        exclude_nodes: a string list with the names of the nodes
+            that should be excluded from the stream (only messages
+            stream)
+    """
+    async for mode, event in stream:
+        if mode == "messages":
+            _, metadata = event
+            if metadata.get("langgraph_node") in exclude_nodes:
+                continue
+
+        yield (mode, event)
+
+
 # ===================================================================
 # Tier 1 to tier 2 adapters
 # ===================================================================

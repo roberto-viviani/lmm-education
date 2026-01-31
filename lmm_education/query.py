@@ -105,6 +105,7 @@ from .workflows.langchain.stream_adapters import (
     tier_3_iterator,
     stream_graph_state,
     stream_graph_updates,
+    tier_1_filter_messages_adapter,
     tier_1_to_3_adapter,
     terminal_tier1_adapter,
     terminal_field_change_adapter,
@@ -311,10 +312,12 @@ def create_chat_stream(
 
         dblogger = _log_state
 
-    # Fetch workflow graph form factory. At present, we only
-    # use the 'workflow' graph, but in the future the graph
-    # may be specified dynamically as a property of appchat.toml.
-    wfname = "workflow"
+    # Fetch workflow graph form factory. The default is the
+    # use the 'workflow' graph, but also 'agent' is supported
+    # if set in appchat.toml.
+    wfname: Literal['workflow'] | Literal['agent'] = (
+        context.chat_settings.workflow
+    )
     try:
         workflow: ChatStateGraphType = workflow_factory(wfname)
     except Exception as e:
@@ -373,6 +376,13 @@ def create_chat_stream(
     if dblogger:
         tier_1_stream = terminal_tier1_adapter(
             tier_1_stream, on_terminal_state=dblogger
+        )
+
+    if wfname == "agent":
+        # this eliminates streaming of context for the
+        # 'agent' workflow
+        tier_1_stream = tier_1_filter_messages_adapter(
+            tier_1_stream, exclude_nodes=["tool_caller"]
         )
 
     return tier_1_stream
