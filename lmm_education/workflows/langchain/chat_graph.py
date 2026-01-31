@@ -340,13 +340,12 @@ def create_chat_workflow(
             async for chunk in llm.astream(messages):
                 # Extract text from AIMessageChunk
                 # LLM.astream() returns AIMessageChunk objects. We
-                # only stream text here
+                # only stream text here. Please note that `content`
+                # contains anything streamed by the model. See
+                # https://docs.langchain.com/oss/python/langchain/messages#attributes
                 if hasattr(chunk, "text"):
                     content: str = chunk.text
                     response_chunks.append(content)
-                else:
-                    # Fallback for unexpected chunk types
-                    response_chunks.append(str(chunk))
         except Exception as e:
             context: ChatWorkflowContext = runtime.context
             context.logger.error(

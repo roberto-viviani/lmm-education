@@ -334,9 +334,10 @@ QUERY: "{query}"
             "base your actions on the following steps:\n"
             "1. determine if the QUERY of the user makes sense and is"
             "intelligible. If so, go to the next step. If not, respond "
-            "immediately inviting the user to clarify their meaning.\n"
+            "immediately inviting the user to clarify their intended"
+            " meaning.\n"
             "2. Search the vector database using the user's QUERY as argument to obtain"
-            "material to answer it."
+            "material to answer it.\n"
             "3. Answer the query using the response from the search database tool."
             # "If the QUERY includes different"
             # "concepts or entities, you may optionally search the database"
@@ -352,10 +353,14 @@ QUERY: "{query}"
             content="", type="AIMessageChunk"
         )
         try:
-            # While declared as AIMessage, astream returns AIMessageChunk.
+            # While declared as AIMessage, astream may return
+            # AIMessageChunk. At any rate, the .text member is
+            # inherited from AIMessage, but __add__ gives
+            # AIMessageChunk's, not ChatPromptTemplate objects.
             chunk: AIMessageChunk
             async for chunk in model_with_tools.astream(messages):  # type: ignore
-                # Extract text from AIMessageChunk
+                # Extract text from AIMessageChunk (from AIMessage).
+                # https://docs.langchain.com/oss/python/langchain/messages#attributes
                 if hasattr(chunk, "text") and chunk.text:
                     response_chunks.append(chunk.text)
 

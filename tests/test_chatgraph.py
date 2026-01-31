@@ -830,10 +830,11 @@ class TestGenerateNode(unittest.IsolatedAsyncioTestCase):
 
         print("✓ Passed: Successful generation with text attribute\n")
 
-    # NOTE: test_successful_generation_with_content_method was removed because
-    # content in AIMessageChunk provide different data than text, depending
-    # on the setting (such as the use of tools).
-    # This is a potential bug in the implementation but testing it as-is.
+    # NOTE: test_successful_generation_with_content_method was removed
+    # because `content` in AIMessageChunk provides the raw output of
+    # the model, not just text. The MockLLM does not necessarily
+    # behave like a real model.
+    # https://docs.langchain.com/oss/python/langchain/messages#attributes
 
     # async def test_successful_generation_with_content_attr(self):
     #     """Test successful LLM response streaming with content attribute."""
