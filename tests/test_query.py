@@ -453,7 +453,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         configuration"""
         print("Test 3 (log): Appchat query")
         from lmm_education.query import create_chat_stream
-        from lmm_education.models.langchain.stream_adapters import (
+        from lmm_education.workflows.langchain.stream_adapters import (
             tier_1_iterator,
             tier_3_iterator,
             terminal_field_change_adapter,
@@ -463,7 +463,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
             CsvChatDatabase,
         )
         from functools import partial
-        from lmm_education.models.langchain.workflows.chat_graph import (
+        from lmm_education.workflows.langchain.chat_graph import (
             graph_logger,
         )
 
@@ -543,17 +543,17 @@ class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
         validation."""
         print("Test query validation: Valid query")
 
-        from lmm_education.models.langchain.stream_adapters import (
+        from lmm_education.workflows.langchain.stream_adapters import (
             tier_1_iterator,
         )
-        from lmm_education.models.langchain.workflows.chat_stream_adapters import (
+        from lmm_education.workflows.langchain.chat_stream_adapters import (
             stateful_validation_adapter,
         )
         from lmm_education.query import (
             create_chat_stream,
             create_initial_state,
         )
-        from lmm_education.models.langchain.workflows.chat_graph import (
+        from lmm_education.workflows.langchain.chat_graph import (
             ChatState,
         )
         from lmm.language_models.langchain.runnables import (
@@ -619,17 +619,17 @@ class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
         rejection"""
         print("Test query validation: Invalid query")
 
-        from lmm_education.models.langchain.stream_adapters import (
+        from lmm_education.workflows.langchain.stream_adapters import (
             tier_1_iterator,
         )
-        from lmm_education.models.langchain.workflows.chat_stream_adapters import (
+        from lmm_education.workflows.langchain.chat_stream_adapters import (
             stateful_validation_adapter,
         )
         from lmm_education.query import (
             create_chat_stream,
             create_initial_state,
         )
-        from lmm_education.models.langchain.workflows.chat_graph import (
+        from lmm_education.workflows.langchain.chat_graph import (
             ChatState,
         )
         from lmm.language_models.langchain.runnables import (

@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessageChunk
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.language_models.langchain.runnables import RunnableType
 
-from ..stream_adapters import tier_1_iterator
+from .stream_adapters import tier_1_iterator
 
 # Import ChatState for domain-specific adapters
 from .base import ChatState, create_initial_state

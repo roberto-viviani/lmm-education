@@ -93,14 +93,14 @@ from .config.appchat import (
     CheckResponse,
     load_settings as load_chat_settings,
 )
-from lmm_education.models.langchain.workflows.chat_graph import (
+from lmm_education.workflows.langchain.chat_graph import (
     ChatStateGraphType,
     ChatState,
     ChatWorkflowContext,
     workflow_factory,
     graph_logger,
 )
-from lmm_education.models.langchain.stream_adapters import (
+from lmm_education.workflows.langchain.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     stream_graph_state,
@@ -109,7 +109,7 @@ from lmm_education.models.langchain.stream_adapters import (
     terminal_tier1_adapter,
     terminal_field_change_adapter,
 )
-from lmm_education.models.langchain.workflows.chat_stream_adapters import (
+from lmm_education.workflows.langchain.chat_stream_adapters import (
     stateful_validation_adapter,
 )
 from .logging_db import (

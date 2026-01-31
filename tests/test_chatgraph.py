@@ -9,11 +9,11 @@ from lmm_education.config.config import (
     export_settings,
 )
 from lmm_education.config.appchat import ChatSettings, CheckResponse
-from lmm_education.models.langchain.workflows.base import (
+from lmm_education.workflows.langchain.base import (
     ChatWorkflowContext,
     create_initial_state,
 )
-from lmm_education.models.langchain.workflows.chat_graph import (
+from lmm_education.workflows.langchain.chat_graph import (
     create_chat_workflow,
 )
 import atexit
@@ -402,7 +402,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return our mock
         with patch(
-            "lmm_education.models.langchain.workflows.chat_graph.create_runnable",
+            "lmm_education.workflows.langchain.chat_graph.create_runnable",
             factory,
         ):
             # Run workflow
@@ -456,7 +456,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return our mock
         with patch(
-            "lmm_education.models.langchain.workflows.chat_graph.create_runnable",
+            "lmm_education.workflows.langchain.chat_graph.create_runnable",
             factory,
         ):
             # Run workflow
@@ -509,7 +509,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return our mock
         with patch(
-            "lmm_education.models.langchain.workflows.chat_graph.create_runnable",
+            "lmm_education.workflows.langchain.chat_graph.create_runnable",
             factory,
         ):
             # Run workflow
@@ -569,7 +569,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return failing mock
         with patch(
-            "lmm_education.models.langchain.workflows.chat_graph.create_runnable",
+            "lmm_education.workflows.langchain.chat_graph.create_runnable",
             failing_factory,  # type: ignore
         ):
             # Run workflow - should NOT fail, error should be caught
@@ -789,18 +789,18 @@ class TestGenerateNode(unittest.IsolatedAsyncioTestCase):
             system_message=system_message,
         )
 
-    async def test_successful_generation_with_content_attr(self):
-        """Test successful LLM response streaming with content attribute."""
+    async def test_successful_generation_with_text_attr(self):
+        """Test successful LLM response streaming with text attribute."""
         from tests.test_mocks import MockLLM
 
         print(
-            "Test: generate node with successful streaming (content attr)"
+            "Test: generate node with successful streaming (text attr)"
         )
 
         # Create mock LLM that streams response chunks
         mock_llm = MockLLM(
             responses=["Hello ", "from ", "the ", "LLM!"],
-            chunk_content_attr="content",
+            chunk_content_attr="text",
         )
 
         # Create initial state
@@ -828,14 +828,55 @@ class TestGenerateNode(unittest.IsolatedAsyncioTestCase):
         expected_response = "Hello from the LLM!"
         self.assertEqual(end_state["response"], expected_response)
 
-        print(
-            "✓ Passed: Successful generation with content attribute\n"
-        )
+        print("✓ Passed: Successful generation with text attribute\n")
 
-    # NOTE: test_successful_generation_with_text_method was removed because
-    # the generate node checks callable(chunk.text) at line 444, but strings
-    # are not callable, so chunks with text attributes won't work correctly.
+    # NOTE: test_successful_generation_with_content_method was removed because
+    # content in AIMessageChunk provide different data than text, depending
+    # on the setting (such as the use of tools).
     # This is a potential bug in the implementation but testing it as-is.
+
+    # async def test_successful_generation_with_content_attr(self):
+    #     """Test successful LLM response streaming with content attribute."""
+    #     from tests.test_mocks import MockLLM
+
+    #     print(
+    #         "Test: generate node with successful streaming (content attr)"
+    #     )
+
+    #     # Create mock LLM that streams response chunks
+    #     mock_llm = MockLLM(
+    #         responses=["Hello ", "from ", "the ", "LLM!"],
+    #         chunk_content_attr="content",
+    #     )
+
+    #     # Create initial state
+    #     initial_state = create_initial_state("Test query")
+
+    #     context = self.get_workflow_context()
+    #     workflow = create_chat_workflow(
+    #         ConfigSettings(), llm_major=mock_llm
+    #     )
+
+    #     # Run workflow
+    #     end_state = await workflow.ainvoke(
+    #         initial_state, context=context
+    #     )
+
+    #     # Verify LLM was called
+    #     self.assertEqual(mock_llm.call_count, 1)
+    #     self.assertIsNotNone(mock_llm.last_messages)
+
+    #     # Verify workflow completed successfully
+    #     self.assertEqual(end_state["status"], "valid")
+    #     self.assertIn("response", end_state)
+
+    #     # Verify complete response was assembled from chunks
+    #     expected_response = "Hello from the LLM!"
+    #     self.assertEqual(end_state["response"], expected_response)
+
+    #     print(
+    #         "✓ Passed: Successful generation with content attribute\n"
+    #     )
 
     async def test_llm_streaming_exception(self):
         """Test error handling when LLM raises exception during streaming."""

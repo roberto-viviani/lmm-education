@@ -3,13 +3,13 @@ import unittest
 from lmm_education.config.config import ConfigSettings
 from lmm_education.config.appchat import ChatSettings, CheckResponse
 
-from lmm_education.models.langchain.workflows.base import (
+from lmm_education.workflows.langchain.base import (
     ChatWorkflowContext,
     ChatState,
     create_initial_state,
 )
 
-from lmm_education.models.langchain.workflows.chat_agent import (
+from lmm_education.workflows.langchain.chat_agent import (
     create_chat_agent,
 )
 

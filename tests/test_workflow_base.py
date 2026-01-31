@@ -5,7 +5,7 @@ from typing import Sequence
 from langchain_core.messages import BaseMessage
 
 from lmm_education.config.appchat import ChatSettings, CheckResponse
-from lmm_education.models.langchain.workflows.base import (
+from lmm_education.workflows.langchain.base import (
     ChatWorkflowContext,
     prepare_messages_for_llm,
 )

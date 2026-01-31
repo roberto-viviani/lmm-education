@@ -17,7 +17,7 @@ import gradio as gr
 from lmm_education.config.appchat import (
     ChatSettings,
 )
-from lmm_education.models.langchain.workflows.chat_graph import (
+from lmm_education.workflows.langchain.chat_graph import (
     ChatWorkflowContext,
 )
 from lmm.utils.hash import generate_random_string
@@ -60,7 +60,7 @@ context = ChatWorkflowContext(
 # -specific: we load graph_logger from the same graph definition
 # we will be using later.
 from lmm_education.logging_db import ChatDatabaseInterface
-from lmm_education.models.langchain.workflows.chat_graph import (
+from lmm_education.workflows.langchain.chat_graph import (
     graph_logger,
 )
 from typing import Any
@@ -85,7 +85,7 @@ async_log_partial: AsyncLogfunType = partial(
 
 # Chat functions to use in gradio callback------------------
 from lmm_education.query import create_chat_stream
-from lmm_education.models.langchain.stream_adapters import (
+from lmm_education.workflows.langchain.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     terminal_field_change_adapter,

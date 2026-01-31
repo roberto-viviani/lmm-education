@@ -13,7 +13,7 @@ import asyncio
 from langchain_core.messages import BaseMessageChunk, AIMessageChunk
 from lmm.utils.logging import LoglistLogger
 
-from lmm_education.models.langchain.stream_adapters import (
+from lmm_education.workflows.langchain.stream_adapters import (
     field_change_tier_1_adapter,
     terminal_tier1_adapter,
     tier_1_to_2_adapter,

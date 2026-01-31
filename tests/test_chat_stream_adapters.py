@@ -16,13 +16,13 @@ from typing import Any
 from langchain_core.messages import AIMessageChunk
 from lmm.utils.logging import LoglistLogger
 
-from lmm_education.models.langchain.workflows.chat_stream_adapters import (
+from lmm_education.workflows.langchain.chat_stream_adapters import (
     stateful_validation_adapter,
 )
-from lmm_education.models.langchain.workflows.chat_graph import (
+from lmm_education.workflows.langchain.chat_graph import (
     ChatState,
 )
-from lmm_education.models.langchain.stream_adapters import (
+from lmm_education.workflows.langchain.stream_adapters import (
     tier_1_iterator,
 )
 
