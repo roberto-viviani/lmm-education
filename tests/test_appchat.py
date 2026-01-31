@@ -9,8 +9,10 @@ from lmm_education.config.config import (
     export_settings,
 )
 from lmm_education.config.appchat import ChatSettings, CheckResponse
-from lmm_education.workflows.langchain.chat_graph import (
+from lmm_education.workflows.langchain.base import (
     graph_logger,
+)
+from lmm_education.workflows.langchain.chat_graph import (
     ChatWorkflowContext,
 )
 import atexit

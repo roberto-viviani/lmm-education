@@ -58,11 +58,9 @@ Note:
 
 from collections.abc import Callable
 from math import ceil
-from datetime import datetime
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
-    BaseMessage,
     AIMessage,
 )
 from langchain_core.documents import Document
@@ -73,7 +71,6 @@ from langgraph.types import RetryPolicy
 from langgraph.graph import StateGraph, START, END
 from langgraph.runtime import Runtime
 
-from lmm.utils.logging import LoggerBase
 from lmm.language_models.langchain.models import (
     create_model_from_settings,
 )
@@ -81,12 +78,10 @@ from lmm.language_models.langchain.runnables import (
     RunnableType,
     create_runnable,
 )
-from lmm.utils.hash import generate_random_string
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
 
 from lmm_education.config.config import ConfigSettings
 from lmm_education.config.appchat import ChatSettings
-from lmm_education.logging_db import ChatDatabaseInterface
 
 from .base import (
     ChatState,
@@ -431,159 +426,3 @@ def create_chat_workflow(
     workflow.add_edge("generate", END)
 
     return workflow.compile()
-
-
-# -----------------------------------------------------------------
-# Logging for this graph, using its specific information
-
-
-async def graph_logger(
-    state: ChatState,
-    database: ChatDatabaseInterface,
-    context: ChatWorkflowContext,
-    client_host: str = "<unknown>",
-    session_hash: str = "<unknown>",
-    timestamp: datetime | None = None,
-    record_id: str | None = None,
-) -> None:
-    """
-    Log to database function.
-
-    Extracts information from the state and context and delegates to
-    the database interface. Adds context validation information to the
-    log.
-    """
-
-    if timestamp is None:
-        timestamp = datetime.now()
-
-    if record_id is None:
-        record_id = generate_random_string()
-
-    logger: LoggerBase = context.logger
-
-    # info from state and context
-    model_name: str = state.get("model_identification") or "<unknown>"
-
-    messages: list[BaseMessage] = state.get("messages", [])
-    status = state.get("status", "error")
-
-    # Extract info from state
-    response: str = state.get("response", "")
-    query: str = state.get("query", "")
-    classification: str = (
-        state.get("query_classification", "") or "NA"
-    )
-    message_count = len(messages)
-
-    try:
-        match status:
-            case "valid":
-                # Check for context
-                context_text: str = state.get("context", "")
-
-                if context_text:
-                    # Evaluate consistency of context prior to saving
-                    validation: str = "<unknown>"
-                    try:
-                        lmm_validator: RunnableType = create_runnable(
-                            "context_validator"  # will be a lookup
-                        )
-                        validation_res: str = (
-                            await lmm_validator.ainvoke(
-                                {
-                                    "query": f"{query}. {response}",
-                                    "context": context_text,
-                                }
-                            )
-                        )
-                        validation = str(
-                            validation_res.strip().upper()
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Could not connect to aux model to validate context: {e}"
-                        )
-                        validation = "<failed>"
-
-                    await database.log_message_with_context(
-                        record_id=record_id,
-                        client_host=client_host,
-                        session_hash=session_hash,
-                        timestamp=timestamp,
-                        message_count=message_count,
-                        model_name=model_name,
-                        interaction_type="MESSAGES",
-                        query=query,
-                        response=response,
-                        validation=validation,
-                        context=context_text,
-                        classification=classification,
-                    )
-                else:
-                    await database.log_message(
-                        record_id=record_id,
-                        client_host=client_host,
-                        session_hash=session_hash,
-                        timestamp=timestamp,
-                        message_count=message_count,
-                        model_name=model_name,
-                        interaction_type="MESSAGES",
-                        query=query,
-                        response=response,
-                    )
-
-            case "empty_query":
-                await database.log_message(
-                    record_id=record_id,
-                    client_host=client_host,
-                    session_hash=session_hash,
-                    timestamp=timestamp,
-                    message_count=message_count,
-                    model_name="",
-                    interaction_type="EMPTYQUERY",
-                    query="",
-                    response=response,
-                )
-
-            case "long_query":
-                await database.log_message(
-                    record_id=record_id,
-                    client_host=client_host,
-                    session_hash=session_hash,
-                    timestamp=timestamp,
-                    message_count=message_count,
-                    model_name="",
-                    interaction_type="LONGQUERY",
-                    query=(
-                        query[:1500] + "..."
-                        if len(query) > 1500
-                        else query
-                    ),
-                    response=response,
-                )
-
-            case "rejected":
-                # Check for context
-                context_text: str = state.get("context", "")
-
-                await database.log_message_with_context(
-                    record_id=record_id,
-                    client_host=client_host,
-                    session_hash=session_hash,
-                    timestamp=timestamp,
-                    message_count=message_count,
-                    model_name=model_name,
-                    interaction_type="REJECTED",
-                    query=query,
-                    response=response,
-                    validation="NA",
-                    context=context_text,
-                    classification=classification,
-                )
-
-            case _:  # ignore all others
-                pass
-
-    except Exception as e:
-        logger.error(f"Async logging failed: {e}")

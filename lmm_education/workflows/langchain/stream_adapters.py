@@ -594,6 +594,29 @@ async def tier_1_to_2_adapter(
 
 
 # ===================================================================
+# Tier 2 Adapter
+# ===================================================================
+
+
+async def tier_2_filter_messages_adapter(
+    stream: tier_2_iterator, exclude_nodes: list[str]
+) -> tier_2_iterator:
+    """
+    Filter out message chunks from the stream that come
+    from the excluded nodes (for example, to exclude tool messages).
+
+    Args:
+        stream: a chunk, metadata tier 2 iterator
+        exclude_nodes: a string list with the names of the nodes
+            that should be excluded from the stream
+    """
+    async for chunk, metadata in stream:
+        if metadata.get("langgraph_node") in exclude_nodes:
+            continue
+        yield chunk, metadata
+
+
+# ===================================================================
 # Tier 2 to Tier 3 Adapter
 # ===================================================================
 
@@ -601,6 +624,7 @@ async def tier_1_to_2_adapter(
 async def tier_2_to_3_adapter(
     messages_stream: tier_2_iterator,
     source_nodes: list[str] | None = None,
+    exclude_nodes: list[str] | None = None,
     *,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
@@ -611,7 +635,9 @@ async def tier_2_to_3_adapter(
     Args:
         messages_stream: Source stream with (chunk, metadata) tuples
         source_nodes: the source nodes one wants to stream. If
-        omitted or None, all nodes will be streamed.
+            omitted or None, all nodes will be streamed.
+        exclude_nodes: the source nodes one wants to exclude from
+            streaming. If specified, overrides source_nodes.
         logger: Logger to use for logging
 
     Yields:
@@ -625,7 +651,17 @@ async def tier_2_to_3_adapter(
             yield chunk
     """
     async for chunk, metadata in messages_stream:
-        if source_nodes:
+        if exclude_nodes:
+            try:
+                if metadata["langgraph_node"] in exclude_nodes:
+                    continue
+            except Exception as e:
+                logger.error(
+                    f"Could not retrieve langgraph_node property"
+                    f" in tier_2_to_3_adapter:\n{e}"
+                )
+                continue
+        elif source_nodes:
             try:
                 if metadata["langgraph_node"] in source_nodes:
                     yield chunk.text
@@ -647,6 +683,7 @@ async def tier_2_to_3_adapter(
 async def terminal_field_change_adapter(
     multi_mode_stream: tier_1_iterator,
     source_nodes: list[str] | None = None,
+    exclude_nodes: list[str] | None = None,
     *,
     on_field_change: (
         dict[str, Callable[[Any], Awaitable[str | None]]]
@@ -686,6 +723,8 @@ async def terminal_field_change_adapter(
         source_nodes: the source nodes one wants to stream. If
             omitted or None, all nodes will be streamed (only
             concerns the 'messages' stream).
+        exclude_nodes: the source nodes one wants to exclude from
+            streaming. If specified, overrides source_nodes.
         on_field_change: Dict mapping field names to async callbacks.
             Each callback receives the updated field value as its
             argument, and returns a string that is injected into the
@@ -724,7 +763,18 @@ async def terminal_field_change_adapter(
     final_state: StateT | None = None
     async for mode, event in multi_mode_stream:
         if mode == "messages":
-            if source_nodes:
+            if exclude_nodes:
+                chunk, metadata = event  # Extract chunk and metadata
+                try:
+                    if metadata["langgraph_node"] in exclude_nodes:
+                        continue
+                except Exception as e:
+                    logger.error(
+                        f"Could not retrieve langgraph_node property"
+                        f" in terminal_field_change_adapter:\n{e}"
+                    )
+                    yield chunk.text
+            elif source_nodes:
                 chunk, metadata = event  # Extract chunk and metadata
                 try:
                     if metadata["langgraph_node"] in source_nodes:
@@ -793,6 +843,7 @@ async def terminal_field_change_adapter(
 async def tier_1_to_3_adapter(
     multi_mode_stream: tier_1_iterator,
     source_nodes: list[str] | None = None,
+    exclude_nodes: list[str] | None = None,
     *,
     logger: LoggerBase = ConsoleLogger(),
 ) -> tier_3_iterator:
@@ -803,8 +854,10 @@ async def tier_1_to_3_adapter(
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         source_nodes: the source nodes one wants to stream. If
-        omitted or None, all nodes will be streamed (only concerns
-        the 'messages' stream).
+            omitted or None, all nodes will be streamed (only concerns
+            the 'messages' stream).
+        exclude_nodes: the source nodes one wants to exclude from
+            streaming. If specified, overrides source_nodes.
         logger: Logger to use for error logging
 
     Yields:
@@ -820,7 +873,18 @@ async def tier_1_to_3_adapter(
     """
     async for mode, event in multi_mode_stream:
         if mode == "messages":
-            if source_nodes:
+            if exclude_nodes:
+                chunk, metadata = event  # Extract chunk and metadata
+                try:
+                    if metadata["langgraph_node"] in exclude_nodes:
+                        continue
+                except Exception as e:
+                    logger.error(
+                        f"Could not retrieve langgraph_node property"
+                        f" in terminal_field_change_adapter:\n{e}"
+                    )
+                    yield chunk.text
+            elif source_nodes:
                 chunk, metadata = event  # Extract chunk and metadata
                 try:
                     if metadata["langgraph_node"] in source_nodes:

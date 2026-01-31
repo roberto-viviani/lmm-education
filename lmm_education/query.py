@@ -93,14 +93,14 @@ from .config.appchat import (
     CheckResponse,
     load_settings as load_chat_settings,
 )
-from lmm_education.workflows.langchain.chat_graph import (
+from .workflows.langchain.base import graph_logger
+from .workflows.langchain.chat_graph import (
     ChatStateGraphType,
     ChatState,
     ChatWorkflowContext,
-    graph_logger,
 )
-from lmm_education.workflows.workflow_factory import workflow_factory
-from lmm_education.workflows.langchain.stream_adapters import (
+from .workflows.workflow_factory import workflow_factory
+from .workflows.langchain.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
     stream_graph_state,

@@ -14,8 +14,9 @@ from lmm_education.workflows.langchain.chat_agent import (
 )
 
 # pyright: basic
+# pyright: reportArgumentType=false
 
-print_messages: bool = False
+print_messages: bool = True
 print_response: bool = True
 
 
@@ -113,6 +114,46 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
                 print("No response")
 
         self.assertGreater(len(end_state["response"]), 0)
+
+    async def test_stream_messages(self):
+
+        from lmm_education.workflows.langchain.stream_adapters import (
+            tier_2_filter_messages_adapter,
+        )
+
+        context: ChatWorkflowContext = self.get_workflow_context()
+        initial_state: ChatState = create_initial_state(
+            "Can you help me fit a logistic regression?"
+        )
+
+        config: ConfigSettings = ConfigSettings()
+        workflow = create_chat_agent(config)
+
+        text: str = ""
+        counter = 0
+        # The tier_2_filter_messages_adapter gets rid of the tool output
+        async for chunk, meta in tier_2_filter_messages_adapter(
+            workflow.astream(
+                initial_state, context=context, stream_mode="messages"
+            ),
+            "tool_caller",
+        ):
+            counter += 1
+            print(
+                f"message {counter} from "
+                f"{meta['langgraph_node']} node: "  # type: ignore
+                f"{chunk.text}"  # type: ignore
+            )
+            text += chunk.text  # type: ignore
+
+        if print_messages:
+            print("===================================")
+            print(f"There were {counter} chunks:\n")
+
+        if print_response:
+            print(text)
+
+        self.assertGreater(len(text), 0)
 
 
 if __name__ == "__main__":
