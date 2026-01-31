@@ -153,7 +153,10 @@ def continue_after_tool_call(
     return _continuation
 
 
-def create_chat_agent(settings: ConfigSettings) -> ChatStateGraphType:
+def create_chat_agent(
+    settings: ConfigSettings,
+    llm_major: BaseChatModel | None = None,
+) -> ChatStateGraphType:
 
     def validate_query(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
@@ -328,7 +331,7 @@ QUERY: "{query}"
     tools: list[BaseTool] = [retrieve_context]
 
     # the type of the model bound to tools is complex
-    base_model: BaseChatModel = create_model_from_settings(
+    base_model: BaseChatModel = llm_major or create_model_from_settings(
         settings.major
     )
     model_with_tools: Runnable[
@@ -339,21 +342,33 @@ QUERY: "{query}"
     def check_tool_result(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:
-        """Check if the tool execution resulted in an error."""
+        """Check if the tool execution resulted in an error.
+        
+        When handle_tool_errors=True, ToolNode catches exceptions and creates
+        a ToolMessage with the error text in .content starting with 'Error:'.
+        """
+        from langchain_core.messages import ToolMessage
+        
         messages = state.get("messages", [])
         if not messages:
             return {}
         
         last_message = messages[-1]
         
-        # Check if last message is a ToolMessage with error
-        if hasattr(last_message, "is_error") and last_message.is_error:
-            settings = runtime.context.chat_settings
-            return {
-                'status': "error",
-                'response': settings.MSG_ERROR_QUERY,
-                'messages': AIMessage(content=settings.MSG_ERROR_QUERY),
-            }
+        # Check if last message is a ToolMessage with error content
+        if isinstance(last_message, ToolMessage):
+            # ToolNode with handle_tool_errors=True creates error messages
+            # with content starting with "Error:"
+            if last_message.content and last_message.content.startswith("Error"):
+                settings = runtime.context.chat_settings
+                runtime.context.logger.error(
+                    f"Tool execution failed: {last_message.content}"
+                )
+                return {
+                    'status': "error",
+                    'response': settings.MSG_ERROR_QUERY,
+                    'messages': AIMessage(content=settings.MSG_ERROR_QUERY),
+                }
         
         return {'status': "valid"}  # Tool succeeded
 
@@ -433,7 +448,8 @@ QUERY: "{query}"
     workflow.add_node("integrate_history", integrate_history)
     workflow.add_node("format_query", format_query)
     workflow.add_node(
-        "tool_caller", ToolNode(tools, name="tool_caller")
+        "tool_caller",
+        ToolNode(tools, name="tool_caller", handle_tool_errors=True),
     )
     workflow.add_node("check_tool_result", check_tool_result)
     workflow.add_node(

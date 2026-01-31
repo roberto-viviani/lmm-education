@@ -307,6 +307,9 @@ class MockLLM(BaseChatModel):
 
         return chunk
 
+    def bind_tools(self, tools: list[str]) -> 'MockLLM':
+        return self
+
     @property
     def _llm_type(self) -> str:
         """Return type of LLM."""
