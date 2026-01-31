@@ -337,12 +337,11 @@ QUERY: "{query}"
             "immediately inviting the user to clarify their intended"
             " meaning.\n"
             "2. Search the vector database using the user's QUERY as argument to obtain"
-            "material to answer it.\n"
-            "3. Answer the query using the response from the search database tool."
-            # "If the QUERY includes different"
-            # "concepts or entities, you may optionally search the database"
-            # "by rewriting the query and splitting it into multiple queries,"
-            # "to be used in separate search database calls."
+            "material to answer it. If the QUERY includes different"
+            "concepts or entities, you may optionally search the database"
+            "by rewriting the query and splitting it into multiple queries,"
+            "to be used in separate search database calls.\n"
+            "3. Answer the query as specified in the user message."
         )
         messages = prepare_messages_for_llm(
             state, runtime.context, system_message=system_message
