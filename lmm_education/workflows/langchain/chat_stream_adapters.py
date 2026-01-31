@@ -217,6 +217,8 @@ async def stateful_validation_adapter(
 
                             # Save changed state values to reflect rejection
                             modified_state = {
+                                "model_identification": validator_model.get_name()
+                                or "unknown validator",
                                 "response": buffer_text,
                                 "query_classification": validation_result[
                                     "classification"
@@ -240,6 +242,8 @@ async def stateful_validation_adapter(
                                     f"Continuing without validation (continue_on_fail=True)"
                                 )
                                 modified_state = {
+                                    "model_identification": validator_model.get_name()
+                                    + (" (unavailable)"),
                                     "query_classification": f"<validation {validation_result['status']}>",
                                 }
                                 # Yield buffered content
@@ -270,6 +274,8 @@ async def stateful_validation_adapter(
                                 )
                                 # Save changed state
                                 modified_state = {
+                                    "model_identification": validator_model.get_name()
+                                    + " (failure)",
                                     "response": buffer_text,
                                     "query_classification": f"<validation {validation_result['status']}>",
                                     "status": "rejected",
@@ -330,6 +336,7 @@ async def stateful_validation_adapter(
                 )
 
                 modified_state = {
+                    "model_identification": validator_model.get_name(),
                     "status": "rejected",
                     "response": buffer_text,
                     "query_classification": validation_result[
@@ -349,6 +356,8 @@ async def stateful_validation_adapter(
                         f"Continuing without validation (continue_on_fail=True)"
                     )
                     modified_state = {
+                        "model_identification": validator_model.get_name()
+                        + " (unavailable)",
                         "query_classification": f"<validation {validation_result['status']}>",
                     }
                     # Yield buffered chunks
@@ -377,6 +386,8 @@ async def stateful_validation_adapter(
                         ),
                     )
                     modified_state = {
+                        "model_identification": validator_model.get_name()
+                        + (" (failure)"),
                         "status": "rejected",
                         "response": buffer_text,
                         "query_classification": f"<validation {validation_result['status']}>",

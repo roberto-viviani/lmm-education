@@ -75,6 +75,9 @@ class MockRunnable:
         for i in range(0, len(self.response), chunk_size):
             yield self.response[i : i + chunk_size]
 
+    def get_name(self) -> str:
+        return "mock model"
+
 
 class MockSummarizerRunnable(MockRunnable):
     """Mock summarizer model that returns a summary of text."""

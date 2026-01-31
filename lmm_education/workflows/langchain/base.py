@@ -35,6 +35,7 @@ class ChatState(TypedDict):
     Attributes:
         messages: Conversation history as LangChain messages
         status: status of the graph
+        model_identification: optional info on model used in node
         query: The current user query
         refined_query: Refined query integrating history
         query_classification: Semantic categorization of query
@@ -47,6 +48,7 @@ class ChatState(TypedDict):
     status: Literal[
         "valid", "empty_query", "long_query", "rejected", "error"
     ]
+    model_identification: str
 
     # Query processing
     query: str
@@ -68,6 +70,7 @@ def create_initial_state(query: str) -> ChatState:
     return ChatState(
         messages=[],
         status="valid",
+        model_identification="<unknown>",
         query=query,
         refined_query="",
         query_classification="",

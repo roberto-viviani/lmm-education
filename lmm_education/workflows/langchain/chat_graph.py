@@ -172,6 +172,7 @@ def create_chat_workflow(
                 "refined_query": query,
             }
 
+        model: RunnableType | None = None
         try:
             match context.chat_settings.history_integration:
                 case 'none':
@@ -233,6 +234,9 @@ def create_chat_workflow(
             pass
 
         return {
+            "model_identification": (
+                model.get_name() if model else "<unknown>"
+            ),
             "refined_query": query,
         }
 
@@ -346,6 +350,10 @@ def create_chat_workflow(
                 if hasattr(chunk, "text"):
                     content: str = chunk.text
                     response_chunks.append(content)
+                else:
+                    # somewhat theoretical case, direct model stream
+                    response_chunks.append(str(chunk))
+
         except Exception as e:
             context: ChatWorkflowContext = runtime.context
             context.logger.error(
@@ -359,11 +367,11 @@ def create_chat_workflow(
                 ),
             }
 
-        # Store complete response in state (for logging)
-        complete_response = "".join(response_chunks)
-
         return {
-            "response": complete_response,
+            "model_identification": (
+                llm.get_name() if llm_major else settings.major.model
+            ),
+            "response": "".join(response_chunks),
         }
 
     # utility functions for add_conditional_edges
@@ -455,20 +463,7 @@ async def graph_logger(
     logger: LoggerBase = context.logger
 
     # info from state and context
-    model_name: str
-    settings = ConfigSettings()
-    model_name = (
-        settings.major.get_model_source()
-        + "/"
-        + settings.major.get_model_name()
-    )
-
-    # model_name = context.llm.name
-    # if not model_name:
-    #     if hasattr(context.llm, "model_name"):
-    #         model_name = str(context.llm.model_name)  # type: ignore
-    # if not model_name:
-    #     model_name = "<unknown>"
+    model_name: str = state.get("model_identification") or "<unknown>"
 
     messages: list[BaseMessage] = state.get("messages", [])
     status = state.get("status", "error")

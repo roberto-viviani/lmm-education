@@ -163,6 +163,7 @@ def create_initial_state(
     return ChatState(
         messages=messages,
         status="valid",  # Will be validated by workflow
+        model_identification="<unknown>",
         query=querytext,
         refined_query="",
         query_classification="",

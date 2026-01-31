@@ -98,6 +98,7 @@ from lmm.language_models.langchain.models import (
 )
 from lmm.language_models.langchain.runnables import (
     create_runnable,
+    RunnableType,
 )
 
 from lmm_education.config.config import ConfigSettings
@@ -190,14 +191,15 @@ def create_chat_agent(settings: ConfigSettings) -> ChatStateGraphType:
                 "refined_query": query,
             }
 
+        model: RunnableType | None = None
         try:
             match context.chat_settings.history_integration:
                 case 'none':
                     pass
                 case 'summary':
-                    # TODO: configure this through context
-                    config = ConfigSettings()
-                    model = create_runnable("summarizer", config.aux)
+                    model = create_runnable(
+                        "summarizer", settings.aux
+                    )
                     summary: str = await model.ainvoke(
                         {
                             'text': "\n---\n".join(messages),
@@ -251,6 +253,9 @@ def create_chat_agent(settings: ConfigSettings) -> ChatStateGraphType:
             pass
 
         return {
+            "model_identification": (
+                model.get_name() if model else "<unknown>"
+            ),
             "refined_query": query,
         }
 
@@ -383,6 +388,7 @@ QUERY: "{query}"
         else:
             # Store complete response in state
             return {
+                "model_identification": settings.major.model,
                 "response": "".join(response_chunks),
             }
 

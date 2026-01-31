@@ -55,6 +55,7 @@ async def mock_chat_stream(
         initial_state: ChatState = {
             "messages": [],
             "status": "valid",
+            "model_identification": "",
             "query": query,
             "refined_query": "",
             "query_classification": "",
@@ -74,6 +75,7 @@ async def mock_chat_stream(
         final_state: ChatState = {
             "messages": [],
             "status": "valid",
+            "model_identification": "mock",
             "query": query,
             "refined_query": "",
             "query_classification": "",
@@ -101,6 +103,7 @@ async def mock_multi_node_stream(
     initial_state: ChatState = {
         "messages": [],
         "status": "valid",
+        "model_identification": "",
         "query": query,
         "refined_query": "",
         "query_classification": "",
@@ -171,6 +174,9 @@ class MockValidator:
             raise ValueError(f"Temporary failure {self.call_count}")
 
         return self.classification
+
+    def get_name(self) -> str:
+        return "MockValidator"
 
 
 # ================================================================
@@ -726,6 +732,7 @@ class TestStateSync(unittest.IsolatedAsyncioTestCase):
             state1: ChatState = {
                 "messages": [],
                 "status": "valid",
+                "model_identification": "mock",
                 "query": "Q1",
                 "refined_query": "",
                 "query_classification": "",
