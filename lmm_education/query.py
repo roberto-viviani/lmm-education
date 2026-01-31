@@ -97,9 +97,9 @@ from lmm_education.workflows.langchain.chat_graph import (
     ChatStateGraphType,
     ChatState,
     ChatWorkflowContext,
-    workflow_factory,
     graph_logger,
 )
+from lmm_education.workflows.workflow_factory import workflow_factory
 from lmm_education.workflows.langchain.stream_adapters import (
     tier_1_iterator,
     tier_3_iterator,
@@ -310,8 +310,10 @@ def create_chat_stream(
 
         dblogger = _log_state
 
-    # Fetch workflow graph form factory
-    wfname = "query"
+    # Fetch workflow graph form factory. At present, we only
+    # use the 'workflow' graph, but in the future the graph
+    # may be specified dynamically as a property of appchat.toml.
+    wfname = "workflow"
     try:
         workflow: ChatStateGraphType = workflow_factory(wfname)
     except Exception as e:

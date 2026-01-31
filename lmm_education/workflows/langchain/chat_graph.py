@@ -426,21 +426,6 @@ def create_chat_workflow(
     return workflow.compile()
 
 
-def workflow_factory(workflow_name: str) -> ChatStateGraphType:
-    """
-    Factory function to retrieve compiled workflow graphs.
-    """
-
-    # At present, we only have one graph, so we put this function
-    # here, but it will be moved to a factory module when we have
-    # more workflows.
-    match workflow_name:
-        case "query":  # only query at first chat
-            return create_chat_workflow(ConfigSettings())
-        case _:
-            raise ValueError(f"Invalid workflow: {workflow_name}")
-
-
 # -----------------------------------------------------------------
 # Logging for this graph, using its specific information
 
