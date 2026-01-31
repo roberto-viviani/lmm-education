@@ -176,7 +176,6 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
     @skip_if_expensive
     async def test_stream_state(self):
         """Test streaming with stream_mode='values' to get complete state."""
-        from typing import Any
 
         context: ChatWorkflowContext = self.get_workflow_context()
         initial_state: ChatState = create_initial_state(
@@ -895,7 +894,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
 
         # Verify at least one ToolMessage has error content
         has_error_content = any(
-            msg.content[-1] and msg.content.startswith("Error")  # type: ignore
+            msg.content and msg.content.startswith("Error")  # type: ignore
             for msg in tool_messages
         )
         self.assertTrue(
@@ -1013,7 +1012,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
         # Check that at least one ToolMessage has error content
         error_tool_msg = None
         for msg in tool_messages:
-            if msg.content[-1] and msg.content.startswith("Error"):  # type: ignore
+            if msg.content and msg.content.startswith("Error"):  # type: ignore
                 error_tool_msg = msg
                 break
 
@@ -1037,45 +1036,6 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
         )
 
         print("✓ Passed: Tool error creates ToolMessage correctly\n")
-
-    @skip_if_expensive
-    async def test_tool_error_propagation(self):
-        """Test that tool errors propagate as exceptions."""
-        from tests.test_mocks import MockRetriever
-
-        print("Test: Tool errors propagate as exceptions")
-
-        # Create failing retriever
-        mock_retriever = MockRetriever(
-            exception=RuntimeError("Tool execution failed")
-        )
-
-        initial_state = create_initial_state(
-            "What is machine learning?"
-        )
-
-        context = self.get_workflow_context(retriever=mock_retriever)
-        workflow = create_chat_agent(ConfigSettings())
-
-        # Run workflow - expect RuntimeError to be raised
-        with self.assertRaises(RuntimeError) as cm:
-            await workflow.ainvoke(initial_state, context=context)
-
-        # Verify the exception message
-        self.assertIn(
-            "Error retrieving from vector database",
-            str(cm.exception),
-            "Should raise the retrieval error",
-        )
-
-        # Verify retriever was called
-        self.assertEqual(
-            mock_retriever.call_count,
-            1,
-            "Retriever should be called once",
-        )
-
-        print("✓ Passed: Tool error routing works correctly\n")
 
 
 class TestAgentBehavior(unittest.IsolatedAsyncioTestCase):

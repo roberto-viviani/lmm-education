@@ -3,12 +3,12 @@ Default workflow for handling RAG interactions.
 
 The workflow handles:
 - Query validation
-- Integration previous messages
+- Integration of previous messages
 - Context retrieval from vector store
 - LLM response generation
 
 The graph workflow is created with the `create_chat_workflow` function
-taking a CongiSettings argument to specify major, minor, and aux
+taking a ConfigSettings argument to specify major, minor, and aux
 models:
 
 ```python
@@ -182,12 +182,14 @@ def create_chat_workflow(
                         },
                         config={'tags': [TAG_NOSTREAM]},
                     )
-                    summary = summary.replace('text', 'chat')
 
-                    # re-weight summary and query
-                    weight: int = ceil(
-                        len(summary.split())
-                        / (len(query.split()) + 1)
+                    # re-weight summary and query. We repeat query
+                    # to increase its wieght in the embedding.
+                    summary_len = len(summary.split())
+                    weight: int = (
+                        1
+                        if summary_len < 15
+                        else ceil(summary_len / len(query.split()))
                     )
                     query = " ".join([query] * weight)
 
@@ -202,13 +204,14 @@ def create_chat_workflow(
                         },
                         config={'tags': [TAG_NOSTREAM]},
                     )
-                    summary = summary.replace('text', 'chat')
 
                     # re-weight summary and query. We repeat query
                     # to increase its wieght in the embedding.
-                    weight: int = ceil(
-                        len(summary.split())
-                        / (len(query.split()) + 1)
+                    summary_len = len(summary.split())
+                    weight: int = (
+                        1
+                        if summary_len < 15
+                        else ceil(summary_len / len(query.split()))
                     )
                     query = " ".join([query] * weight)
 

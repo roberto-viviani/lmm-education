@@ -1,16 +1,16 @@
 """
 Agentic workflow for handling RAG interactions. The agent decides
-how to use the vector database to retreive information to respond
+how to use the vector database to retrieve information to respond
 to the user.
 
 The workflow handles:
 - Query validation, including responding to confused queries
-- Integration previous messages
+- Integration of previous messages
 - Context retrieval from vector store
 - LLM response generation
 
 The graph workflow is created with the `create_chat_agent` function
-taking a CongiSettings argument to specify major, minor, and aux
+taking a ConfigSettings argument to specify major, minor, and aux
 models:
 
 ```python
@@ -141,11 +141,11 @@ def continue_after_tool_call(
         # No messages generated
         if not state.get('messages', []):
             return next_node
-        
+
         # Error occurred in generate node
         if state.get('status') == "error":
             return END
-        
+
         # Check if tools were called
         nextval = tools_condition(state)  # type: ignore
         return tool_node if nextval == 'tools' else next_node
@@ -220,12 +220,14 @@ def create_chat_agent(
                         },
                         config={'tags': [TAG_NOSTREAM]},
                     )
-                    summary = summary.replace('text', 'chat')
 
-                    # re-weight summary and query
-                    weight: int = ceil(
-                        len(summary.split())
-                        / (len(query.split()) + 1)
+                    # re-weight summary and query. We repeat query
+                    # to increase its wieght in the embedding.
+                    summary_len = len(summary.split())
+                    weight: int = (
+                        1
+                        if summary_len < 15
+                        else ceil(summary_len / len(query.split()))
                     )
                     query = " ".join([query] * weight)
 
@@ -240,13 +242,14 @@ def create_chat_agent(
                         },
                         config={'tags': [TAG_NOSTREAM]},
                     )
-                    summary = summary.replace('text', 'chat')
 
                     # re-weight summary and query. We repeat query
                     # to increase its wieght in the embedding.
-                    weight: int = ceil(
-                        len(summary.split())
-                        / (len(query.split()) + 1)
+                    summary_len = len(summary.split())
+                    weight: int = (
+                        1
+                        if summary_len < 15
+                        else ceil(summary_len / len(query.split()))
                     )
                     query = " ".join([query] * weight)
 
@@ -326,13 +329,15 @@ QUERY: "{query}"
             config.logger.error(
                 f"Error retrieving from vector database:\n{e}"
             )
-            raise RuntimeError("Error retrieving from vector database") from e
+            raise RuntimeError(
+                "Error retrieving from vector database"
+            ) from e
 
     tools: list[BaseTool] = [retrieve_context]
 
     # the type of the model bound to tools is complex
-    base_model: BaseChatModel = llm_major or create_model_from_settings(
-        settings.major
+    base_model: BaseChatModel = (
+        llm_major or create_model_from_settings(settings.major)
     )
     model_with_tools: Runnable[
         Sequence[BaseMessage],
@@ -343,23 +348,26 @@ QUERY: "{query}"
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
     ) -> dict[str, str | AIMessage]:
         """Check if the tool execution resulted in an error.
-        
+
         When handle_tool_errors=True, ToolNode catches exceptions and creates
         a ToolMessage with the error text in .content starting with 'Error:'.
         """
         from langchain_core.messages import ToolMessage
-        
+
         messages = state.get("messages", [])
         if not messages:
             return {}
-        
+
         last_message = messages[-1]
-        
+
         # Check if last message is a ToolMessage with error content
         if isinstance(last_message, ToolMessage):
             # ToolNode with handle_tool_errors=True creates error messages
             # with content starting with "Error:"
-            if last_message.content and last_message.content.startswith("Error"):
+            if (
+                last_message.content
+                and last_message.content.startswith("Error")
+            ):
                 settings = runtime.context.chat_settings
                 runtime.context.logger.error(
                     f"Tool execution failed: {last_message.content}"
@@ -367,9 +375,11 @@ QUERY: "{query}"
                 return {
                     'status': "error",
                     'response': settings.MSG_ERROR_QUERY,
-                    'messages': AIMessage(content=settings.MSG_ERROR_QUERY),
+                    'messages': AIMessage(
+                        content=settings.MSG_ERROR_QUERY
+                    ),
                 }
-        
+
         return {'status': "valid"}  # Tool succeeded
 
     async def generate(
@@ -477,8 +487,7 @@ QUERY: "{query}"
     )
     workflow.add_edge("tool_caller", "check_tool_result")
     workflow.add_conditional_edges(
-        "check_tool_result",
-        continue_if_no_error("generate")
+        "check_tool_result", continue_if_no_error("generate")
     )
 
     return workflow.compile()
