@@ -62,6 +62,8 @@ Note:
     stream.
 """
 
+# rev c 1.25
+
 # pyright: standard
 # pyright: reportAttributeAccessIssue=false
 
@@ -284,11 +286,12 @@ def create_chat_agent(
 
         # Format with prompt template
         template = PromptTemplate.from_template(
-            """Please assist students by responding to their QUERY by using the 
-context obtained by searching the database. If such context does not provide 
-information for your answer, integrate the context only for the use and syntax 
-of R. Otherwise, reply that you do not have information to answer the query, 
-as the course focuses on linear models and their use in R.
+            """Please assist students by responding to their QUERY by 
+using the context obtained by searching the database. If such context 
+does not provide information for your answer, integrate the context 
+only for the use and syntax of R. Otherwise, reply that you do not 
+have information to answer the query, as the course focuses on linear 
+models and their use in R.
 
 ####
 QUERY: "{query}"
@@ -306,7 +309,8 @@ QUERY: "{query}"
             "Searches the vector database to retrieve context "
             "information to answer the user's question.\n"
             "Args:\n"
-            "   query: str. A query text to be matched in the vector database."
+            "   query: str. A query text to be matched in the "
+            "vector database."
         ),
     )
     async def retrieve_context(
@@ -349,8 +353,9 @@ QUERY: "{query}"
     ) -> dict[str, str | AIMessage]:
         """Check if the tool execution resulted in an error.
 
-        When handle_tool_errors=True, ToolNode catches exceptions and creates
-        a ToolMessage with the error text in .content starting with 'Error:'.
+        When handle_tool_errors=True, ToolNode catches exceptions
+        and creates a ToolMessage with the error text in .content
+        starting with 'Error:'.
         """
         from langchain_core.messages import ToolMessage
 
@@ -397,11 +402,12 @@ QUERY: "{query}"
             "intelligible. If so, go to the next step. If not, respond "
             "immediately inviting the user to clarify their intended"
             " meaning.\n"
-            "2. Search the vector database using the user's QUERY as argument to obtain"
-            "material to answer it. If the QUERY includes different"
-            "concepts or entities, you may optionally search the database"
-            "by rewriting the query and splitting it into multiple queries,"
-            "to be used in separate search database calls.\n"
+            "2. Search the vector database using the user's QUERY as "
+            "argument to obtain material to answer it. If the QUERY "
+            "includes different concepts or entities, you may "
+            "optionally search the database by rewriting the query "
+            "and splitting it into multiple queries, to be used in "
+            "separate search database calls.\n"
             "3. Answer the query as specified in the user message."
         )
         messages = prepare_messages_for_llm(

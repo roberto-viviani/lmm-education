@@ -4,6 +4,8 @@ This module contains domain-specific adapters - it uses ChatState
 directly and understands the semantics of the "status" field.
 """
 
+# rev c 1.25
+
 import asyncio
 from typing import Any, Literal, TypedDict
 

@@ -89,7 +89,7 @@ Tier 1 to tier 3 adapters:
 
 """
 
-# flake8: noqa  (too long lines)
+# rev c 1.25
 
 import asyncio
 import copy
