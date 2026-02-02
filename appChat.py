@@ -1,5 +1,12 @@
 """
-Entry point for the RAG model chat application.
+### Entry point for the RAG model chat application.
+
+Main functions:
+
+- gradio_callback_fn: the main Gradio callback driving the chat
+- postcomment: triggered by comments posted by the user
+- vote: triggered by a vote of the user
+
 """
 
 # ruff: noqa: E402
@@ -110,12 +117,11 @@ async def gradio_callback_fn(
     """
     This function is called by the gradio framework each time the
     user posts a new message in the chatbot. The user message is the
-    querytext, the history the list of previous exchanges.
-    request is a wrapper around FastAPI information, used to write a
-    session ID in the logs. Note we collect IP address.
+    `querytext` argument, and `history` the list of previous
+    exchanges. The `request` argument is a wrapper around FastAPI
+    information, such as the IP address of the user.
 
-    The content of the response is streamed using the appropriate
-    chat_function from lmm_education.query.
+    This function uses the query.py module to implement the chat.
     """
 
     # this only to override closure in testing
