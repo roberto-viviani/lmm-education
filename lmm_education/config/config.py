@@ -6,24 +6,21 @@ documents, so that one can experiment with different options.
 The configuration options are the following:
 
     storage: one of
-        ':memory:'
-        LocalStorage(folder = "./storage")  (or another folder name)
-        RemoteSource(url = "1.1.1.127", port = 21465)  (or others)
-    collection_name: the collection to use for ingestion
-    encoding_model (enum EncodingModel): the model used for encoding
-        i.e. the use of dense and sparse vectors, or hybrid models
-    questions (bool): create questions for the textual content for
-        each markdown heading (note: existing questions in the
-        metadata before the heading will be used if present). (note:
-        running titles will always be added); default False
-    summaries (bool): summarize textual content under each heading
-        while including the summaries of sub-headings (note: existing
-        summaries will be used, if the text was not changed since the
-        time of the summary generation); default False
-    companion_collection (str|None): create a companion collection
-        containing the pooled text prior to chunking. The companion
-        collection supports group_by queries returning the pooled text
-        instead of the text used for embedding; default False
+        - ':memory:'
+        - LocalStorage(folder = "./storage")  (or another folder name)
+        - RemoteSource(url = "1.1.1.127", port = 21465)  (or others)
+    database: settings for the database in storage. Includes
+        - collection_name: the name of the main collection/table
+        - companion_collection: collection for docuents
+    RAG: settings for retrieval assisted generation. Includes
+        - titles: a boolean for generating titles or not
+        - questions: boolean for generating questions
+        - summaries: boolean for generating summaries
+        - encoding_model: the encoding model, one of NONE, CONTENT,
+            MERGED, MULTIVECTOR, SPARSE, SPARSE_CONTENT, SPARSE_MERGED
+            and SPARSE_MULTIVECTOR.
+        - annotation_model: the annotation model, including
+            inherited_properties and own_properties
     text_splitter: the splitter class that will be used to split the
         text into chunks
 

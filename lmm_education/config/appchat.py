@@ -1,3 +1,62 @@
+"""Configuration file for the appChat application.
+
+Settings specified in appchat.toml are:
+
+    - title, description, comment: text displayed on the web
+        application
+    - MSG_EMPTY_QUERY, MSG_WRONG_CONTENT, MSG_LONG_QUERY,
+        MSG_ERROR_QUERY: responses displayed in several user
+        error conditions. If the English language is acceptable,
+        can be left as they are.
+    - SYSTEM_MESSAGE: this is a system message prepended to all
+        chat turns. Customize this message to specify the personality
+        of the chatbot and -- importantly -- to specify constraints
+        on the content the chatbot may deliver.
+    - PROMPT_TEMPLATE: used in a simple chat workflow to prompt the
+        model with the query and the context from the vector database.
+    - max_query_word_count: the maximal number of words contained in a
+        query. Larger query texts will be rejected with MSG_LONG_QUERY
+    - history_integration: the approach used to integrate past chat
+        history when retrieving context. Possible values: 'none',
+        'summary', 'content_extraction', and 'rewrite'. 'none'
+        attaches a fixed number of past messages in the exchange. It
+        is fast and the most economical choice, but tends to reproduce
+        the original context in every new chat turn. The most
+        performant options are 'content_extraction' and 'rewrite'.
+    - history_length: the number of past messages sent to the language
+        model when chatting.
+    - workflow: the agent used for chatting. Possible options are
+        'workflow' (straightforward linear progression of message
+        processing) and 'agent' (more sophisticated in handling
+        complex or invalid requests, but slower and more expensive).
+    - check_response: validates the response of the model prior to
+        release streaming. This validation is independent of any
+        instruction given to the model in the system and user prompts.
+        Includes the settings
+        - check_response: boolean true or false
+        - allowed_content: list of topics allowed by the chatbot.
+            This list will depend on the topic treated in the material
+        - initial_buffer_size: the buffer captured from the model
+            stream sent to the language model for categorization.
+            Larger buffers improve the performance of the categori-
+            zation, but introduce longer delays before the model is
+            seen streaming in the chat.
+        - continue_on_fail: whether the stream should be released if
+            the model fails to respond. If false, the chat will
+            respond with MSG_ERROR_QUERY (because the streaming
+            model and the model used for categorization differ, it is
+            conceivable that categorization may fail even if the main
+            model is streaming). Defaults to true.
+        - server: the address/port used by the server
+        - chat_database: the database used to record the messages
+            exchanged with users. At present, only supports .csv
+            files. Consists of the following fields:
+            - messages_database_file: the file saving queries and
+                responses.
+            - context_database_file: saves the retrieved context.
+
+"""
+
 from pathlib import Path
 from typing import Any, Self, Literal
 from pydantic import Field, BaseModel, model_validator
@@ -28,7 +87,6 @@ class CheckResponse(BaseModel):
         le=12000,
         description="buffer size to send to model to check content",
     )
-    # TODO: implement this in chat_stream_adapters
     continue_on_fail: bool = Field(
         default=True,
         description="validate response if server model not available",

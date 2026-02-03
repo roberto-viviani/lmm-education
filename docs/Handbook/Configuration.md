@@ -4,11 +4,29 @@ The files `config.toml` and `appchat.toml` in the directory of the project conta
 
 # config.toml
 
-## Use of language models
+## Language models
 
-Language models are specified through the sections `embeddings`, `major`, `minor`, and `aux`. 
+The language models used in LM markdown for education are specified through the sections `major`, `minor`, and `aux`. These sections constitute three tiers of models, grading cost and latency depending on the task. 
 
-Embeddings are used to store and retrieve text from vector databases. The embeddings that are used by the project are dense embeddings (classically used by RAG applications) and sparse embeddings.
+| model | use (examples) |
+| --- | --- |
+| major | in direct interactions with the end user |
+| minor | to form summaries, generate annotations |
+| aux | to classify text, agent routing |
+
+The language models are specified by separating the model provider and the model name by '/':
+
+    OpenAI/gpt-4.1-mini
+    OpenAI/gpt-4.1-nano
+    Mistral/mistral-small-latest
+
+It is also possible to specify other parameters of the model, such as temperature. Some parameters are model-specific, and need to be set following the specific instructions of the model vendor.
+
+A special language model specification is Debug/debug, which avoids using a real language model.
+
+## Embeddings
+
+The embedding model is specified in the section `embeddings`. Embeddings are used to store and retrieve text from vector databases. The embeddings that are used by the project are dense embeddings (classically used by RAG applications) and sparse embeddings.
 
 Specification of dense embeddings contain an embedding provider and a model name, separated by '/':
 
@@ -22,30 +40,12 @@ Two sparse embeddings are supported at present.
     prithivida/Splade_PP_en_v1
 
 The default sparse embedding is Qdrant/bm25 as it is a multilingual embeddings. distiluse-base-multilingual-cased-v1 is a multilingual open-source embedding model.
-
-It is possible to configure three different language models, used in different parts of the project.
-
-| model | use |
-| --- | --- |
-| major | in direct interactions with the end user |
-| minor | to form summaries, generate questions the text answers |
-| aux | to classify text |
-
-The language models are specified by separating the model provider and the model name by '/':
-
-    OpenAI/gpt-4.1-mini
-    OpenAI/gpt-4.1-nano
-    Mistral/mistral-small-latest
-
-It is also possible to specify other parameters of the model, such as temperature. Some parameters are model specific, and need to be set following the specific instructions of the model vendor.
-
-A special language model specification is Debug/debug, which avoids using a real language model.
-
+ 
 ## Storage
 
 This section configures where the vector database is located. Specify a folder to save the vector database locally, or a valid internet address/port number for a Qdrant server.
 
-The Database section contains the names of the collections used to store the data. These names can be left as they are. However, the existence of a non-empty `companion_collection` property means that whole text sections, not the chunks used to generate embeddings, will be retrieved (more details on this are in [RAG authoring](RAGauthoring.md)).
+The `database` section contains the names of the collections used to store the data. These names can be left as they are. However, the existence of a non-empty `companion_collection` property means that whole text sections, not the chunks used to generate embeddings, will be retrieved (more details on this are in [RAG authoring](RAGauthoring.md)).
 
 ## RAG section: annotation model
 
@@ -63,17 +63,42 @@ The specification `filters` in the annotation model is reserved for future use. 
 
 Choose here the text splitter to generate the chunks of the embeddings and their size. Default options are generally ok.
 
-# appchat.toml
+# Application servers
+
+The application servers start listening for connection at the specified port. They may be configured using their specific settings. The system settings of config.toml apply to all application servers.
+
+## appChat
 
 This configuration file controls the text that appears on the web application, the type of content that is allowed in the chat, and the port where the server is listening.
 
-See the documentation of the [chat application](ChatApp.md) for a description of the text that is displayed on the web page.
-
-## Web server
+### Server configuration
 
 The server section allows specifying how the web server will be running. The `mode = local` is useful for testing and debugging, running a local server. The settings `mode = remote` sets up a web server listening at the port `port`.
 
-## Content validation
+### Text appearing in the web application
+
+The following settings control the text displayed in the web app.
+
+- `title`, `description`, `comment`: the name of the lecture and descriptive information. See the documentation of the [chat application](ChatApp.md) for a more detailed description of the text that is displayed on the web page.
+
+- `MSG_EMPTY_QUERY`, `MSG_WRONG_CONTENT`, `MSG_LONG_QUERY`, `MSG_ERROR_QUERY`: text of the responses displayed in several user
+error conditions. If the English language is acceptable, these settings can be left as they are.
+
+- `SYSTEM_MESSAGE`: Customize this message to specify the personality of the chatbot and -- importantly -- to specify constraints on the content the chatbot may deliver.
+
+- `PROMPT_TEMPLATE`: used in a simple chat workflow to prompt the model with the query and the context from the vector database.
+
+### Chat settings
+
+- `max_query_word_count`: the maximal number of words contained in a query. Larger query texts will be rejected. The application may use  MSG_LONG_QUERY as a response to the user.
+
+- `history_integration`: the approach used to integrate past chat history when retrieving context. Possible values: 'none', 'summary', 'content_extraction', and 'rewrite'. 'none' attaches a fixed number of past messages in the exchange. It is fast and the most economical choice, but tends to reproduce the original context in every new chat turn. The most performant options are 'content_extraction' and 'rewrite'.
+    
+- `history_length`: the number of past messages sent to the language model when chatting.
+
+- `workflow`: the agent used for chatting. Possible options are 'workflow' and 'agent'. 'workflow' provides a sequential series of steps to process the query. This is the most efficient option when chatting, while delivering good results to reasonably behaved users. 'agent' is a more sophisticated strategy that autonomously rewrites the query and retrieves context from the vector database. It can respond meaningfully in a number of situations when 'workflow' performs poorly, but is slower and more expensive.
+
+### Content validation
 
 Content validation can be implemented at two levels. The first is the prompt, instructing the language model only to reply to queries about a certain content, or that are represented in the retrieved context. The second is to send query and the first part of the response to a LMM to classify the content.
 
@@ -86,10 +111,28 @@ allowed_content = ["statistics", "R programming"]
 initial_buffer_size = 320
 ```
 
-If you do that, you must also provide one or more allowed contents in the `allowed_content` list. The `initial_buffer_size` controls how much of the initial response of the model is sent for content classification (in characters). If the chatbot is replying that it cannot respond to legitimate queries due to misclassification, try and increase the buffer size. This is a tredeoff between the accuracy of content assessment and the latency with which the response starts streaming in the chatbot.
+If you do that, you must also provide one or more allowed contents in the `allowed_content` list. The `initial_buffer_size` controls how much of the initial response of the model is sent for content classification (in characters). If the chatbot is replying that it cannot respond to legitimate queries due to misclassification, try and increase the buffer size. There is a tredeoff between the accuracy of content assessment and the latency with which the response starts streaming in the chatbot.
 
-It is important to bear in mind that the instructions about the content of the interaction that are put in the prompt at the time in which the context is retrieved become progressively irrelevant during a chat exchange. Therefore, any strategy to control content cannot be based on verifying that the question is consistent with material retireved from the vector database. There are two ways to control the content of prolonged chats:
+In summary, the any strategies to control content can be activie at two levels:
 
 * introduce a content limitation in the system prompt, instead of leaving to something generic like "You are a helpful assistant". The system prompt is present in all chat interactions, irrespective of how prolonged.
 * switch on content validation, which checks each response of the language model.
+
+### Exchange database logging
+
+The exchanged messages and the retrieved context are saved to a database as specified in the `chat_database`setting. At present, the application only supports .csv files. Consists of the following fields:
+
+- `messages_database_file`: the file saving queries and responses.
+
+- `context_database_file`: saves the retrieved context.
+
+## appWebcast
+
+This application displays videos _and_ a chat over the content of the video. The same settings as in appChat apply. In addition, the following settings may be set here.
+
+- `SOURCE_DIR`: the folder containing video/audio/image files for presentations.
+
+- `OPENAI_VOICE`: the OpenAI voice selected for rendering. Defaults to 'nova'.
+
+- `OPENAI_VOICE_INSTRUCTION`: the prompt for the OpenAI voice. 
 
