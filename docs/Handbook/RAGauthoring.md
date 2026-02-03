@@ -50,7 +50,7 @@ lmme scan-messages Lecture01.md
 
 Alternatively, after having started the internal CLI interpreter with `lmme terminal`:
 
-```
+```bash
 > scan_messages Lecture01.md
 ```
 
@@ -105,7 +105,7 @@ lmme scan-clear-messages Lecture01.md
 
 or, in the internal CLI interpreter started with `lmme terminal`,
 
-```
+```bash
 > scan_clear_messages Lecture01.md
 ```
 
@@ -123,7 +123,7 @@ It is not necessary to clear the markdown document from these messages prior to 
 
 Annotations are metadata properties that facilitate the retrieval of text from the vector database. Consider the following text.
 
-``` markdown
+```markdown
 ### Observational studies
 
 These are studies with models that contain predictors that were observed in the field, and could not or were not the result of an experimental manipulation of the predictor value. For example, a model of depressive symptoms in adults as predicted by childhood trauma would be such a model.
@@ -133,7 +133,7 @@ Here, the text that is sent to the vector database never contains the word "obse
 
 Furthermore, other text in the database may contain the term "observational study" even if it does not explain at all what observational models are. Consider the following example.
 
-``` markdown
+```markdown
 ### Somewhere in text
 
 When we look at the significance of the association between predictors and outcomes, it is important to distinguish between two different settings. In the first, we have variables that we have observed in the field. For example, early traumas may exert an influence on the predisposition to psychopathology in adult age. We do not have any way to change the occurrence of traumas in the past with an experiment, so we look at their consequences in a sample from the population. Studies of this type are called *observational*.
@@ -155,7 +155,7 @@ Annotations are the best mechanism to improve the capacity of the vector databas
 
 LM markdown for education uses a language model to create the annotations. However, they can always be integrated or edited in an interactive loop. What annotations should be generated is specified in the "RAG" section of config.toml:
 
-```
+```ini
 [RAG]
 questions=true
 titles=true
@@ -172,7 +172,7 @@ lmme scan-rag Lecture01.md
 
 or after starting the internal CLI with `lmme terminal`:
 
-```
+```bash
 > scan_rag Lecture01.md
 ```
 
@@ -186,7 +186,7 @@ scan_rag("Lecture01.md")
 
 After this, any modern editor that has Lecture01.md open will display the annotations added by the langauge model:
 
-``` markdown
+```markdown
 ---
 ~txthash: 7JdFs+GLpXTfvmONOnyc5g
 titles: Chapter 1 - What are linear models? - Observational studies
@@ -212,7 +212,7 @@ lmme scan-changed-titles Lecture01.md
 
 or, after having started the internal CLI with `lmme terminal`:
 
-```
+```bash
 > scan_changed_titles Lecture01.md
 ```
 
@@ -222,7 +222,7 @@ Frozen metadata will not be listed here. The command will only list the titles o
 
 The properties `questions` and `keywords` are special, because LM markdown for education uses language models to fill them. However, you can also add you own property. For example, you might want to add a property `concepts` or `topic`, where you manually insert the values of the property in the metadata block:
 
-``` markdown
+```markdown
 ---
 ~txthash: 7JdFs+GLpXTfvmONOnyc5g
 titles: Chapter 1 - What are linear models? - Observational studies
@@ -235,7 +235,7 @@ Text follows...
 
 To tell LM markdown that these metadata properties are meant for annotations, include them in the `RAG.annotation_model` section of config.toml:
 
-``` toml
+```ini
 [RAG.annotation_model]
 inherited_properties = []
 own_properties = [concepts]
@@ -277,7 +277,7 @@ These options trade off accurate encoding of annotations on the one hand and cos
 
 You can customize the encoding model by entering the option in config.toml in the RAG section:
 
-```
+```ini
 [RAG]
 encoding_model=sparse_merged
 ```
@@ -286,7 +286,7 @@ Remember that the same encoding model must be used in all interactions with the 
 
 The encoding model influences how the text is encoded, but the retrieved text is not necessarily the same as the one from which the encoding was computed. This is because the retrieved text must contain context for its use in generating a response well. LM markdown for education can be directed to retrieve the whole text of the subheading where the chunk is located. This directive is in the `database` section:
 
-```
+```ini
 [database]
 collection_name = "chunks"
 companion_collection = "documents"
@@ -305,7 +305,7 @@ The following table summarizes the models used in RAG.
 
 You can annotate text blocks or entire headings and their underlying material such as to exclude them from the RAG. To this end, use the annotation `skip: True`:
 
-``` markdown
+```markdown
 ---
 title: chapter 1
 ---
@@ -345,7 +345,7 @@ lmme querydb "What is the reason to add a family parameter to glm call?"
 
 or, after having started the internal CLI with `lmme terminal`:
 
-```
+```bash
 > ingest AddedMaterial.md
 > querydb "What is the reason to add a family paramter to a glm call?"
 ```
@@ -367,19 +367,19 @@ To replace the old content in the database with the new, just repeat the ingesti
 
 After you are satisfied with the way the material is being retrieved from the database in response to your queries, you can test the response from the language model with the `query` function:
 
-``` bash
+```bash
 lmme query "What are observational studies?"
 ```
 
 or, after having started the internal CLI with `lmme terminal`:
 
-```
+```bash
 > query "What are observational studies?"
 ```
 
 Using the Python REPL:
 
-``` python
+```python
 from lmm_education import query
 
 result = query("What are observational studies?")
@@ -394,7 +394,7 @@ lmme query "What are observational studies?" --model minor --temperature 0.2
 
 or, after having started the internal CLI with `lmme terminal`:
 
-```
+```bash
 > query "What are observational studies?" --model minor --temperature 0.2
 ```
 
@@ -407,19 +407,19 @@ lmme query "What are observational studies?" --model OpenAI/gpt-4-mini
 
 With the internal CLI,
 
-```
+```bash
 > query "What are observational studies?" --model OpenAI/gpt-4-mini
 ```
 
 Here too to get a list of available options, 
 
-```
+```bash
 > query --help
 ```
 
 When using the Python REPL or from code, you can specify a model to which you have access directly using the following syntax.
 
-``` python
+```python
 from lmm_education import query
 
 response = query("What are observational studies?", {'model': "OpenAI/gpt-4-mini", 'temperature': 0.3})
