@@ -17,7 +17,6 @@ from lmm.markdown.parse_markdown import (
     parse_markdown_text,
     blocklist_haserrors,
 )
-from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_rag import blocklist_rag, ScanOpts
 from lmm.scan.scan_split import scan_split
 from lmm.scan.scan_keys import UUID_KEY, GROUP_UUID_KEY, TITLES_KEY
@@ -37,7 +36,10 @@ from lmm_education.stores.vector_store_qdrant import (
     aquery,
     aquery_grouped,
 )
-from lmm_education.config.config import ConfigSettings
+from lmm_education.config.config import (
+    ConfigSettings,
+    export_settings,
+)
 
 from lmm.utils.logging import ExceptionConsoleLogger
 
@@ -67,11 +69,11 @@ def tearDownModule():
 class TestEncoding(unittest.IsolatedAsyncioTestCase):
     # detup and teardown replace config.toml to avoid
     # calling the language model server
-    original_settings = Settings()
+    original_settings = ConfigSettings()
 
     @classmethod
     def setUpClass(cls):
-        settings = Settings(
+        settings = ConfigSettings(
             major={"model": "Debug/debug"},
             minor={"model": "Debug/debug"},
             aux={"model": "Debug/debug"},

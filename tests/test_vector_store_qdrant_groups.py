@@ -13,7 +13,6 @@ from lmm.markdown.parse_markdown import (
     parse_markdown_text,
     blocklist_haserrors,
 )
-from lmm.config.config import Settings, export_settings
 from lmm.scan.scan_keys import GROUP_UUID_KEY, UUID_KEY
 from lmm.scan.scan_rag import ScanOpts, blocklist_rag
 from lmm.scan.scan_split import scan_split
@@ -38,7 +37,10 @@ from lmm_education.stores.vector_store_qdrant import (
     query,
     query_grouped,
 )
-from lmm_education.config.config import ConfigSettings
+from lmm_education.config.config import (
+    ConfigSettings,
+    export_settings,
+)
 
 from lmm.utils.logging import ExceptionConsoleLogger
 
@@ -212,23 +214,24 @@ class TestEncoding(unittest.TestCase):
 
     # detup and teardown replace config.toml to avoid
     # calling the language model server
-    original_settings = Settings()
+    original_settings = ConfigSettings()
 
     @classmethod
     def setUpClass(cls):
-        settings = Settings(
+        settings = ConfigSettings(
             major={'model': "Debug/debug"},
             minor={'model': "Debug/debug"},
             aux={'model': "Debug/debug"},
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
+            RAG={'retrieve_docs': True},
         )
         export_settings(settings)
 
     @classmethod
     def tearDownClass(cls):
-        settings = cls.original_settings
+        settings: ConfigSettings = cls.original_settings
         export_settings(settings)
 
     def test_encode(self):

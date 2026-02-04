@@ -45,7 +45,7 @@ The default sparse embedding is Qdrant/bm25 as it is a multilingual embeddings. 
 
 This section configures where the vector database is located. Specify a folder to save the vector database locally, or a valid internet address/port number for a Qdrant server.
 
-The `database` section contains the names of the collections used to store the data. These names can be left as they are. However, the existence of a non-empty `companion_collection` property means that whole text sections, not the chunks used to generate embeddings, will be retrieved (more details on this are in [RAG authoring](RAGauthoring.md)).
+The `database` section contains the names of the collections used to store the data. These names can be left as they are. However, the existence of a non-empty `companion_collection` property means that whole text sections, not the chunks used to generate embeddings, will be stored in the database (more details on this are in [RAG authoring](RAGauthoring.md)). To switch retrieval mode, the setting `retrieve_docs` in the   
 
 ## RAG section: annotation model
 
@@ -58,6 +58,8 @@ When one specifies a predefined annotation, for example `questions = true`, this
 'Encoding' specifies how annotations are used to generate an embedding. The options here are described in detail in the [encoding and embedding](EncodingEmbedding.md) part of the manual.
 
 The specification `filters` in the annotation model is reserved for future use. Setting this specification has no effect on the working of the program at present.
+
+The specification `retrieve_docs` retrieves whole documents instead of chunks. For this directive to have effect, a companion collection must be specified at ingestion.
 
 ## Text splitting
 

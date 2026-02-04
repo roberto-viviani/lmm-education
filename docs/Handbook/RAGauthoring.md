@@ -284,7 +284,7 @@ encoding_model=sparse_merged
 
 Remember that the same encoding model must be used in all interactions with the database.
 
-The encoding model influences how the text is encoded, but the retrieved text is not necessarily the same as the one from which the encoding was computed. This is because the retrieved text must contain context for its use in generating a response well. LM markdown for education can be directed to retrieve the whole text of the subheading where the chunk is located. This directive is in the `database` section:
+The encoding model influences how the text is encoded, but the retrieved text is not necessarily the same as the one from which the encoding was computed. This is because the retrieved text must contain context for its use in generating a response well. LM markdown for education can be directed to save in the database the whole text of the subheading where the chunk is located. This directive is in the `database` section:
 
 ```ini
 [database]
@@ -292,7 +292,14 @@ collection_name = "chunks"
 companion_collection = "documents"
 ```
 
-If `companion_collection` is not empty, then the retrieved text is the one of the subheading.
+After storing the whole text subheadings, these text may be provided at retrieval (instead of the chunks) by setting the `retrieve_docs` key in the `[RAG]` section. 
+
+```ini
+[RAG]
+retrieve_docs=true
+```
+
+If `retrieve_docs` is set to true and the `companion_collection` was not specified, then the `retrieve_docs` setting is ignored.
 
 The following table summarizes the models used in RAG.
 

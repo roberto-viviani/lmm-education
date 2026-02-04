@@ -105,11 +105,17 @@ def querydb(
             return ""
 
     points: list[ScoredPoint] = []
-    if settings.database.companion_collection:
+    retrieve_docs: bool = settings.RAG.retrieve_docs
+    if retrieve_docs and not settings.database.companion_collection:
+        logger.warning(
+            "Retrieve docs directive ignores, no companion collection"
+        )
+        retrieve_docs = False
+    if retrieve_docs:
         results: GroupsResult = query_grouped(
             client,
             settings.database.collection_name,
-            settings.database.companion_collection,
+            settings.database.companion_collection,  # type: ignore
             encoding_to_qdrantembedding_model(
                 settings.RAG.encoding_model
             ),
@@ -175,11 +181,17 @@ async def aquerydb(
             return ""
 
     points: list[ScoredPoint] = []
-    if settings.database.companion_collection:
+    retrieve_docs: bool = settings.RAG.retrieve_docs
+    if retrieve_docs and not settings.database.companion_collection:
+        retrieve_docs = False
+        logger.warning(
+            "Retrieve docs directive ignored, no companion collection"
+        )
+    if retrieve_docs:
         results: GroupsResult = await aquery_grouped(
             client,
             settings.database.collection_name,
-            settings.database.companion_collection,
+            settings.database.companion_collection,  # type: ignore
             encoding_to_qdrantembedding_model(
                 settings.RAG.encoding_model
             ),

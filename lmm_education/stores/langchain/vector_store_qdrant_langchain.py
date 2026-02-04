@@ -194,9 +194,8 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 "Could not initialize retriever due to "
                 + "invalid config settings"
             )
-        dbOpts: DatabaseSettings = opts.database
 
-        if bool(dbOpts.companion_collection):
+        if bool(opts.RAG.retrieve_docs):
             return QdrantVectorStoreRetrieverGrouped.from_config_settings(
                 opts, client=client
             )
@@ -206,7 +205,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
             client = global_client_from_config(opts.storage)
         return QdrantVectorStoreRetriever(
             client,
-            dbOpts.collection_name,
+            opts.database.collection_name,
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
@@ -341,9 +340,8 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 "Could not initialize retriever due to "
                 + "invalid config settings"
             )
-        dbOpts: DatabaseSettings = opts.database
 
-        if bool(dbOpts.companion_collection):
+        if bool(opts.RAG.retrieve_docs):
             return AsyncQdrantVectorStoreRetrieverGrouped.from_config_settings(
                 opts, client=client
             )
@@ -353,7 +351,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
             client = global_async_client_from_config(opts.storage)
         return AsyncQdrantVectorStoreRetriever(
             client,
-            dbOpts.collection_name,
+            opts.database.collection_name,
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
@@ -538,8 +536,15 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 + "invalid config settings"
             )
         dbOpts: DatabaseSettings = opts.database
+        retrieve_docs = opts.RAG.retrieve_docs
 
-        if not bool(dbOpts.companion_collection):
+        if retrieve_docs and not bool(dbOpts.companion_collection):
+            logger.warning(
+                "Retrieve docs directive ignored, no companion collection"
+            )
+            retrieve_docs = False
+
+        if not retrieve_docs:
             return QdrantVectorStoreRetriever.from_config_settings(
                 opts, client=client
             )
@@ -550,7 +555,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         return QdrantVectorStoreRetrieverGrouped(
             client,
             dbOpts.collection_name,
-            dbOpts.companion_collection,
+            dbOpts.companion_collection,  # type: ignore (checked above)
             GROUP_UUID_KEY,
             4,
             encoding_to_qdrantembedding_model(
@@ -700,8 +705,15 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 + "invalid config settings"
             )
         dbOpts: DatabaseSettings = opts.database
+        retrieve_docs = opts.RAG.retrieve_docs
 
-        if not bool(dbOpts.companion_collection):
+        if retrieve_docs and not bool(dbOpts.companion_collection):
+            logger.warning(
+                "Retrieve docs directive ignored, no companion collection"
+            )
+            retrieve_docs = False
+
+        if not retrieve_docs:
             return (
                 AsyncQdrantVectorStoreRetriever.from_config_settings(
                     opts, client=client
@@ -714,7 +726,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         return AsyncQdrantVectorStoreRetrieverGrouped(
             client,
             dbOpts.collection_name,
-            dbOpts.companion_collection,
+            dbOpts.companion_collection,  # type: ignore (checked above)
             GROUP_UUID_KEY,
             4,
             encoding_to_qdrantembedding_model(

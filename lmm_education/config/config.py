@@ -11,7 +11,7 @@ The configuration options are the following:
         - RemoteSource(url = "1.1.1.127", port = 21465)  (or others)
     database: settings for the database in storage. Includes
         - collection_name: the name of the main collection/table
-        - companion_collection: collection for docuents
+        - companion_collection: collection for documents
     RAG: settings for retrieval assisted generation. Includes
         - titles: a boolean for generating titles or not
         - questions: boolean for generating questions
@@ -21,6 +21,8 @@ The configuration options are the following:
             and SPARSE_MULTIVECTOR.
         - annotation_model: the annotation model, including
             inherited_properties and own_properties
+        - retrieve_docs: retrieve documents. A `companion_collection`
+            must have been specified.
     text_splitter: the splitter class that will be used to split the
         text into chunks
 
@@ -215,6 +217,13 @@ class RAGSettings(BaseModel):
         description="Model to select metadata for annotations and "
         + "filtering",
     )
+    retrieve_docs: bool = Field(
+        default=True,
+        description=(
+            "Retrieve full part of documents. A companion collection"
+            " must have been specified."
+        ),
+    )
 
     def get_annotation_model(self) -> AnnotationModel:
         """Returns an annotation model that is consistent with the
@@ -332,6 +341,14 @@ class ConfigSettings(LMMSettings):
             raise ValueError(
                 f"Invalid splitter: {self.textSplitter.splitter}\n"
                 + " must be one of {Splitter.__args__}"
+            )
+        if (
+            self.RAG.retrieve_docs
+            and not self.database.companion_collection
+        ):
+            raise ValueError(
+                "Invalid [RAG] retrieve_docs directive: no companion"
+                " collection specified in [database] section"
             )
         return self
 
