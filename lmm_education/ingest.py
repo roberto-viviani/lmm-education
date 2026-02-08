@@ -98,10 +98,12 @@ from lmm.markdown.tree import (
     tree_to_blocks,
     MarkdownTree,
     MarkdownNode,
+    HeadingNode,
 )
 from lmm.markdown.treeutils import (
     propagate_property,
     bequeath_properties,
+    inherit_parent_properties,
 )
 from lmm.markdown.ioutils import save_markdown, report_error_blocks
 from lmm.utils.ioutils import append_postfix_to_filename
@@ -118,6 +120,7 @@ from lmm.scan.scan_keys import (
     SUMMARY_KEY,
     TXTHASH_KEY,
     CHAT_KEY,
+    CTXT_SUMMARY_KEY,
 )
 from lmm.scan.scan_split import (
     NullTextSplitter,
@@ -487,7 +490,7 @@ def markdown_upload(
                 if bool(comp_blocks):
                     chunk_blocks.append(
                         TextBlock(
-                            content="-----------------------------------------"
+                            content="----------COMPANION BLOCKS:--------------"
                         )
                     )
                 save_markdown(
@@ -644,7 +647,7 @@ async def amarkdown_upload(
 
 
 # This is the function that does the actual processing of the
-# markdown blocks, tranforming them into chunks for the ingestion.
+# markdown blocks, transforming them into chunks for the ingestion.
 # It implements the annotation strategy specified in the
 # ConfigSettings object: adds annotations using a language model
 # if the settings require it. It is the key point where a strategy
@@ -709,7 +712,8 @@ def blocklist_encode(
     if not blocks:
         return [], []
 
-    # ingest here the whole text under headings in the companion coll.
+    # The companion collection is used to store the textblocks
+    # under headings together.
     if dbOpts.companion_collection:
         coll_blocks: list[Block] = blocklist_copy(blocks)
         # in the companion collection, we merge textblocks
@@ -720,6 +724,16 @@ def blocklist_encode(
         if coll_root is None:
             return [], []
 
+        # TODO: inherit_metadata assumes text blocks have no
+        # metadata. This is something to be fixed. Here, we
+        # code an assertion that there are no metadata.
+        from lmm.markdown.treeutils import get_textnodes
+
+        text_children = get_textnodes(
+            coll_root, filter_func=lambda x: bool(x.metadata)
+        )
+        assert len(text_children) == 0
+
         # this will also inherit the UUID
         coll_root = inherit_metadata(
             coll_root,
@@ -727,6 +741,19 @@ def blocklist_encode(
             inherit=True,
             include_header=True,
         )
+
+        # # copy summaries from immediate parent into the context
+        # # summary key, to pool with content at retrieval
+        if opts.RAG.summaries:
+            # inherit_parent_properties raises an exception only when
+            # the list of properties and destination_names are of
+            # differing length, which is obviously not the case here
+            coll_root = inherit_parent_properties(
+                coll_root,
+                properties=[SUMMARY_KEY],
+                destination_names=[CTXT_SUMMARY_KEY],
+                filter_func=lambda n: isinstance(n, HeadingNode),
+            )
         coll_blocks = tree_to_blocks(coll_root)
 
         # collect text and annotations into chunk objects

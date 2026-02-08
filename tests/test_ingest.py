@@ -35,6 +35,7 @@ keywords:
 - observational study
 - experimental study
 title: Chapter 1
+summary: This is a summary for the whole document.
 ---
 
 ## Introduction
@@ -321,6 +322,7 @@ class TestLoadMarkdown(unittest.TestCase):
                 questions=False,
                 summaries=False,
                 encoding_model=EncodingModel.CONTENT,
+                retrieve_docs=False,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -406,12 +408,77 @@ class TestLoadMarkdown(unittest.TestCase):
         from qdrant_client.models import Record
 
         id = ids[0][1]  # type: ignore
+        self.assertTrue(bool(id))
         records: list[Record] = client.retrieve(
             collection_name=opts.database.companion_collection,
             ids=[id],
             with_payload=True,
         )
         self.assertTrue(len(records) > 0)
+
+    def test_load_markdown_companion_summaries(self):
+        import io
+        from lmm.scan.scan_keys import CTXT_SUMMARY_KEY
+
+        opts = ConfigSettings(
+            storage=":memory:",
+            database=DatabaseSettings(
+                companion_collection="documents",
+            ),
+            RAG=RAGSettings(
+                questions=False,
+                summaries=True,
+                encoding_model=EncodingModel.CONTENT,
+            ),
+            textSplitter={'splitter': "default", 'threshold': 75},
+        )
+
+        logger = LoglistLogger()
+        client: QdrantClient | None = initialize_client(opts, logger)
+        if client is None:
+            print("\n".join(logger.get_logs(level=0)))
+            raise Exception("Could not initialize client")
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
+        buffer = io.StringIO()
+        ids = markdown_upload(
+            TEST_MARKDOWN_FILE,
+            config_opts=opts,
+            save_files=buffer,
+            ingest=True,
+            client=client,
+            logger=logger,
+        )
+        print("\n".join(logger.get_logs(level=0)))
+        self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
+        self.assertTrue(len(ids) > 0)
+
+        # check using qdrant API that records are there
+        from qdrant_client.models import Record
+
+        # if there are summaries, they will have been ingested without
+        # companion document. We need to locate a tuple with a non-empty
+        # second element.
+        chids: list[str] = [idt for _, idt in ids if idt]  # type: ignore
+        self.assertTrue(bool(chids))
+        id = chids[0]
+        records: list[Record] = client.retrieve(
+            collection_name=opts.database.companion_collection,
+            ids=[id],
+            with_payload=True,
+        )
+        if len(records) == 0:
+            print(f"DEBUG: No records found for ID {id}")
+            points, _ = client.scroll(
+                collection_name=opts.database.companion_collection,
+                limit=10,
+                with_payload=True,
+            )
+            print(f"DEBUG SCROLL: {[p.id for p in points]}")
+
+        self.assertTrue(len(records) > 0)
+        self.assertIn(
+            CTXT_SUMMARY_KEY, records[0].payload['metadata']  # type: ignore
+        )
 
 
 class TestMarkdownQueries(unittest.TestCase):

@@ -1760,7 +1760,7 @@ tomlkit = ">=0.13.3,<0.14.0"
 type = "git"
 url = "https://c7201031:FZkqlscljWaqtQ_ZCT3lwm86MQp1OjNvMQk.01.0z0nnrty0@git.uibk.ac.at/c7201031/lmm.git"
 reference = "HEAD"
-resolved_reference = "32f34fa80aa75221c2669bbbbb07ee239c43280d"
+resolved_reference = "3a04a2ad287182bb3b31c45da4213163e43d3887"
 
 [[package]]
 name = "loguru"
