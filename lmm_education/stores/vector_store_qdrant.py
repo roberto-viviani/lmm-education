@@ -2338,10 +2338,28 @@ def points_to_text(
 
 def points_to_payload(
     points: list[Point] | list[ScoredPoint],
+    payload_key: str | None = None,
 ) -> list[dict[str, Any]]:
-    """transform a list of points into a list of their textual
-    content"""
-    return [p.payload for p in points if p.payload]
+    """transform a list of points into a list of their payload"""
+    if payload_key is None:
+        return [p.payload for p in points if p.payload]
+    else:
+        return [
+            p.payload.get(payload_key, "")
+            for p in points
+            if p.payload
+        ]
+
+
+def points_to_metadata(
+    points: list[Point] | list[ScoredPoint],
+    metadata_key: str | None = None,
+) -> list[Any]:
+    metas = points_to_payload(points, 'metadata')
+    if metadata_key is None:
+        return metas
+    else:
+        return [m.get(metadata_key, "") for m in metas]
 
 
 def points_to_blocks(points: list[Point]) -> list[Block]:

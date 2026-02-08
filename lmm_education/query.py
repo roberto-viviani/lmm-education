@@ -697,5 +697,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"ERROR: {e}")
     else:
-        print("Usage: call querydb followed by your query.")
-        print("Example: querydb 'what is logistic regression?'")
+        print("Usage: call query followed by your query.")
+        print("Example: query 'what is logistic regression?'")

@@ -46,6 +46,7 @@ from qdrant_client import QdrantClient, AsyncQdrantClient
 from qdrant_client.models import GroupsResult, ScoredPoint
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
+from lmm.scan.scan_keys import CTXT_SUMMARY_KEY
 
 from lmm_education.config.config import ConfigSettings
 
@@ -57,6 +58,7 @@ from .stores.vector_store_qdrant import (
     encoding_to_qdrantembedding_model,
     groups_to_points,
     points_to_text,
+    points_to_metadata,
 )
 from .stores.vector_store_qdrant_context import (
     global_client_from_config,
@@ -139,7 +141,16 @@ def querydb(
     if not points:
         return "No results, please check connection/database."
 
-    return "\n-------\n".join(points_to_text(points))
+    if retrieve_docs:
+        summaries = points_to_metadata(points, CTXT_SUMMARY_KEY)
+        texts = points_to_text(points)
+        whole = [
+            str(sm) + "\n\n" + txt
+            for sm, txt in zip(summaries, texts)
+        ]
+        return "\n-------\n".join(whole)
+    else:
+        return "\n-------\n".join(points_to_text(points))
 
 
 async def aquerydb(
@@ -215,7 +226,16 @@ async def aquerydb(
     if not points:
         return "No results, please check connection/database."
 
-    return "\n-------\n".join(points_to_text(points))
+    if retrieve_docs:
+        summaries = points_to_metadata(points, CTXT_SUMMARY_KEY)
+        texts = points_to_text(points)
+        whole = [
+            str(sm) + "\n\n" + txt
+            for sm, txt in zip(summaries, texts)
+        ]
+        return "\n-------\n".join(whole)
+    else:
+        return "\n-------\n".join(points_to_text(points))
 
 
 if __name__ == "__main__":
