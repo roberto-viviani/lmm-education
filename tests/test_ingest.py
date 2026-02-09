@@ -38,12 +38,20 @@ title: Chapter 1
 summary: This is a summary for the whole document.
 ---
 
+---
+summary: Summary of the Introducion
+local_title: Introduction
+---
 ## Introduction
 
 These lectures have the purpose of having a second look at linear models from a practical perspective. We will assume that basic knowledge of statistics (t tests, significance levels, etc.) is already present, as it may have been given in a first introductory course dealing with notions such as testing and statistical significance.
 
 In the whole course we will use R to specify and fit the models. We will assume basic familiarity with R commands, but there will be no need to write programs in R. While initially R might seem an additional hurdle, its use is invaluable because it exposes the logic of linear models directly. It is also the language used by professional statisticians to make available new techniques to the world. If you know R, chances are that you can find a way to apply the most state-of-the-art statistical approach to your data, should you one day need it.
 
+---
+summary: Summary of What are linear models
+local_title: What are linear models?
+---
 ## What are linear models?
 
 Linear models and their generalizations constitute the majority of the statistical models used in practice. Here, we will look at linear models from a practical perspective, emphasizing the issues in correctly applying them and in understanding their output.
@@ -54,6 +62,10 @@ There are two broad ways of using linear models. In the first, which is perhaps 
 
 The second use of linear models is to predict the outcome given certain values of the predictors. This use of linear models is the same as in machine learning.[^1] In this case, after the fit of a linear model has been computed, one may use values of the predictors that the model had not seen to predict the outcome.
 
+---
+summary: Summary of Observational and experimental studies
+local_title: Observational and experimental studies
+---
 ### Observational and experimental studies
 
 We will first discuss issues arising from assessing the significance of associations.
@@ -415,6 +427,13 @@ class TestLoadMarkdown(unittest.TestCase):
             with_payload=True,
         )
         self.assertTrue(len(records) > 0)
+        self.assertIn(
+            'local_title', records[0].payload['metadata']  # type: ignore
+        )
+        self.assertEqual(
+            "Introduction",
+            records[0].payload['metadata'].get('local_title'),  # type: ignore
+        )
 
     def test_load_markdown_companion_summaries(self):
         import io
