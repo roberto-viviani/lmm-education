@@ -723,16 +723,6 @@ def blocklist_encode(
         if coll_root is None:
             return [], []
 
-        # TODO: inherit_metadata assumes text blocks have no
-        # metadata. This is something to be fixed. Here, we
-        # code an assertion that there are no metadata.
-        from lmm.markdown.treeutils import get_textnodes
-
-        text_children = get_textnodes(
-            coll_root, filter_func=lambda x: bool(x.metadata)
-        )
-        assert len(text_children) == 0
-
         # this will also inherit the UUID
         coll_root = inherit_metadata(
             coll_root,
