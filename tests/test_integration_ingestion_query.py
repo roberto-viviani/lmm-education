@@ -354,12 +354,12 @@ class TestIngestionRetrieval(unittest.TestCase):
     def test_integration_retrieval_models_summaries(self):
         models: list[EncodingModel] = [
             EncodingModel.CONTENT,
-            # EncodingModel.SPARSE,
-            # EncodingModel.SPARSE_CONTENT,
-            # EncodingModel.SPARSE_MERGED,
-            # EncodingModel.SPARSE_MULTIVECTOR,
-            # EncodingModel.MULTIVECTOR,
-            # EncodingModel.MERGED,
+            EncodingModel.SPARSE,
+            EncodingModel.SPARSE_CONTENT,
+            EncodingModel.SPARSE_MERGED,
+            EncodingModel.SPARSE_MULTIVECTOR,
+            EncodingModel.MULTIVECTOR,
+            EncodingModel.MERGED,
         ]
         for m in models:
             self._do_test_integration_retrieval_summaries(m)
