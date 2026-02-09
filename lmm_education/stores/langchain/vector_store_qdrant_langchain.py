@@ -186,7 +186,6 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         Returns:
             A QdrantVectorStoreRetriever object
         """
-
         logger = ExceptionConsoleLogger()
         opts = opts or load_settings(logger=logger)
         if opts is None:
@@ -195,7 +194,7 @@ class QdrantVectorStoreRetriever(BaseRetriever):
                 + "invalid config settings"
             )
 
-        if bool(opts.RAG.retrieve_docs):
+        if opts.RAG.retrieve_companion_docs:
             return QdrantVectorStoreRetrieverGrouped.from_config_settings(
                 opts, client=client
             )
@@ -236,7 +235,6 @@ class QdrantVectorStoreRetriever(BaseRetriever):
         limit: int = 12,
         payload: list[str] = ['page_content'],
     ) -> list[Document]:
-
         logger = ExceptionConsoleLogger()
         points: list[vsq.ScoredPoint] = vsq.query(
             self.client,
@@ -341,7 +339,7 @@ class AsyncQdrantVectorStoreRetriever(BaseRetriever):
                 + "invalid config settings"
             )
 
-        if bool(opts.RAG.retrieve_docs):
+        if opts.RAG.retrieve_companion_docs:
             return AsyncQdrantVectorStoreRetrieverGrouped.from_config_settings(
                 opts, client=client
             )
@@ -536,7 +534,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 + "invalid config settings"
             )
         dbOpts: DatabaseSettings = opts.database
-        retrieve_docs: bool = opts.RAG.retrieve_docs or False
+        retrieve_docs: bool = opts.RAG.retrieve_companion_docs
 
         if retrieve_docs and not bool(dbOpts.companion_collection):
             logger.warning(
@@ -545,8 +543,17 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             retrieve_docs = False
 
         if not retrieve_docs:
-            return QdrantVectorStoreRetriever.from_config_settings(
-                opts, client=client
+            # Directly instantiate to avoid infinite recursion
+            # (opts still has retrieve_companion_docs=True)
+            if client is None:
+                client = global_client_from_config(opts.storage)
+            return QdrantVectorStoreRetriever(
+                client,
+                dbOpts.collection_name,
+                encoding_to_qdrantembedding_model(
+                    opts.RAG.encoding_model
+                ),
+                opts.embeddings,
             )
 
         if client is None:
@@ -557,7 +564,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             dbOpts.collection_name,
             dbOpts.companion_collection,  # type: ignore (checked above)
             GROUP_UUID_KEY,
-            4,
+            opts.RAG.max_companion_docs,
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
@@ -710,7 +717,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 + "invalid config settings"
             )
         dbOpts: DatabaseSettings = opts.database
-        retrieve_docs = opts.RAG.retrieve_docs
+        retrieve_docs: bool = opts.RAG.retrieve_companion_docs
 
         if retrieve_docs and not bool(dbOpts.companion_collection):
             logger.warning(
@@ -719,10 +726,17 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             retrieve_docs = False
 
         if not retrieve_docs:
-            return (
-                AsyncQdrantVectorStoreRetriever.from_config_settings(
-                    opts, client=client
-                )
+            # Directly instantiate to avoid infinite recursion
+            # (opts still has retrieve_companion_docs=True)
+            if client is None:
+                client = global_async_client_from_config(opts.storage)
+            return AsyncQdrantVectorStoreRetriever(
+                client,
+                dbOpts.collection_name,
+                encoding_to_qdrantembedding_model(
+                    opts.RAG.encoding_model
+                ),
+                opts.embeddings,
             )
 
         if client is None:
@@ -733,7 +747,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             dbOpts.collection_name,
             dbOpts.companion_collection,  # type: ignore (checked above)
             GROUP_UUID_KEY,
-            4,
+            opts.RAG.max_companion_docs,
             encoding_to_qdrantembedding_model(
                 opts.RAG.encoding_model
             ),
@@ -783,6 +797,10 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             + ".ainvoke?"
         )
 
+        if isinstance(payload, list):
+            if 'page_content' not in payload:
+                payload.append('page_content')
+
         nest_asyncio.apply()  # type: ignore
 
         gresults: Coroutine[Any, Any, vsq.GroupsResult] = (
@@ -813,8 +831,12 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         *,
         run_manager: AsyncCallbackManagerForRetrieverRun,
         limit: int = 4,
-        payload: list[str] = ['page_content'],
+        payload: list[str] | bool = True,
     ) -> list[Document]:
+
+        if isinstance(payload, list):
+            if 'page_content' not in payload:
+                payload.append('page_content')
 
         results: vsq.GroupsResult = await vsq.aquery_grouped(
             self.client,

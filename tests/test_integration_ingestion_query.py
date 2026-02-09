@@ -262,7 +262,8 @@ class TestIngestionRetrieval(unittest.TestCase):
                 'summaries': False,
                 'annotation_model': {'own_properties': ['questions']},
                 'encoding_model': encoding_model,
-                'retrieve_docs': True,
+                'retrieve_companion_docs': True,
+                'max_companion_docs': 2,
             },
         )
         idss = markdown_upload(
@@ -324,7 +325,8 @@ class TestIngestionRetrieval(unittest.TestCase):
                 'summaries': True,
                 'annotation_model': {'own_properties': ['questions']},
                 'encoding_model': encoding_model,
-                'retrieve_docs': True,
+                'retrieve_companion_docs': True,
+                'max_companion_docs': 2,
             },
         )
         stream = io.StringIO()

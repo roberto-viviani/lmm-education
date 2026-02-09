@@ -21,8 +21,10 @@ The configuration options are the following:
             and SPARSE_MULTIVECTOR.
         - annotation_model: the annotation model, including
             inherited_properties and own_properties
-        - retrieve_docs: retrieve documents. A `companion_collection`
-            must have been specified.
+        - retrieve_companion_docs: retrieve documents. A
+            `companion_collection` must have been specified in the
+            `database` section. If not, the setting is ignored.
+        - max_companion_docs: number of full documents to retrieve.
     text_splitter: the splitter class that will be used to split the
         text into chunks
 
@@ -217,11 +219,22 @@ class RAGSettings(BaseModel):
         description="Model to select metadata for annotations and "
         + "filtering",
     )
-    retrieve_docs: bool | None = Field(
-        default=None,
+    retrieve_companion_docs: bool = Field(
+        default=True,
         description=(
             "Retrieve full part of documents. A companion collection"
-            " must have been specified."
+            " must have been specified. If not, this setting will"
+            " be ignored."
+        ),
+    )
+    max_companion_docs: int = Field(
+        default=2,
+        gt=0,
+        lt=100,
+        description=(
+            "Max number of retrieved full documents. Ignored if "
+            "`retrieve_companion_docs` set to False, or no "
+            "`companion_collection` was specified."
         ),
     )
 
@@ -245,7 +258,8 @@ class RAGSettings(BaseModel):
         summaries: bool | None = None,
         encoding_model: EncodingModel | None = None,
         annotation_model: AnnotationModel | None = None,
-        retrieve_docs: bool | None = None,
+        retrieve_companion_docs: bool | None = None,
+        max_companion_docs: int | None = None,
     ) -> 'RAGSettings':
         """Create a new RAGSettings object with modified properties"""
         return RAGSettings(
@@ -255,7 +269,10 @@ class RAGSettings(BaseModel):
             encoding_model=encoding_model or self.encoding_model,
             annotation_model=annotation_model
             or self.annotation_model,
-            retrieve_docs=retrieve_docs or self.retrieve_docs,
+            retrieve_companion_docs=retrieve_companion_docs
+            or self.retrieve_companion_docs,
+            max_companion_docs=max_companion_docs
+            or self.max_companion_docs,
         )
 
 
@@ -336,18 +353,6 @@ class ConfigSettings(LMMSettings):
             raise ValueError(
                 f"Invalid splitter: {self.textSplitter.splitter}\n"
                 + " must be one of {Splitter.__args__}"
-            )
-        if self.RAG.retrieve_docs is None:
-            self.RAG.retrieve_docs = bool(
-                self.database.companion_collection
-            )
-        if (
-            self.RAG.retrieve_docs
-            and not self.database.companion_collection
-        ):
-            raise ValueError(
-                "Invalid [RAG] retrieve_docs directive: no companion"
-                " collection specified in [database] section"
             )
         return self
 

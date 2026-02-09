@@ -292,14 +292,14 @@ collection_name = "chunks"
 companion_collection = "documents"
 ```
 
-After storing the whole text subheadings, these text may be provided at retrieval (instead of the chunks) by setting the `retrieve_docs` key in the `[RAG]` section. 
+After storing the whole text subheadings, these text may be provided at retrieval (instead of the chunks) by setting the `retrieve_companion_docs` key in the `[RAG]` section. 
 
 ```ini
 [RAG]
-retrieve_docs=true
+retrieve_companion_docs=true
 ```
 
-If `retrieve_docs` is set to true and the `companion_collection` was not specified, then the `retrieve_docs` setting is ignored.
+If `retrieve_companion_docs` is set to true and the `companion_collection` is empty, then the `retrieve_companion_docs` setting is ignored.
 
 The following table summarizes the models used in RAG.
 

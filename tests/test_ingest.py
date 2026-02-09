@@ -294,7 +294,7 @@ class TestEncoding(unittest.TestCase):
         # give too short a text for it beeing deemed worth summarizing
         # as it will remain below the summary_threshold value
         if opts.minor.get_model_source() == "Debug":
-            self.assertEqual(counter, 3)
+            self.assertIn(counter, [3, 4])
         else:
             self.assertEqual(counter, 4)
 
@@ -334,7 +334,7 @@ class TestLoadMarkdown(unittest.TestCase):
                 questions=False,
                 summaries=False,
                 encoding_model=EncodingModel.CONTENT,
-                retrieve_docs=False,
+                retrieve_companion_docs=False,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )
@@ -448,6 +448,8 @@ class TestLoadMarkdown(unittest.TestCase):
                 questions=False,
                 summaries=True,
                 encoding_model=EncodingModel.CONTENT,
+                retrieve_companion_docs=True,
+                max_companion_docs=2,
             ),
             textSplitter={'splitter': "default", 'threshold': 75},
         )

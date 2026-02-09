@@ -227,7 +227,7 @@ class TestEncoding(unittest.TestCase):
             embeddings={
                 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1"
             },
-            RAG={'retrieve_docs': True},
+            RAG={'retrieve_companion_docs': True},
         )
         export_settings(settings)
 

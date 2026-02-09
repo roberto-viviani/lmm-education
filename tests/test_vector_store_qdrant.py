@@ -711,7 +711,9 @@ class TestInitializationLocal(unittest.TestCase):
                 "dense_model": "SentenceTransformers/distiluse-base-multilingual-cased-v1",
                 "sparse_model": "Qdrant/bm25",
             },
-            RAG={'encoding_model': EncodingModel.CONTENT},
+            RAG={
+                'encoding_model': EncodingModel.CONTENT,
+            },
             database={
                 'collection_name': "chunks",
                 'companion_collection': None,
@@ -850,7 +852,7 @@ class TestInitializationMemory(unittest.TestCase):
             RAG={'encoding_model': encoding},
             database={
                 'collection_name': collection_name,
-                'companion_collection': "",
+                'companion_collection': None,
             },
             storage=":memory:",
         )
