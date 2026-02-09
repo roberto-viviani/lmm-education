@@ -86,7 +86,7 @@ from .. import vector_store_qdrant as vsq
 
 from pydantic import Field, ConfigDict
 
-from lmm.scan.scan_keys import GROUP_UUID_KEY
+from lmm.scan.scan_keys import GROUP_UUID_KEY, CTXT_SUMMARY_KEY
 from lmm.utils.logging import ExceptionConsoleLogger
 from lmm.config.config import EmbeddingSettings
 from ...config.config import ConfigSettings, load_settings
@@ -536,7 +536,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 + "invalid config settings"
             )
         dbOpts: DatabaseSettings = opts.database
-        retrieve_docs = opts.RAG.retrieve_docs
+        retrieve_docs: bool = opts.RAG.retrieve_docs
 
         if retrieve_docs and not bool(dbOpts.companion_collection):
             logger.warning(
@@ -573,9 +573,14 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         )
         for p in result_points:
             payload = p.payload if p.payload is not None else {}
+            metadata = payload.get('metadata', {})
+            context_summary: str = metadata.pop(CTXT_SUMMARY_KEY, "")
+            if context_summary:
+                context_summary += "\n"
             docs.append(
                 Document(
-                    page_content=payload.pop('page_content', ""),
+                    page_content=context_summary
+                    + payload.pop('page_content', ""),
                     metadata=payload.pop('metadata', {}),
                 )
             )
@@ -589,7 +594,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
         limit: int = 4,
-        payload: list[str] = ['page_content'],
+        payload: list[str] | bool = True,
     ) -> list[Document]:
 
         results: vsq.GroupsResult = vsq.query_grouped(
@@ -744,9 +749,14 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         )
         for p in result_points:
             payload = p.payload if p.payload is not None else {}
+            metadata = payload.get('metadata', {})
+            context_summary: str = metadata.pop(CTXT_SUMMARY_KEY, "")
+            if context_summary:
+                context_summary += "\n"
             docs.append(
                 Document(
-                    page_content=payload.pop('page_content', ""),
+                    page_content=context_summary
+                    + payload.pop('page_content', ""),
                     metadata=payload.pop('metadata', {}),
                 )
             )
@@ -760,7 +770,7 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
         limit: int = 4,
-        payload: list[str] = ['page_content'],
+        payload: list[str] | bool = True,
     ) -> list[Document]:
         # this is a required override, so we need to await the async
         import nest_asyncio  # type: ignore[stubFileNotFound]

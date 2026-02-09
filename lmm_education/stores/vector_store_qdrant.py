@@ -1769,7 +1769,7 @@ def query_grouped(
     querytext: str,
     *,
     limit: int = 4,
-    payload: list[str] = ['page_content'],
+    payload: list[str] | bool = True,
     group_size: int = 1,
     group_field: str = GROUP_UUID_KEY,
     logger: LoggerBase = default_logger,
@@ -1786,8 +1786,8 @@ def query_grouped(
         embedding_settings: the embedding settings
         querytext: the target text
         limit: max number of chunks retrieved
-        payload: what properties to be retrieved; defaults to the text
-            retrieved for similarity to the querytext
+        payload: what properties to be retrieved; defaults to all
+            metadata propoerties. Note that the text is 'page_content'.
         group_size: max retrieved output from the group collection
         group_field: the filed to group on
         logger: a logger object
@@ -2030,7 +2030,7 @@ async def aquery_grouped(
     querytext: str,
     *,
     limit: int = 4,
-    payload: list[str] = ['page_content'],
+    payload: list[str] | bool = True,
     group_size: int = 1,
     group_field: str = GROUP_UUID_KEY,
     logger: LoggerBase = default_logger,
@@ -2048,8 +2048,8 @@ async def aquery_grouped(
         group_field: the filed to group on
         querytext: the target text
         limit: max number of chunks retrieved
-        payload: what properties to be retrieved; defaults to the text
-            retrieved for similarity to the querytext
+        payload: what properties to be retrieved; defaults to all
+            metadata properties. Note that text is 'page_content'.
         group_size: max retrieved output from the group collection
         group_field: the filed to group on
         logger: a logger object
