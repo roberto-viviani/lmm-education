@@ -217,8 +217,8 @@ class RAGSettings(BaseModel):
         description="Model to select metadata for annotations and "
         + "filtering",
     )
-    retrieve_docs: bool = Field(
-        default=True,
+    retrieve_docs: bool | None = Field(
+        default=None,
         description=(
             "Retrieve full part of documents. A companion collection"
             " must have been specified."
@@ -336,6 +336,10 @@ class ConfigSettings(LMMSettings):
             raise ValueError(
                 f"Invalid splitter: {self.textSplitter.splitter}\n"
                 + " must be one of {Splitter.__args__}"
+            )
+        if self.RAG.retrieve_docs is None:
+            self.RAG.retrieve_docs = bool(
+                self.database.companion_collection
             )
         if (
             self.RAG.retrieve_docs
