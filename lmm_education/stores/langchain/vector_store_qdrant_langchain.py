@@ -536,7 +536,7 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
                 + "invalid config settings"
             )
         dbOpts: DatabaseSettings = opts.database
-        retrieve_docs: bool = opts.RAG.retrieve_docs
+        retrieve_docs: bool = opts.RAG.retrieve_docs or False
 
         if retrieve_docs and not bool(dbOpts.companion_collection):
             logger.warning(
@@ -572,11 +572,11 @@ class QdrantVectorStoreRetrieverGrouped(BaseRetriever):
             results
         )
         for p in result_points:
-            payload = p.payload if p.payload is not None else {}
+            payload = p.payload or {}
             metadata = payload.get('metadata', {})
             context_summary: str = metadata.pop(CTXT_SUMMARY_KEY, "")
             if context_summary:
-                context_summary += "\n"
+                context_summary += "\n\n"
             docs.append(
                 Document(
                     page_content=context_summary
@@ -748,11 +748,11 @@ class AsyncQdrantVectorStoreRetrieverGrouped(BaseRetriever):
             results
         )
         for p in result_points:
-            payload = p.payload if p.payload is not None else {}
+            payload = p.payload or {}
             metadata = payload.get('metadata', {})
             context_summary: str = metadata.pop(CTXT_SUMMARY_KEY, "")
             if context_summary:
-                context_summary += "\n"
+                context_summary += "\n\n"
             docs.append(
                 Document(
                     page_content=context_summary

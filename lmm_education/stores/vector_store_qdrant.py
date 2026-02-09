@@ -1787,7 +1787,9 @@ def query_grouped(
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to all
-            metadata propoerties. Note that the text is 'page_content'.
+            metadata propoerties. Note that the text is 'page_content',
+            and this will be included unless payload = False.
+            If payload = True, all propertes are included.
         group_size: max retrieved output from the group collection
         group_field: the filed to group on
         logger: a logger object
@@ -1795,6 +1797,11 @@ def query_grouped(
     Returns:
         a list of ScoredPoint objects.
     """
+
+    # make sure if payload is given, it contains `page_content`
+    if isinstance(payload, list):
+        if 'page_content' not in payload:
+            payload.append('page_content')
 
     # Essentially, the qdrant API declares different
     # types for any search API.
@@ -2049,7 +2056,9 @@ async def aquery_grouped(
         querytext: the target text
         limit: max number of chunks retrieved
         payload: what properties to be retrieved; defaults to all
-            metadata properties. Note that text is 'page_content'.
+            metadata properties. Note that text is 'page_content', and
+            this will be included unless payload = False
+            If payload = True, all propertes are included.
         group_size: max retrieved output from the group collection
         group_field: the filed to group on
         logger: a logger object
@@ -2057,6 +2066,11 @@ async def aquery_grouped(
     Returns:
         a list of ScoredPoint objects.
     """
+
+    # make sure if payload is given, it contains `page_content`
+    if isinstance(payload, list):
+        if 'page_content' not in payload:
+            payload.append('page_content')
 
     # Essentially, the qdrant API declares different
     # types for any search API.

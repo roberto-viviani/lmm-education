@@ -107,7 +107,7 @@ def querydb(
             return ""
 
     points: list[ScoredPoint] = []
-    retrieve_docs: bool = settings.RAG.retrieve_docs
+    retrieve_docs: bool = settings.RAG.retrieve_docs or False
     if retrieve_docs and not settings.database.companion_collection:
         logger.warning(
             "Retrieve docs directive ignores, no companion collection"
@@ -192,7 +192,7 @@ async def aquerydb(
             return ""
 
     points: list[ScoredPoint] = []
-    retrieve_docs: bool = settings.RAG.retrieve_docs
+    retrieve_docs: bool = settings.RAG.retrieve_docs or False
     if retrieve_docs and not settings.database.companion_collection:
         retrieve_docs = False
         logger.warning(

@@ -238,6 +238,132 @@ class TestIngestionRetrieval(unittest.TestCase):
         for m in models:
             self._do_test_integration_retrieval(m)
 
+    def _do_test_integration_retrieval_companion(
+        self, encoding_model: EncodingModel
+    ):
+        from lmm_education.ingest import markdown_upload
+        from lmm_education.config.config import ConfigSettings
+
+        # 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+        # 'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+        config = ConfigSettings(
+            embeddings={
+                'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+                'sparse_model': "Qdrant/bm25",
+            },
+            storage={'folder': "./test_storage"},
+            database={
+                'collection_name': "Test" + str(encoding_model.value),
+                'companion_collection': "Documents",
+            },
+            RAG={
+                'titles': True,
+                'questions': True,
+                'summaries': False,
+                'annotation_model': {'own_properties': ['questions']},
+                'encoding_model': encoding_model,
+                'retrieve_docs': True,
+            },
+        )
+        idss = markdown_upload(
+            "TestRaggedDocument.md",
+            config_opts=config,
+        )
+        self.assertTrue(len(idss) > 0)
+        # check there are ids for companion docs
+        compids = [idc for _, idc in idss if idc]  # type: ignore
+        self.assertTrue(len(compids) > 0)
+
+        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+            QdrantVectorStoreRetriever as Qdr,
+        )
+
+        retriever = Qdr.from_config_settings(config)
+
+        chunks = retriever.invoke("What are observational studies?")
+        self.assertTrue(len(chunks) > 0)
+        self.assertTrue(bool(chunks[0].page_content))
+        self.assertTrue(bool(chunks[0].metadata))  # type: ignore
+        self.assertIn('titles', chunks[0].metadata)  # type: ignore
+
+    def test_integration_retrieval_models_companion(self):
+        models: list[EncodingModel] = [
+            EncodingModel.CONTENT,
+            EncodingModel.SPARSE,
+            EncodingModel.SPARSE_CONTENT,
+            EncodingModel.SPARSE_MERGED,
+            EncodingModel.SPARSE_MULTIVECTOR,
+            EncodingModel.MULTIVECTOR,
+            EncodingModel.MERGED,
+        ]
+        for m in models:
+            self._do_test_integration_retrieval_companion(m)
+
+    def _do_test_integration_retrieval_summaries(
+        self, encoding_model: EncodingModel
+    ):
+        from lmm_education.ingest import markdown_upload
+        from lmm_education.config.config import ConfigSettings
+
+        import io
+
+        # 'dense_model': "SentenceTransformers/distiluse-base-multilingual-cased-v1",
+        # 'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+        config = ConfigSettings(
+            embeddings={
+                'dense_model': "SentenceTransformers/all-MiniLM-L6-v2",
+                'sparse_model': "Qdrant/bm25",
+            },
+            storage={'folder': "./test_storage"},
+            database={
+                'collection_name': "Test" + str(encoding_model.value),
+                'companion_collection': "Documents",
+            },
+            RAG={
+                'questions': True,
+                'summaries': True,
+                'annotation_model': {'own_properties': ['questions']},
+                'encoding_model': encoding_model,
+                'retrieve_docs': True,
+            },
+        )
+        stream = io.StringIO()
+        idss = markdown_upload(
+            "TestRaggedDocument.md",
+            save_files=stream,
+            config_opts=config,
+        )
+        self.assertTrue(len(idss) > 0)
+        # check there are ids for companion docs
+        compids = [idc for _, idc in idss if idc]  # type: ignore
+        self.assertTrue(len(compids) > 0)
+
+        from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
+            QdrantVectorStoreRetriever as Qdr,
+        )
+
+        retriever = Qdr.from_config_settings(config)
+
+        chunks = retriever.invoke("What are observational studies?")
+        self.assertTrue(len(chunks) > 0)
+        self.assertTrue(len(chunks) > 0)
+        self.assertTrue(bool(chunks[0].page_content))
+        self.assertTrue(bool(chunks[0].metadata))  # type: ignore
+        self.assertIn('titles', chunks[0].metadata)  # type: ignore
+
+    def test_integration_retrieval_models_summaries(self):
+        models: list[EncodingModel] = [
+            EncodingModel.CONTENT,
+            # EncodingModel.SPARSE,
+            # EncodingModel.SPARSE_CONTENT,
+            # EncodingModel.SPARSE_MERGED,
+            # EncodingModel.SPARSE_MULTIVECTOR,
+            # EncodingModel.MULTIVECTOR,
+            # EncodingModel.MERGED,
+        ]
+        for m in models:
+            self._do_test_integration_retrieval_summaries(m)
+
 
 if __name__ == "__main__":
     unittest.main()

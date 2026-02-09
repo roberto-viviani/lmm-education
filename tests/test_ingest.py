@@ -691,6 +691,7 @@ class TestMarkdownQueries(unittest.TestCase):
             query_grouped,
             groups_to_points,
             points_to_text,
+            points_to_metadata,
             encoding_to_qdrantembedding_model,
             ScoredPoint,
         )
@@ -706,19 +707,26 @@ class TestMarkdownQueries(unittest.TestCase):
             "What are the main uses of linear models?",
             limit=1,
             group_field=GROUP_UUID_KEY,
+            payload=True,
             logger=logger,
         )
         print("\n".join(logger.get_logs(level=0)))
         self.assertTrue(logger.count_logs(level=logging.WARNING) == 0)
 
         result_points: list[ScoredPoint] = groups_to_points(results)
+        result_metadata = points_to_metadata(result_points)
+        # Test metadata is there in companion document
+        self.assertIn('local_title', result_metadata[0])
+        self.assertEqual(
+            "What are linear models?",
+            result_metadata[0].get('local_title'),  # type: ignore
+        )
         result_text: list[str] = points_to_text(result_points)
 
         self.assertLess(0, len(result_points))
         companion_uuids = set([id[1] for id in ids])  # type: ignore
         self.assertTrue(results.groups[0].id in companion_uuids)
         self.assertTrue(len(result_text) > 0)
-        print(len(result_text))
 
 
 if __name__ == "__main__":

@@ -98,7 +98,6 @@ from lmm.markdown.tree import (
     tree_to_blocks,
     MarkdownTree,
     MarkdownNode,
-    HeadingNode,
 )
 from lmm.markdown.treeutils import (
     propagate_property,
@@ -740,10 +739,11 @@ def blocklist_encode(
             exclude=[TXTHASH_KEY, CHAT_KEY, SUMMARY_KEY],
             inherit=True,
             include_header=True,
+            filter_func=lambda n: n.is_text_node(),
         )
 
         # # copy summaries from immediate parent into the context
-        # # summary key, to pool with content at retrieval
+        # summary key of text nodes, to pool with content at retrieval
         if opts.RAG.summaries:
             # inherit_parent_properties raises an exception only when
             # the list of properties and destination_names are of
@@ -752,13 +752,18 @@ def blocklist_encode(
                 coll_root,
                 properties=[SUMMARY_KEY],
                 destination_names=[CTXT_SUMMARY_KEY],
-                filter_func=lambda n: isinstance(n, HeadingNode),
+                filter_func=lambda n: n.is_heading_node(),
             )
-        coll_blocks = tree_to_blocks(coll_root)
+            coll_root = inherit_parent_properties(
+                coll_root,
+                properties=[CTXT_SUMMARY_KEY],
+                destination_names=[CTXT_SUMMARY_KEY],
+                filter_func=lambda n: n.is_text_node(),
+            )
 
         # collect text and annotations into chunk objects
         coll_chunks: list[Chunk] = blocks_to_chunks(
-            coll_blocks,
+            tree_to_blocks(coll_root),
             encoding_model=EncodingModel.NONE,
             annotation_model=AnnotationModel(),  # no annotations here
             logger=logger,

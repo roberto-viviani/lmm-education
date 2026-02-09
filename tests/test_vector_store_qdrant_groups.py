@@ -69,10 +69,12 @@ output:
   md_document: default
   word_document: default
 title: Chapter 1
+summary: This is the summary for the whole document
 ---
 
 ---
 questions: What is the purpose of the course?
+summary: The purpose of the course is a second look at linear model from a practical perspective.
 ---
 ## Introduction
 
