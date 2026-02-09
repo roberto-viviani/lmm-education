@@ -245,22 +245,17 @@ class RAGSettings(BaseModel):
         summaries: bool | None = None,
         encoding_model: EncodingModel | None = None,
         annotation_model: AnnotationModel | None = None,
+        retrieve_docs: bool | None = None,
     ) -> 'RAGSettings':
         """Create a new RAGSettings object with modified properties"""
         return RAGSettings(
-            titles=titles if titles else self.titles,
-            questions=questions if questions else self.questions,
-            summaries=summaries if summaries else self.summaries,
-            encoding_model=(
-                encoding_model
-                if encoding_model is not None
-                else self.encoding_model
-            ),
-            annotation_model=(
-                annotation_model
-                if annotation_model is not None
-                else self.annotation_model
-            ),
+            titles=titles or self.titles,
+            questions=questions or self.questions,
+            summaries=summaries or self.summaries,
+            encoding_model=encoding_model or self.encoding_model,
+            annotation_model=annotation_model
+            or self.annotation_model,
+            retrieve_docs=retrieve_docs or self.retrieve_docs,
         )
 
 
