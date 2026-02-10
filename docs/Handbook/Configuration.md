@@ -12,7 +12,7 @@ The language models used in LM markdown for education are specified through the 
 | --- | --- |
 | major | in direct interactions with the end user |
 | minor | to form summaries, generate annotations |
-| aux | to classify text, agent routing |
+| aux | to classify text, tasks with short latency requirements |
 
 The language models are specified by separating the model provider and the model name by '/':
 
@@ -59,7 +59,7 @@ When one specifies a predefined annotation, for example `questions = true`, this
 
 The specification `filters` in the annotation model is reserved for future use. Setting this specification has no effect on the working of the program at present.
 
-The specification `retrieve_companion_docs` retrieves whole documents instead of chunks. For this directive to have effect, a companion collection must be specified at ingestion.
+The specification `retrieve_companion_docs` retrieves whole documents instead of chunks. For this directive to have effect, a companion collection must be specified at ingestion. The setting `max_companion_docs` controls how many documents are retrieved.
 
 ## Text splitting
 
