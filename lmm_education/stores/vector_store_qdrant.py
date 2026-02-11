@@ -168,8 +168,13 @@ Main functions:
     query / aquery
     query_grouped / aquery_grouped
 
-rev a 26.10
+Behaviour:
+    Errors communicated through logger, with the exception of client object
+    context managers: qdrant_client_context and async_qdrant_client_context
+
 """
+
+# code rev a 26.10, g+
 
 from enum import Enum
 from typing import Any
@@ -293,7 +298,7 @@ def client_from_config(
     opts: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> QdrantClient | None:
-    """ "
+    """
     Create a qdrant clients from config settings. Reads from config
     toml file settings if none given.
 
@@ -349,7 +354,7 @@ def client_from_config(
     except RuntimeError as e:
         # This often caused by accessing qdrant with sync client after
         # prior acces with async client
-        if "aready accessed" in str(e):
+        if "already accessed" in str(e):
             logger.error(
                 f"Could not initialize qdrant client due to "
                 f"previous async initialization?\n{e}"
@@ -371,9 +376,9 @@ def async_client_from_config(
     opts: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> AsyncQdrantClient | None:
-    """ "
+    """
     Create a qdrant clients from config settings. Reads from config
-    toml file settings if none gievn.
+    toml file settings if none given.
 
     Args:
         opts: the config settings
@@ -408,7 +413,8 @@ def async_client_from_config(
             case RemoteSource(url=url, port=port):
                 client = AsyncQdrantClient(url=str(url), port=port)
             case _:
-                raise ValueError("Invalid database source")
+                logger.error("Invalid database source")
+                return None
     except ConnectionError:
         logger.error(
             "Could not connect to the qdrant server, which may be down."
@@ -437,7 +443,6 @@ def async_client_from_config(
             )
         return None
     except Exception as e:
-        print(type(e))
         logger.error(f"Could not initialize qdrant client:\n{e}")
         return None
 
@@ -449,6 +454,20 @@ def qdrant_client_context(
     config: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> Generator[QdrantClient]:
+    """Contructs a client object within a context manager.
+
+    Args:
+        config: specification of the database. If none, settings
+            from config.toml will be used.
+        logger: a logger object.
+
+    Returns:
+        a client object context.
+
+    Behaviour:
+        Raises ConnectionError if client initialization fails.
+        This is standard behavior for context managers.
+    """
     client = None
     try:
         client = client_from_config(config, logger)
@@ -469,6 +488,21 @@ async def async_qdrant_client_context(
     config: DatabaseSource | ConfigSettings | None = None,
     logger: LoggerBase = default_logger,
 ) -> AsyncGenerator[AsyncQdrantClient]:
+    """Contructs an asynchronous client object within a context
+    manager.
+
+    Args:
+        config: specification of the database. If none, settings
+            from config.toml will be used.
+        logger: a logger object.
+
+    Returns:
+        a client object context.
+
+    Behaviour:
+        Raises ConnectionError if client initialization fails.
+        This is standard behavior for context managers.
+    """
     client = None
     try:
         client = async_client_from_config(config, logger)
@@ -970,7 +1004,6 @@ def _chunk_to_payload_langchain(x: 'Chunk') -> dict[str, Any]:
         return {'page_content': x.content, 'metadata': x.metadata}
 
 
-# TODO: async version
 def chunks_to_points(
     chunks: list[Chunk],
     qdrant_model: QdrantEmbeddingModel,
@@ -998,6 +1031,8 @@ def chunks_to_points(
     Returns:
         a list of Point objects (PointStruct)
     """
+
+    # Note: no async version as there is no I/O
 
     if not chunks:
         return []
@@ -1310,8 +1345,8 @@ async def aupload(
             f"Could not write to database due to API error: {e}"
         )
         return []
-    except Exception:
-        logger.error("Could not upload chunks to database")
+    except Exception as e:
+        logger.error(f"Could not upload chunks to database:\n{e}")
         return []
 
     return points
@@ -1372,8 +1407,6 @@ def query(
             "Could not initialize language model engine:\n" + str(e)
         )
         return []
-
-    # TODO: check querytext is UUID in UUID model
 
     response: QdrantResponse = QdrantResponse(points=[])
     try:
@@ -1589,8 +1622,6 @@ async def aquery(
             "Could not initialize language model engine:\n" + str(e)
         )
         return []
-
-    # TODO: check querytext is UUID in UUID model
 
     response: QdrantResponse = QdrantResponse(points=[])
     try:
@@ -1832,8 +1863,6 @@ def query_grouped(
             "Could not initialize language model engine:\n" + str(e)
         )
         return NullResult
-
-    # TODO: check querytext is UUID in UUID model
 
     response: GroupsResult = NullResult
     try:
@@ -2101,8 +2130,6 @@ async def aquery_grouped(
             "Could not initialize language model engine:\n" + str(e)
         )
         return NullResult
-
-    # TODO: check querytext is UUID in UUID model
 
     response: GroupsResult = NullResult
     try:
