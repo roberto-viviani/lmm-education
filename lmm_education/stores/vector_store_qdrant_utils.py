@@ -9,7 +9,13 @@ Main functions:
 
 A schema consists of the qdrant embedding model enum selection
 and of the embedding settings. Schemas are collection-specific.
+
+Behaviour:
+    Functions use a custom `Logger` class from the `lmm` package
+    for logging errors and information.
 """
+
+# rev code: g+
 
 # pyright: reportUnusedImport=true
 
@@ -76,85 +82,116 @@ def check_schema(
         logger: a logger object
 
     Returns:
-        a boolean flag
+        a boolean flag indicating success (True) or failure (False)
+
+    Examples:
+        ```python
+        from qdrant_client import QdrantClient
+        from lmm.config.config import EmbeddingSettings
+        from lmm_education.stores.vector_store_qdrant import QdrantEmbeddingModel
+
+        client = QdrantClient(":memory:")
+        settings = EmbeddingSettings(model="text-embedding-3-small")
+        success = check_schema(client, "my_collection",
+                              QdrantEmbeddingModel.OPENAI, settings)
+        ```
+
+    Raises:
+        ConnectionError: If unable to connect to Qdrant server
+        UnexpectedResponse: If Qdrant returns an unexpected response
+        ApiException: If Qdrant API raises an error
 
     Note:
         This is a low-level function for internal use.
-        Call within a try block to catch connetion errors to
-        the database.
     """
 
-    if not client.collection_exists(SCHEMA_COLLECTION_NAME):
-        flag: bool = client.create_collection(
-            collection_name=SCHEMA_COLLECTION_NAME,
-            vectors_config={},
-        )
-        if flag:
-            logger.info("Schema collection created.")
-        else:
-            logger.error("Schema collection could not be created.")
-            return True
-
-    uuid: str = generate_uuid(collection_name)
-    payload = {
-        'qdrant_embedding_model': qdrant_model.value,
-        'embeddings': (
-            {}
-            if qdrant_model.value == "UUID"
-            else embedding_settings.model_dump(mode="json")
-        ),
-    }
-
-    records: list[Record] = client.retrieve(
-        collection_name=SCHEMA_COLLECTION_NAME,
-        ids=[uuid],
-        with_payload=True,
-    )
-
-    if not records:
-        if not client.collection_exists(collection_name):
-            logger.error(
-                f"The collection {collection_name} is "
-                "not present in the database"
+    try:
+        if not client.collection_exists(SCHEMA_COLLECTION_NAME):
+            flag: bool = client.create_collection(
+                collection_name=SCHEMA_COLLECTION_NAME,
+                vectors_config={},
             )
-            return False
-
-        pt = Point(id=uuid, vector={}, payload=payload)
-        result: UpdateResult = client.upsert(
-            SCHEMA_COLLECTION_NAME, [pt]
-        )
-        if result.status == "completed":
-            logger.info(f"Schema added for {collection_name}")
-        else:
-            logger.info(
-                f"Attempted schema registation {collection_name}"
-            )
-    else:
-        if not records[0].payload:
-            logger.error(
-                "System error. The internal schema"
-                f" for collection {collection_name}"
-                " is corrupted. Repeat call to recreate"
-                " schema with current settings."
-            )
-            client.delete(
-                SCHEMA_COLLECTION_NAME,
-                [uuid],
-            )
-            return False
-        delta = find_dictionary_differences(
-            payload, records[0].payload
-        )
-        if delta:
-            logger.error(
-                format_difference_report(
-                    delta,
-                    collection_name,
+            if flag:
+                logger.info("Schema collection created.")
+            else:
+                logger.error(
+                    "Schema collection could not be created."
                 )
-            )
-            return False
+                return False
 
-    return True
+        uuid: str = generate_uuid(collection_name)
+        payload = {
+            'qdrant_embedding_model': qdrant_model.value,
+            'embeddings': (
+                {}
+                if qdrant_model.value == "UUID"
+                else embedding_settings.model_dump(mode="json")
+            ),
+        }
+
+        records: list[Record] = client.retrieve(
+            collection_name=SCHEMA_COLLECTION_NAME,
+            ids=[uuid],
+            with_payload=True,
+        )
+
+        if not records:
+            if not client.collection_exists(collection_name):
+                logger.error(
+                    f"The collection {collection_name} is "
+                    "not present in the database"
+                )
+                return False
+
+            pt = Point(id=uuid, vector={}, payload=payload)
+            result: UpdateResult = client.upsert(
+                SCHEMA_COLLECTION_NAME, [pt]
+            )
+            if result.status == "completed":
+                logger.info(f"Schema added for {collection_name}")
+            else:
+                logger.info(
+                    f"Attempted schema registation {collection_name}"
+                )
+        else:
+            if not records[0].payload:
+                logger.error(
+                    "System error. The internal schema"
+                    f" for collection {collection_name}"
+                    " is corrupted. Repeat call to recreate"
+                    " schema with current settings."
+                )
+                client.delete(
+                    SCHEMA_COLLECTION_NAME,
+                    [uuid],
+                )
+                return False
+            delta = find_dictionary_differences(
+                payload, records[0].payload
+            )
+            if delta:
+                logger.error(
+                    format_difference_report(
+                        delta,
+                        collection_name,
+                    )
+                )
+                return False
+
+        return True
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        raise
+    except UnexpectedResponse as e:
+        logger.error(f"Could not access vector database: {e}")
+        raise
+    except ApiException as e:
+        logger.error(
+            f"Could not access vector database due to API error: {e}"
+        )
+        raise
 
 
 async def acheck_schema(
@@ -181,67 +218,114 @@ async def acheck_schema(
         logger: a logger object
 
     Returns:
-        a boolean flag
+        a boolean flag indicating success (True) or failure (False)
+
+    Examples:
+        ```python
+        from qdrant_client import AsyncQdrantClient
+        from lmm.config.config import EmbeddingSettings
+        from lmm_education.stores.vector_store_qdrant import QdrantEmbeddingModel
+
+        client = AsyncQdrantClient(":memory:")
+        settings = EmbeddingSettings(model="text-embedding-3-small")
+        success = await acheck_schema(client, "my_collection",
+                                     QdrantEmbeddingModel.OPENAI, settings)
+        ```
+
+    Raises:
+        ConnectionError: If unable to connect to Qdrant server
+        UnexpectedResponse: If Qdrant returns an unexpected response
+        ApiException: If Qdrant API raises an error
 
     Note:
         This is a low-level function for internal use.
-        Call within a try block to catch connection errors to
-        the database.
     """
 
-    if not await client.collection_exists(SCHEMA_COLLECTION_NAME):
-        await client.create_collection(
-            collection_name=SCHEMA_COLLECTION_NAME,
-            vectors_config={},
-        )
-
-    uuid: str = generate_uuid(collection_name)
-    payload = {
-        'qdrant_embedding_model': qdrant_model.value,
-        'embeddings': embedding_settings.model_dump(mode="json"),
-    }
-
-    records: list[Record] = await client.retrieve(
-        collection_name=SCHEMA_COLLECTION_NAME,
-        ids=[uuid],
-        with_payload=True,
-    )
-
-    if not records:
-        pt = Point(id=uuid, vector={}, payload=payload)
-        result = await client.upsert(SCHEMA_COLLECTION_NAME, [pt])
-        if result.status == "completed":
-            logger.info(f"Schema added for {collection_name}")
-        else:
-            logger.info(
-                f"Attempted schema registation {collection_name}"
+    try:
+        if not await client.collection_exists(SCHEMA_COLLECTION_NAME):
+            flag: bool = await client.create_collection(
+                collection_name=SCHEMA_COLLECTION_NAME,
+                vectors_config={},
             )
-    else:
-        if records[0].payload is None:
-            logger.error(
-                "System error. The internal schema"
-                f" for collection {collection_name}"
-                " is corrupted. Repeat call to recreate"
-                " schema with current settings."
-            )
-            await client.delete(
-                SCHEMA_COLLECTION_NAME,
-                [uuid],
-            )
-            return False
-        check = find_dictionary_differences(
-            payload, records[0].payload
-        )
-        if check:
-            logger.error(
-                format_difference_report(
-                    check,
-                    collection_name,
+            if flag:
+                logger.info("Schema collection created.")
+            else:
+                logger.error(
+                    "Schema collection could not be created."
                 )
-            )
-            return False
+                return False
 
-    return True
+        uuid: str = generate_uuid(collection_name)
+        payload = {
+            'qdrant_embedding_model': qdrant_model.value,
+            'embeddings': (
+                {}
+                if qdrant_model.value == "UUID"
+                else embedding_settings.model_dump(mode="json")
+            ),
+        }
+
+        records: list[Record] = await client.retrieve(
+            collection_name=SCHEMA_COLLECTION_NAME,
+            ids=[uuid],
+            with_payload=True,
+        )
+
+        if not records:
+            if not await client.collection_exists(collection_name):
+                logger.error(
+                    f"The collection {collection_name} is "
+                    "not present in the database"
+                )
+                return False
+
+            pt = Point(id=uuid, vector={}, payload=payload)
+            result = await client.upsert(SCHEMA_COLLECTION_NAME, [pt])
+            if result.status == "completed":
+                logger.info(f"Schema added for {collection_name}")
+            else:
+                logger.info(
+                    f"Attempted schema registation {collection_name}"
+                )
+        else:
+            if records[0].payload is None:
+                logger.error(
+                    "System error. The internal schema"
+                    f" for collection {collection_name}"
+                    " is corrupted. Repeat call to recreate"
+                    " schema with current settings."
+                )
+                await client.delete(
+                    SCHEMA_COLLECTION_NAME,
+                    [uuid],
+                )
+                return False
+            check = find_dictionary_differences(
+                payload, records[0].payload
+            )
+            if check:
+                logger.error(
+                    format_difference_report(
+                        check,
+                        collection_name,
+                    )
+                )
+                return False
+
+        return True
+    except ConnectionError:
+        logger.error(
+            "Could not connect to the qdrant server, which may be down."
+        )
+        raise
+    except UnexpectedResponse as e:
+        logger.error(f"Could not access vector database: {e}")
+        raise
+    except ApiException as e:
+        logger.error(
+            f"Could not access vector database due to API error: {e}"
+        )
+        raise
 
 
 def get_schema(
@@ -262,6 +346,17 @@ def get_schema(
         a dictionary with the qdrant embedding model and
         vector embedding settings, or None if the collection
         does not exist, or errors are raised.
+
+    Examples:
+        ```python
+        from qdrant_client import QdrantClient
+
+        client = QdrantClient(":memory:")
+        schema = get_schema(client, "my_collection")
+        if schema:
+            print(f"Model: {schema['qdrant_embedding_model']}")
+            print(f"Settings: {schema['embeddings']}")
+        ```
     """
 
     try:
@@ -307,9 +402,6 @@ def get_schema(
             f"Could not initialize vector database due to API error: {e}"
         )
         return None
-    except Exception as e:
-        logger.error(f"Could not initialize vector database: {e}")
-        return None
 
     return records[0].payload
 
@@ -332,6 +424,17 @@ async def aget_schema(
         a dictionary with the qdrant embedding model and
         vector embedding settings, or None if the collection
         does not exist, or errors are raised.
+
+    Examples:
+        ```python
+        from qdrant_client import AsyncQdrantClient
+
+        client = AsyncQdrantClient(":memory:")
+        schema = await aget_schema(client, "my_collection")
+        if schema:
+            print(f"Model: {schema['qdrant_embedding_model']}")
+            print(f"Settings: {schema['embeddings']}")
+        ```
     """
 
     try:
@@ -376,9 +479,6 @@ async def aget_schema(
             f"Could not initialize vector database due to API error: {e}"
         )
         return None
-    except Exception as e:
-        logger.error(f"Could not initialize vector database: {e}")
-        return None
 
     return records[0].payload
 
@@ -388,6 +488,20 @@ def database_info(
     *,
     logger: LoggerBase = default_logger,
 ) -> dict[str, object]:
+    """
+    Utility to extract information on the database.
+
+    Inspects config.toml to determine expected collections and displays
+    information on their existence and schema.
+
+    Args:
+        client: a qdrant client, or None to instantiate one with the
+            settings from config.toml
+        logger: a logger object
+
+    Returns:
+        a dictionary with database storage location and collection information
+    """
     from lmm_education.config.config import (
         ConfigSettings,
         LocalStorage,
@@ -475,7 +589,8 @@ async def adatabase_info(
             settings from config.toml
 
     Returns:
-        a dictionary with information on the
+        a dictionary with database storage location and collection information,
+        including schema details for each configured collection
     """
     from lmm_education.config.config import (
         ConfigSettings,
@@ -558,10 +673,12 @@ async def adatabase_info(
 def database_name(
     client: QdrantClient | AsyncQdrantClient,
 ) -> str:
+    """Extract the database name/location from a Qdrant client."""
     return (
         client.init_options['path']
         or client.init_options['location']
         or client.init_options['url']
+        or "<unknown>"
     )
 
 
@@ -572,6 +689,18 @@ def list_property_values(
     *,
     logger: LoggerBase = default_logger,
 ) -> list[tuple[str, int]]:
+    """
+    List all unique values and their counts for a given property in a collection.
+
+    Args:
+        client: the qdrant client
+        property: the property name to query (under metadata)
+        collection: the collection name
+        logger: a logger object
+
+    Returns:
+        a list of tuples containing (value, count) pairs for the property
+    """
     try:
         result: FacetResponse = client.facet(
             collection, "metadata." + property
@@ -589,6 +718,18 @@ async def alist_property_values(
     *,
     logger: LoggerBase = default_logger,
 ) -> list[tuple[str, int]]:
+    """
+    List all unique values and their counts for a given property in a collection.
+
+    Args:
+        client: the async qdrant client
+        property: the property name to query (under metadata)
+        collection: the collection name
+        logger: a logger object
+
+    Returns:
+        a list of tuples containing (value, count) pairs for the property
+    """
     try:
         result: FacetResponse = await client.facet(
             collection, "metadata." + property
