@@ -4,7 +4,7 @@ Provides singleton client objects and handles destruction
 automatically.
 
 Global QdrantClient objects may be obtained by calling the functions
-qdrant_client_from_config and qdrant_async_client_from_config. Both
+global_client_from_config and global_async_client_from_config. Both
 accept a DatabaseSource value to identify the database. If no
 argument is provided, the database storage in the configuration
 file config.toml is used.
@@ -29,7 +29,11 @@ module manually, i.e. by calling client.close().
 Closing clients is handled automatically, but if you need to close
 them, use global_clients_close() or global_async_clients_close().
 
+Behavior:
+    Raises ValueError if creation of Client object fails.
+
 """
+# code rev: g+
 
 # Automatic construction and destruction of singleton objects
 # implemented with LazyLoadingDict
@@ -37,7 +41,7 @@ them, use global_clients_close() or global_async_clients_close().
 import asyncio
 
 from lmm.language_models.lazy_dict import LazyLoadingDict
-from lmm.utils.logging import ConsoleLogger
+from lmm.utils.logging import ConsoleLogger, LoggerBase
 from ..config.config import load_settings
 from .vector_store_qdrant import (
     client_from_config,
@@ -48,11 +52,12 @@ from .vector_store_qdrant import (
 from .vector_store_qdrant_utils import database_name
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
-logger = ConsoleLogger()
+_logger = ConsoleLogger()
 
 
 def _client_constructor(
     dbsource: DatabaseSource,
+    logger: LoggerBase = _logger,
 ) -> QdrantClient:
     """The factory function of a QdrantClient uniquely defined by
     the dbsource argument"""
@@ -69,6 +74,7 @@ def _client_constructor(
 
 def _async_client_constructor(
     dbsource: DatabaseSource,
+    logger: LoggerBase = _logger,
 ) -> AsyncQdrantClient:
     """The factory function of an AsyncQdrantClient, uniquely
     define by the dbsoure argument"""
@@ -85,7 +91,10 @@ def _async_client_constructor(
     return client
 
 
-def _client_destructor(client: QdrantClient) -> None:
+def _client_destructor(
+    client: QdrantClient, logger: LoggerBase = _logger
+) -> None:
+    """Destructor: wrapper of client close coroutine"""
     try:
         # these functions should run ok even if client closed.
         # However, a likely bug in qdrant_client.py tries to close
@@ -99,7 +108,9 @@ def _client_destructor(client: QdrantClient) -> None:
         pass
 
 
-def _async_client_destructor(client: AsyncQdrantClient) -> None:
+def _async_client_destructor(
+    client: AsyncQdrantClient, logger: LoggerBase = _logger
+) -> None:
     """Destructor: sync wrapper of async close coroutine"""
     try:
         # these functions should run ok even if client closed
@@ -134,6 +145,7 @@ qdrant_async_clients: LazyLoadingDict[
 
 def global_client_from_config(
     dbsource: DatabaseSource | None = None,
+    logger: LoggerBase = _logger,
 ) -> QdrantClient:
     """Override of vector_store_qdrant homonymous function.
     This version caches a unique link to the database source.
@@ -141,9 +153,15 @@ def global_client_from_config(
     Args:
         dbsource: a DatabaseSource type or None. If None or missing,
             returns the database as specified in config.toml.
+        logger: a logger object for error reporting.
 
     Returns:
         a QdrantClient object.
+
+    Raises:
+        ValueError: If settings cannot be loaded from config.toml when
+            dbsource is None, or if the underlying client_from_config()
+            function fails to create a synchronous client.
     """
 
     if dbsource is None:
@@ -158,12 +176,23 @@ def global_client_from_config(
 
 
 def global_clients_close() -> None:
-    """Close all clients."""
+    """Close all synchronous global clients.
+
+    This function clears the global client cache, triggering
+    the destructor for each cached client connection.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     qdrant_clients.clear()
 
 
 def global_async_client_from_config(
     dbsource: DatabaseSource | None = None,
+    logger: LoggerBase = _logger,
 ) -> AsyncQdrantClient:
     """Override of vector_store_qdrant homonymous function.
     This version caches a unique link to the database source.
@@ -171,9 +200,15 @@ def global_async_client_from_config(
     Args:
         dbsource: a DatabaseSource type or None. If None or missing,
             returns the database as specified in config.toml.
+        logger: a logger object for error reporting.
 
     Returns:
         an AsyncQdrantClient object.
+
+    Raises:
+        ValueError: If settings cannot be loaded from config.toml when
+            dbsource is None, or if the underlying async_client_from_config()
+            function fails to create an asynchronous client.
     """
 
     if dbsource is None:
@@ -188,5 +223,15 @@ def global_async_client_from_config(
 
 
 def global_async_clients_close() -> None:
-    """Close all async clients"""
+    """Close all asynchronous global clients.
+
+    This function clears the global client cache, triggering
+    the destructor for each cached client connection.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     qdrant_async_clients.clear()
