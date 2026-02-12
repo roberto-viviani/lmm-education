@@ -120,6 +120,7 @@ from lmm.scan.scan_keys import (
     TXTHASH_KEY,
     CHAT_KEY,
     CTXT_SUMMARY_KEY,
+    LAST_MODIFIED_KEY,
 )
 from lmm.scan.scan_split import (
     NullTextSplitter,
@@ -726,7 +727,12 @@ def blocklist_encode(
         # this will also inherit the UUID
         coll_root = inherit_metadata(
             coll_root,
-            exclude=[TXTHASH_KEY, CHAT_KEY, SUMMARY_KEY],
+            exclude=[
+                TXTHASH_KEY,
+                CHAT_KEY,
+                SUMMARY_KEY,
+                LAST_MODIFIED_KEY,
+            ],
             inherit=True,
             include_header=True,
             filter_func=lambda n: n.is_text_node(),
