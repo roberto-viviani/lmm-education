@@ -12,7 +12,7 @@ from typing import Any, Literal, TypedDict
 from langchain_core.messages import AIMessageChunk
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
-from lmm.language_models.langchain.runnables import RunnableType
+from lmm.models.langchain.runnables import RunnableType
 
 from .stream_adapters import tier_1_iterator
 

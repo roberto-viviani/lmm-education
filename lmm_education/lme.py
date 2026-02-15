@@ -43,7 +43,7 @@ class LMMEngine:
         # load an embedding to load transformers library. the
         # embeddings variable is cached in the global dictionary
         # and the local reference is not used here.
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 

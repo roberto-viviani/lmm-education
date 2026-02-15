@@ -33,6 +33,7 @@ Behavior:
     Raises ValueError if creation of Client object fails.
 
 """
+
 # code rev: g+
 
 # Automatic construction and destruction of singleton objects
@@ -40,7 +41,7 @@ Behavior:
 
 import asyncio
 
-from lmm.language_models.lazy_dict import LazyLoadingDict
+from lmm.utils.lazy_dict import LazyLoadingDict
 from lmm.utils.logging import ConsoleLogger, LoggerBase
 from ..config.config import load_settings
 from .vector_store_qdrant import (

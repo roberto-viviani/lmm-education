@@ -74,7 +74,7 @@ from langchain_core.retrievers import BaseRetriever
 # LM markdown
 from lmm.utils.logging import ConsoleLogger, LoggerBase
 from lmm.config.config import LanguageModelSettings
-from lmm.language_models.langchain.runnables import (
+from lmm.models.langchain.runnables import (
     create_runnable,
     RunnableType,
 )

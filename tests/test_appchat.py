@@ -32,7 +32,7 @@ def setUpModule():
     # An embedding engine object is created here just to load the engine.
     # This avoids the first query to take too long. The object is cached
     # internally, so we do not actually use the embedding object here.
-    from lmm.language_models.langchain.runnables import (
+    from lmm.models.langchain.runnables import (
         create_embeddings,
     )
     from requests import ConnectionError

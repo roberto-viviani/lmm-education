@@ -22,7 +22,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm.utils.hash import generate_random_string
-from lmm.language_models.langchain.runnables import (
+from lmm.models.langchain.runnables import (
     RunnableType,
     create_runnable,
 )

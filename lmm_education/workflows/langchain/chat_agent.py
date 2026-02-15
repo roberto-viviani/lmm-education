@@ -95,10 +95,10 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.runtime import Runtime
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from lmm.language_models.langchain.models import (
+from lmm.models.langchain.models import (
     create_model_from_settings,
 )
-from lmm.language_models.langchain.runnables import (
+from lmm.models.langchain.runnables import (
     create_runnable,
     RunnableType,
 )

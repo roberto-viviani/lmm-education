@@ -73,10 +73,10 @@ from langgraph.types import RetryPolicy
 from langgraph.graph import StateGraph, START, END
 from langgraph.runtime import Runtime
 
-from lmm.language_models.langchain.models import (
+from lmm.models.langchain.models import (
     create_model_from_settings,
 )
-from lmm.language_models.langchain.runnables import (
+from lmm.models.langchain.runnables import (
     RunnableType,
     create_runnable,
 )

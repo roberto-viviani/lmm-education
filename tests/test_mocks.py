@@ -331,7 +331,7 @@ def create_mock_runnable_factory(
     Create a factory function that returns mock runnables.
 
     This can be used to patch the create_runnable function from
-    lmm.language_models.langchain.runnables.
+    lmm.models.langchain.runnables.
 
     Args:
         mock_instances: Dict mapping runnable names to mock instances

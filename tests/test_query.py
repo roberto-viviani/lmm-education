@@ -40,7 +40,7 @@ skip_if_expensive = unittest.skipUnless(
 # This avoids the first query to take too long. The object is cached
 # internally, so we do not actually use the embedding object here.
 from langchain_core.embeddings import Embeddings
-from lmm.language_models.langchain.runnables import create_embeddings
+from lmm.models.langchain.runnables import create_embeddings
 from requests import ConnectionError
 
 try:
@@ -568,7 +568,7 @@ class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
         from lmm_education.workflows.langchain.chat_graph import (
             ChatState,
         )
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_runnable,
         )
 
@@ -645,7 +645,7 @@ class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
         from lmm_education.workflows.langchain.chat_graph import (
             ChatState,
         )
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_runnable,
         )
 

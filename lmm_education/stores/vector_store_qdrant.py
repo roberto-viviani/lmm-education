@@ -550,7 +550,7 @@ def initialize_collection(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -779,7 +779,7 @@ async def ainitialize_collection(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -1041,7 +1041,7 @@ def chunks_to_points(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -1385,7 +1385,7 @@ def query(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -1600,7 +1600,7 @@ async def aquery(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -1841,7 +1841,7 @@ def query_grouped(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
@@ -2108,7 +2108,7 @@ async def aquery_grouped(
     from requests.exceptions import ConnectionError
 
     try:
-        from lmm.language_models.langchain.runnables import (
+        from lmm.models.langchain.runnables import (
             create_embeddings,
         )
 
