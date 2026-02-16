@@ -26,7 +26,9 @@ from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
 # Set environment variable RUN_EXPENSIVE_TESTS=1 to enable these tests
 # Example: RUN_EXPENSIVE_TESTS=1 poetry run pytest tests/test_chatagent.py
 import os
+from lmm_education.stores.vector_store_qdrant_utils import database_info
 
+DATABASE_AVAILABLE = database_info()['schema_collection'] != 'none'
 RUN_EXPENSIVE_TESTS = os.getenv("RUN_EXPENSIVE_TESTS", "0") == "1"
 
 # Decorator to skip tests that call real LLMs unless explicitly enabled
@@ -394,6 +396,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(stream_context.getvalue()), 0)
         print("✓ Passed\n")
 
+    @unittest.skipUnless(DATABASE_AVAILABLE, "Empty Qdrant database")
     async def test_normal_query(self):
         """Test a normal query (if LLM is available)."""
         print("Test 3 (log): Normal query")
@@ -461,6 +464,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
 
         print("✓ Passed\n")
 
+    @unittest.skipUnless(DATABASE_AVAILABLE, "Empty Qdrant database")
     async def test_normal_appchat_query(self):
         """Test a normal query using the appChat stream
         configuration"""
@@ -733,6 +737,7 @@ class TestQueryPrintContext(unittest.IsolatedAsyncioTestCase):
         self.assertIn("If you have questions", result)
         print("✓ Passed\n")
 
+    @unittest.skipUnless(DATABASE_AVAILABLE, "Empty Qdrant database")
     async def test_normal_query(self):
         """Test a normal query (if LLM is available)."""
         print("Test 3 (context): Normal query")

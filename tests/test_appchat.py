@@ -20,6 +20,8 @@ import atexit
 original_settings = ConfigSettings()
 atexit.register(export_settings, original_settings)
 
+from lmm_education.stores.vector_store_qdrant_utils import database_info
+DATABASE_AVAILABLE = database_info()['schema_collection'] != 'none'
 
 def setUpModule():
     settings = ConfigSettings(
@@ -80,10 +82,12 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
             chat_settings=chat_settings,
         )
 
+    @unittest.skipUnless(DATABASE_AVAILABLE, "Empty Qdrant database")
     async def test_garden_path(self):
         # import after setUpModule
         from appChat import gradio_callback_fn, AsyncLogfunType
         from lmm_education.logging_db import CsvChatDatabase
+
 
         stream = io.StringIO()
         stream_context = io.StringIO()
@@ -228,8 +232,6 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
         msg_log: str = stream.getvalue()
         ctx_log: str = stream_context.getvalue()
-
-        print(msg_log)
 
         self.assertIn("LONGQUERY", msg_log)
         self.assertEqual(len(ctx_log), 0)
