@@ -10,7 +10,7 @@ requires-python = ">=3.11.0,<3.14"
 dependencies = [
     "pydantic (>=2.11.7,<3.0.0)",
     "qdrant-client (>=1.15.1,<2.0.0)",
-    "lmm @ git+https://c7201031:FZkqlscljWaqtQ_ZCT3lwm86MQp1OjNvMQk.01.0z0nnrty0@git.uibk.ac.at/c7201031/lmm.git",
+    "lm-markdown @ git+https://github.com/roberto-viviani/lm-markdown.git",
     "fastembed (>=0.7.1,<0.8.0)",
     "nest-asyncio (>=1.6.0,<2.0.0)",
     "sentence-transformers (>=5.1.0,<6.0.0)",

@@ -1736,14 +1736,14 @@ files = [
 ]
 
 [[package]]
-name = "lmm"
-version = "0.1.0"
+name = "lm-markdown"
+version = "0.1.1"
 description = ""
 optional = false
 python-versions = ">=3.11.0,<3.14.0"
 groups = ["main"]
 files = []
-develop = true
+develop = false
 
 [package.dependencies]
 chardet = ">=5.2.0,<6.0.0"
@@ -1758,9 +1758,9 @@ tomlkit = ">=0.13.3,<0.14.0"
 
 [package.source]
 type = "git"
-url = "https://c7201031:FZkqlscljWaqtQ_ZCT3lwm86MQp1OjNvMQk.01.0z0nnrty0@git.uibk.ac.at/c7201031/lmm.git"
+url = "https://github.com/roberto-viviani/lm-markdown.git"
 reference = "HEAD"
-resolved_reference = "bca704f3d6bd9c80ee236c32985e7e3d39c525e6"
+resolved_reference = "cad1f1f770991d302da43ad44facf9514916021c"
 
 [[package]]
 name = "loguru"
@@ -5296,4 +5296,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.0,<3.14"
-content-hash = "a9791896c594180d46210f1f4e73ac51b1659acfed06edd584b6f86962d425ed"
+content-hash = "a90a6c693951b7c9ab2f84f61cb7f8daedb5ca99621be8d4c520d4e0e4cb06cc"
