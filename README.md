@@ -8,6 +8,17 @@ To install the system after cloning it from github, use poetry:
 poetry install
 ```
 
+This project was developed and tested with Python 3.12, but should also work with version 3.13. It can happen that Poetry requires to regenerate the `poetry.lock` file when using other Python versions or other version of Poetry. In this case, regenerate and run install again:
+
+
+```bash
+# Regenerate lock file for your Python version
+poetry lock
+
+# Then install
+poetry install
+```
+
 The documentation can be displayed in a web browser. Type
 
 ```bash
