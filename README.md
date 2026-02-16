@@ -22,3 +22,4 @@ poetry shell
 lmme create-default-config-file
 ```
 
+NOTE: You will need the LLM API keys in your environment variables to use the chatbot.
