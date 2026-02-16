@@ -26,9 +26,13 @@ from lmm_education.stores.langchain.vector_store_qdrant_langchain import (
 # Set environment variable RUN_EXPENSIVE_TESTS=1 to enable these tests
 # Example: RUN_EXPENSIVE_TESTS=1 poetry run pytest tests/test_chatagent.py
 import os
-from lmm_education.stores.vector_store_qdrant_utils import database_info
+from lmm_education.stores.vector_store_qdrant_utils import (
+    database_info,
+)
 
-DATABASE_AVAILABLE = database_info()['schema_collection'] != 'none'
+DATABASE_AVAILABLE = (
+    database_info().get('schema_collection', "") != 'none'
+)
 RUN_EXPENSIVE_TESTS = os.getenv("RUN_EXPENSIVE_TESTS", "0") == "1"
 
 # Decorator to skip tests that call real LLMs unless explicitly enabled

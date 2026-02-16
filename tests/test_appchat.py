@@ -20,8 +20,14 @@ import atexit
 original_settings = ConfigSettings()
 atexit.register(export_settings, original_settings)
 
-from lmm_education.stores.vector_store_qdrant_utils import database_info
-DATABASE_AVAILABLE = database_info()['schema_collection'] != 'none'
+from lmm_education.stores.vector_store_qdrant_utils import (
+    database_info,
+)
+
+DATABASE_AVAILABLE = (
+    database_info().get('schema_collection', "") != 'none'
+)
+
 
 def setUpModule():
     settings = ConfigSettings(
@@ -87,7 +93,6 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         # import after setUpModule
         from appChat import gradio_callback_fn, AsyncLogfunType
         from lmm_education.logging_db import CsvChatDatabase
-
 
         stream = io.StringIO()
         stream_context = io.StringIO()
