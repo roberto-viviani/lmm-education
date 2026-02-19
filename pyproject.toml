@@ -1,6 +1,6 @@
 [project]
 name = "lmm-education"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "Roberto Viviani",email = "roberto.viviani@uibk.ac.at"}
@@ -32,7 +32,12 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-include = ["lmm_education/py.typed"]
+include = [
+    "lmm_education/py.typed",
+    "appChat.py",
+    "appWebcast.py",
+    "appVideocast.py"
+]
 
 [tool.poetry.scripts]
 lmme = "lmm_education.lmme:app"
