@@ -28,8 +28,8 @@ The two approaches intermingle somewhat as the hierarchical structure
 is exploited to extract information from the text in both cases.
 
 Main functions:
-    initialize_client: get a database client object for further use
-    markdown_upload: ingest markdown files
+    - initialize_client: get a database client object for further use
+    - markdown_upload: ingest markdown files
 
 Examples:
 

@@ -2,13 +2,12 @@
 Support functions for the vector_store_qdrant module.
 
 Main functions:
-    check_schema/acheck_schema: add or check the schema
-        of a collection
-    get_schema/aget_schema: a utility to inspect the schema
-        of a collection.
+
+- check_schema/acheck_schema: add or check the schema of a collection
+- get_schema/aget_schema: a utility to inspect the schema of a collection.
 
 A schema consists of the qdrant embedding model enum selection
-and of the embedding settings. Schemas are collection-specific.
+and the embedding settings. Schemas are collection-specific.
 
 Behaviour:
     Functions use a custom `Logger` class from the `lmm` package

@@ -1,4 +1,5 @@
-"""Configuration file for the appChat application.
+"""
+Configuration file for the appChat application.
 
 Settings specified in appchat.toml are:
 
@@ -364,16 +365,16 @@ def load_settings(
     Args:
         file_name: Path to settings file (defaults to config.toml)
         logger: logger to use. Defaults to a exception-raising logger.
-        This centralizes exception handling, instead of writing
-        the except clauses for each instantiation of ConfigSettings().
+            This centralizes exception handling, instead of writing
+            the except clauses for each instantiation of ConfigSettings().
 
     Returns:
         ChatSettings: The loaded configuration settings object, or
-        None if exception raised.
+            None if exception raised.
 
     Expected behaviour:
         Exceptions handled through logger, but raises exceptions in
-        the default logger.
+            the default logger.
 
     Example:
         ```python

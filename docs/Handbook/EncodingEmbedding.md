@@ -8,7 +8,7 @@ Initial typical implementations of RAG made extensive use of semantic search and
 
 There are two ways to address these shortcomings.
 
-1. Instead of retrieving the chunks, the system may retrieve the surrounding text as well, or the paragraphs, or the chapters of text, where the chunks are located. LM markdown for education adopts the approach of optionally retrieving whole chapters, which in markdown are defined by headings, instead of chunks.
+1. Instead of retrieving the chunks, the system may retrieve the surrounding text as well, or the paragraphs, or the chapters of text, where the chunks are located. LM Markdown for Education adopts the approach of optionally retrieving whole chapters, which in markdown are defined by headings, instead of chunks.
 2. Instead of creating embeddings of the chunk content, the text is preliminary processed to extract information that is relevant for retrieval: what we call here an _encoding_. This information may then be used for embeddings or in a traditional keyword-based search. We refer here to the specification of a strategy to extract or define this information as to the _encoding model_. More generally, the encoding model may refer to the content of the chunks or of any property extracted from text, or any mixture of those. The original text is the _content_ of the chunk, while other properties are referred to as _metadata_ or _annotations_.
 
 There are two types of embeddings: dense and sparse. Dense embeddings are provided by language models or other models trained from large corpora of text in the same way. Sparse embeddings are more similar to keywords, but are capable to match semantically related words even if the words are not identical. Depending on the kind of encoding, either or both may be used to represent content in the database. Here, we refer to the combination chosen to represent an encoding as the _embedding model_: dense, sparse, or a combination of both.
@@ -56,7 +56,7 @@ Linear models and their generalizations constitute the majority of the statistic
 
 ```
 
-As the example shows, setting the `questions` and the `titles` in the configuration file has the effect of creating headiers before all headings in a markdown files with two metadata properties containing the annotations (the example only shows one of such headings). The metadata block may contain any other property, but some property keys (such as `questions`, `titles` and `summary`) are reserved for LM markdown for education. Note also the `~txthash` property. This is an automatically generated hash that checks that the text has not changed since the last time annotations were computed. Annotations are not recomputed if the text to which they refer was not changed.
+As the example shows, setting the `questions` and the `titles` in the configuration file has the effect of creating headiers before all headings in a markdown files with two metadata properties containing the annotations (the example only shows one of such headings). The metadata block may contain any other property, but some property keys (such as `questions`, `titles` and `summary`) are reserved for LM Markdown for Education. Note also the `~txthash` property. This is an automatically generated hash that checks that the text has not changed since the last time annotations were computed. Annotations are not recomputed if the text to which they refer was not changed.
 
 When an encoding model is specified in the `[RAG]` section of the configuration file, the annotations are automatically generated with a language model prior to ingesting the text in the vector database. If a metadata property containing an annotation is removed, or the whole metdata block is deleted, it will be recreated prior to ingesting.
 
@@ -88,7 +88,7 @@ All annotations that are included in the annotation model are concatenated toget
 
 ## Reviewing annotations
 
-LM markdown for education is designed to allow the RAG author to review all annotations manually prior to ingesting the documents. In the command window, start the LM markdown terminal (this may take some time and require an internet connection, depending on the embedding library in use):
+LM Markdown for Education is designed to allow the RAG author to review all annotations manually prior to ingesting the documents. In the command window, start the LM markdown terminal (this may take some time and require an internet connection, depending on the embedding library in use):
 
 ```bash
 lmme terminal

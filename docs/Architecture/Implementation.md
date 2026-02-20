@@ -58,7 +58,7 @@ LM markdown for education uses Qdrant to store the RAG data. The package is orga
 | subpackage | module | purpose |
 | --- | --- | --- |
 | . | vector_store_qdrant | interface to qdrant code |
-| . | chunks | main code to tranform text into chunks |
+| lmm | chunks | main code to tranform text into chunks |
 | langchain | vector_store_qdrant_langchain | langchain interface to the vector store (for retrieval) |
 
 ### vector_store_qdrant module

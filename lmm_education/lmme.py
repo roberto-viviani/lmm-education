@@ -1,4 +1,6 @@
-"""CLI interface for LM mearkdown for education"""
+"""
+CLI interface for LM Markdown for Education
+"""
 
 from qdrant_client import QdrantClient
 import typer

@@ -6,6 +6,10 @@ This file provides an overview for working with code in this repository.
 
 LM Markdown for Education is a RAG (Retrieval-Augmented Generation) system that enables educators to create AI-powered interactive lectures and chatbots from markdown documents. The system ingests markdown files into a vector database (Qdrant), processes them with language models, and serves them through chat interfaces or interactive webcasts.
 
+## Installation
+
+See [Installation](../Handbook/Installation.md).
+
 ## Development Setup
 
 ```bash

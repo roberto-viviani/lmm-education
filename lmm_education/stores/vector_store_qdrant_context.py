@@ -182,11 +182,9 @@ def global_clients_close() -> None:
     This function clears the global client cache, triggering
     the destructor for each cached client connection.
 
-    Args:
-        None
+    Args: None
 
-    Returns:
-        None
+    Returns: None
     """
     qdrant_clients.clear()
 
@@ -229,10 +227,8 @@ def global_async_clients_close() -> None:
     This function clears the global client cache, triggering
     the destructor for each cached client connection.
 
-    Args:
-        None
+    Args: None
 
-    Returns:
-        None
+    Returns: None
     """
     qdrant_async_clients.clear()

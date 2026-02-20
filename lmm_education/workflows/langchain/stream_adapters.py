@@ -578,7 +578,7 @@ async def tier_1_to_2_adapter(
     Args:
         multi_mode_stream: Source stream with (mode, event) tuples
         source_nodes: the source nodes one wants to stream. If
-        omitted or None, all nodes will be streamed
+            omitted or None, all nodes will be streamed
         logger: logger to use for error logging
 
     Yields:

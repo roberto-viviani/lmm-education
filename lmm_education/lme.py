@@ -1,3 +1,7 @@
+"""
+Terminal interface module.
+"""
+
 import asyncio
 import sys
 import argparse

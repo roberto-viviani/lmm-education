@@ -1,6 +1,6 @@
 # Configuring and starting the chat app
 
-To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environment (when using poetry, this may be done with `poetry shell`). Then start the app:
+To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environment (when using poetry, this may be done with `poetry shell` of you have installed the shell plugin (see _[Installation](Installation.md)_)). Then start the app:
 
 ```bash
 appChat
@@ -67,4 +67,4 @@ Put your topics within the square brackets. For example, if you have only one to
 
 ## Other settings
 
-If you have not used LM Markdown for Education before starting the app, it will also have written a second configuration file with default settings, config.toml. This file contains settings that are common to the app and the rest of LM Markdown for Education (for example, when interacting with it through the CLI). You may want to configure this file too (see [configuration](Configuration.md) for details).
+If you have not used LM Markdown for Education before starting the app, it will also have written a second configuration file with default settings, config.toml. This file contains settings that are common to the app and the rest of LM Markdown for Education (for example, when interacting with it through the CLI). You may want to configure this file too (see _[configuration](Configuration.md)_ for details).

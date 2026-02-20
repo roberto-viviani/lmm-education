@@ -1,4 +1,30 @@
-"""Interface for lmm.scan.markdown_scan."""
+"""
+This module allows interactively scanning a markdown file to create
+a RAG database.
+
+Examples:
+
+```bash
+# Python called from the console
+
+python -m lmm_education.scan_rag LogisticRegression.md
+```
+
+```python
+# from python code
+from lmm_education.scan_rag import markdown_rag
+
+markdown_rag('LogisticRegression.md')
+```
+
+These functions allow interactively scanning a markdown file to create
+a RAG database.
+
+Main functions:
+
+- `markdown_rag` and `amarkdown_rag`: these functions allow interactively
+scanning a markdown file to create a RAG database.
+"""
 
 from pathlib import Path
 

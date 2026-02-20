@@ -2,11 +2,24 @@
 
 The files `config.toml` and `appchat.toml` in the directory of the project contains the instructions to configure its function. Essentially all user-configurable options are specified in these files.
 
-# config.toml
+# Configuration file config.toml
 
 ## Language models
 
-The language models used in LM markdown for education are specified through the sections `major`, `minor`, and `aux`. These sections constitute three tiers of models, grading cost and latency depending on the task. 
+The language models used in LM Markdown for Education are specified through the sections `major`, `minor`, and `aux`. 
+
+```toml
+[major]
+model = "OpenAI/gpt-4.1-mini"
+
+[minor]
+model = "OpenAI/gpt-4.1-nano"
+
+[aux]
+model = "OpenAI/gpt-4.1-nano"
+```
+
+These sections constitute three tiers of models, grading cost and latency depending on the task. 
 
 | model | use (examples) |
 | --- | --- |
@@ -26,7 +39,15 @@ A special language model specification is Debug/debug, which avoids using a real
 
 ## Embeddings
 
-The embedding model is specified in the section `embeddings`. Embeddings are used to store and retrieve text from vector databases. The embeddings that are used by the project are dense embeddings (classically used by RAG applications) and sparse embeddings.
+The embedding model is specified in the section `embeddings`. 
+
+```toml
+[embeddings]
+dense_model = "SentenceTransformers/distiluse-base-multilingual-cased-v2"
+sparse_model = "Qdrant/bm25"
+```
+
+Embeddings are used to store and retrieve text from vector databases. The embeddings that are used by the project are dense embeddings (classically used by RAG applications) and sparse embeddings.
 
 Specification of dense embeddings contain an embedding provider and a model name, separated by '/':
 
@@ -45,17 +66,41 @@ The default sparse embedding is Qdrant/bm25 as it is a multilingual embeddings. 
 
 This section configures where the vector database is located. Specify a folder to save the vector database locally, or a valid internet address/port number for a Qdrant server.
 
+```toml
+[storage]
+folder = "./storage"
+
+[database]
+collection_name = "chunks"
+companion_collection = "documents"
+```
+
 The `database` section contains the names of the collections used to store the data. These names can be left as they are. However, the existence of a non-empty `companion_collection` property means that whole text sections, not the chunks used to generate embeddings, will be stored in the database (more details on this are in [RAG authoring](RAGauthoring.md)). To switch retrieval mode, use the setting `retrieve_companion_docs` in the `[RAG]` section of config.toml.   
 
 ## RAG section: annotation model
 
-This section is used to activate a language model to analyze the content of the markdown file and produce additional content. This content may either be a summary of the text under the heading (option `summaries`), or metadata describing the text that will be using to encode the semantic content ("annotations"). These metadata properties can also be filled in or changed manually. At present, you can specify `titles` and `questions` as metadata for endoding. 
+This section is used to activate a language model to analyze the content of the markdown file and produce additional content. This content may either be a summary of the text under the heading (option `summaries`), or metadata describing the text that will be using to encode the semantic content ("annotations"). These metadata properties can also be filled in or changed manually. At present, you can specify `titles` and `questions` as metadata for endoding.
+
+```toml
+[RAG]
+titles = true
+questions = false
+summaries = false
+encoding_model = "content"
+retrieve_companion_docs = true
+max_companion_docs = 2
+
+[RAG.annotation_model]
+inherited_properties = []
+own_properties = []
+filters = []
+```
 
 The [RAG.annotation_model] section allows specifying user-defined metadata properties to be used in the encoding. The annotation model is specified as a list of keys under `inherited_properties` and `own_properties`. These two types of specifications refer to how annotations are sought. When specified as inherited, the property is sought in the node and in all its ancenstor, until it is found (if present anywhere in the ancestor tree). When specified as own, only the node is sought.
 
 When one specifies a predefined annotation, for example `questions = true`, this metadata property will be automatically added to the annotation model -- there is no need to repeat it in the RAG.annotation_model section.
 
-'Encoding' specifies how annotations are used to generate an embedding. The options here are described in detail in the [encoding and embedding](EncodingEmbedding.md) part of the manual.
+'encoding_model' specifies how annotations are used to generate an embedding. The options here are described in detail in the [encoding and embedding](EncodingEmbedding.md) part of the manual.
 
 The specification `filters` in the annotation model is reserved for future use. Setting this specification has no effect on the working of the program at present.
 
@@ -65,9 +110,16 @@ The specification `retrieve_companion_docs` retrieves whole documents instead of
 
 Choose here the text splitter to generate the chunks of the embeddings and their size. Default options are generally ok.
 
+```toml
+[text_splitter]
+splitter = "default"
+chunk_size = 1000
+chunk_overlap = 200
+```
+
 # Application servers
 
-The application servers start listening for connection at the specified port. They may be configured using their specific settings. The system settings of config.toml apply to all application servers.
+The application servers start listening for connection at the specified port. They may be configured using their specific settings. The system settings of appchat.toml apply to all application servers.
 
 ## appChat
 
@@ -76,6 +128,13 @@ This configuration file controls the text that appears on the web application, t
 ### Server configuration
 
 The server section allows specifying how the web server will be running. The `mode = local` is useful for testing and debugging, running a local server. The settings `mode = remote` sets up a web server listening at the port `port`.
+
+```toml
+[server]
+mode = "local"
+port = 61543
+host = "localhost"
+```
 
 ### Text appearing in the web application
 
@@ -122,7 +181,15 @@ In summary, the any strategies to control content can be activie at two levels:
 
 ### Exchange database logging
 
-The exchanged messages and the retrieved context are saved to a database as specified in the `chat_database`setting. At present, the application only supports .csv files. Consists of the following fields:
+The exchanged messages and the retrieved context are saved to a database as specified in the `chat_database`setting. 
+
+```toml
+[chat_database]
+messages_database_file = "messages.csv"
+context_database_file = "context.csv"
+```
+
+The application uses .csv files to store the exchanged messages and the retrieved context. The following fields are used:
 
 - `messages_database_file`: the file saving queries and responses.
 

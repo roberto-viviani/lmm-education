@@ -423,7 +423,7 @@ def create_chat_stringstream(
         history: List of previous message exchanges (Gradio format)
         context: a ChatWorkflowContext object for dependencies to be
             injected into the graph
-        print_content: streams the retrieved context (default to False)
+        print_context: streams the retrieved context (default to False)
         validate: if None, validates response using settings from
             context object. If False, carries out no validation. If a
             CheckReponse object, overrides the settings from

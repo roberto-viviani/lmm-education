@@ -96,13 +96,13 @@ If your project is not poetry-managed, run `poetry init` first and follow the pr
 
 It is a good idea to set up another folder within this main folder to contain your documents, but this is not absolutely necessary. A possible setup is to use the main folder to work on an active document, and save the documents that you want to make up your chatbot in a dedicated sub-folder (for example, .sources/).
 
-If you already have a set of documents, copy them in this folder, and go to [RAG authoring](RAGauthoring.md) to get started.
+If you already have a set of documents, copy them in this folder, and go to _[RAG authoring](RAGauthoring.md)_ to get started.
 
 ## Configuring the application
 
-Details on how to configure the chatbot are in [Configuration](Configuration.md).
+Details on how to configure the chatbot are in _[Configuration](Configuration.md)_.
 
 ## Starting the chatbot
 
-Instructions for starting the chatbot are in [ChatApp](ChatApp.md).
+Instructions for starting the chatbot are in _[ChatApp](ChatApp.md)_.
 

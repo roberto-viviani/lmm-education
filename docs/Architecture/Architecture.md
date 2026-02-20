@@ -10,7 +10,7 @@ There are broadly three groups of users for LM markdown for eduction, and corres
 
 2. RAG authors create, revise, and ingest documents. They primarily interact with the system through a command language interface (CLI), although they could also write Python scripts to use the API directly. See the chapter on [RAG authoring](../Handbook/RAGauthoring.md) in the Handbook.
 
-3. Administrators and developers set up an LM markdown for education server. The package is managed by poetry, which may be used for installation. They also use the files config.toml and appchat.toml to configure the server and the RAG application. See the [configuration](../Handbook/Configuration.md) manual.
+3. Administrators and developers set up an LM Markdown for Education server. The package is managed by poetry, which may be used for installation. They also use the files config.toml and appchat.toml to configure the server and the RAG application. See the [configuration](../Handbook/Configuration.md) manual.
 
 The figure below shows how the softare is organized to serve these interfaces.
 
@@ -28,9 +28,9 @@ In a chat application, the important callback is the one that provides the messa
 
 ## CLI
 
-LM markdown for education offers two alternative CLIs. The first CLI can be invoked from a bash or Powershell terminal pointing to the folder where LM markdown for education was installed. Commands have the form lmme command [subcommand|--parameters ...]. Type `lmme --help` for a list and short explanation of all available commands. They may take some time since at each invocation the Python interpreter and all libraries must be reloaded.
+LM Markdown for Education offers two alternative CLIs. The first CLI can be invoked from a bash or Powershell terminal pointing to the folder where LM Markdown for Education was installed. Commands have the form lmme command [subcommand|--parameters ...]. Type `lmme --help` for a list and short explanation of all available commands. They may take some time since at each invocation the Python interpreter and all libraries must be reloaded.
 
-To load the library, keep it in memory and start a terminal that accepts the same commands, type `lmme terminal`. Type `help`for a list and short explanation of the same available commands. This second CLI preloads Python and all libraries, so that at each subsequent invocation the response is very fast. The first CLI is most useful when one need to call LM markdown for education with only one or two commands. The second CLI is probably the most practical choice when the interaction with the language model is more intensive.
+To load the library, keep it in memory and start a terminal that accepts the same commands, type `lmme terminal`. Type `help`for a list and short explanation of the same available commands. This second CLI preloads Python and all libraries, so that at each subsequent invocation the response is very fast. The first CLI is most useful when one need to call LM Markdown for Education with only one or two commands. The second CLI is probably the most practical choice when the interaction with the language model is more intensive.
 
 ## Configuration and management
 
@@ -38,7 +38,7 @@ This is a poetry-managed project: after cloning the repository, installation of 
 
 Two configuration files (config.toml and appchat.toml) change the settings of the project started as a web server or through the CLI. When using the framework from the CLI, many of these options can be overridden. All can be overridden when using the framework programmatically.
 
-LM markdown for education uses the Pydantic settings package to read from and write to configuration files. This package validates the input from the configuration files or from the parameters given at the CLI.
+LM Markdown for Education uses the Pydantic settings package to read from and write to configuration files. This package validates the input from the configuration files or from the parameters given at the CLI.
 
 # Main software domains
 
@@ -56,9 +56,9 @@ The software provides the following main functionality:
 
 ## Vector database
 
-Common language model infrastructures allow swapping various vector databases to implement RAG. LM markdown for education uses Qdrant, a vector database implemented with sqlite, and offers fine-graded options to specify the encoding of information used to embed the semantic properties of documents and document parts (see [encoding](../Handbook/EncodingEmbedding.md)).
+Common language model infrastructures allow swapping various vector databases to implement RAG. LM Markdown for Education uses Qdrant, a vector database implemented with sqlite, and offers fine-graded options to specify the encoding of information used to embed the semantic properties of documents and document parts (see [encoding](../Handbook/EncodingEmbedding.md)).
 
-A specific option in LM markdown for education is the possibility of retrieving whole document parts instead of the fragments of text used to embed documents. Text emebddings struggle to accurately encode the semantics of large texts. For this reason, the text is usually chunked up into smaller pieces, and the embeddings of these pieces are used to retrieve the content from the vector database. In LM markdown for education, text is chunked, but at retrieval the whole section of text where the chunk was located can optionally be retreived instead of the chunk itself (this functionality is available natively in Qdrant). This decouples the encoding for text for the purposes of locating relevant content and the selection of text that is retrieved. When a whole section of text is retrieved, the context that the language model has access to to formulate a response is coherent and systematic.
+A specific option in LM Markdown for Education is the possibility of retrieving whole document parts instead of the fragments of text used to embed documents. Text emebddings struggle to accurately encode the semantics of large texts. For this reason, the text is usually chunked up into smaller pieces, and the embeddings of these pieces are used to retrieve the content from the vector database. In LM Markdown for Education, text is chunked, but at retrieval the whole section of text where the chunk was located can optionally be retreived instead of the chunk itself (this functionality is available natively in Qdrant). This decouples the encoding for text for the purposes of locating relevant content and the selection of text that is retrieved. When a whole section of text is retrieved, the context that the language model has access to to formulate a response is coherent and systematic.
 
 Large language models can at present handle very large context windows, and have no difficulty extracting information from a larger portion of text. They will use the text in the context effectively even when this text is large. When the context contains smaller disjoint chunks, the language models can make a very good job of producing a coherent response (they present a strong tendency to produce polished, fluent and somewhat conventional text). However, they will introduce more of their own content in filling the gaps between the retrieved chunks. When the text in the context is organic and coherent, there is a higher chance that its content is reproduced accurately.
 

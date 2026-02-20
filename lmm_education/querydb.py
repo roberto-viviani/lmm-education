@@ -36,8 +36,8 @@ python -m lmm_education.querydb 'what is logistic regression?'
 ```
 
 Important: this module is only provided for use from an
-interactive envirnoment, such as the Python REPL. It opens the
-database exclusively.
+    interactive envirnoment, such as the Python REPL. It opens the
+    database exclusively.
 """
 
 from pydantic import validate_call

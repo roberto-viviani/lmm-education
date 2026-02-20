@@ -1,6 +1,6 @@
 # Working with markdown
 
-Markdown is a convenient format to create textual material that may be then converted into a large variety of formats. In LM markdown for education, markdown is used to harness large language model to increase the capability of the author and to produce AI-supported material for teaching, such as a system to ask questions and review the lecture content.
+Markdown is a convenient format to create textual material that may be then converted into a large variety of formats. In LM Markdown for Education, markdown is used to harness large language model to increase the capability of the author and to produce AI-supported material for teaching, such as a system to ask questions and review the lecture content.
 
 Markdown may be seen to contain three general types of material: metadata, headings, and everthing else (largely including the text). A simple rule is that these markdown elements are separated by a blank line. There are exceptions to this, determined by the markdown specification, but putting a blank line between elements keeps things simple. Multiple blank lines are treated as a single blank line.
 
@@ -69,7 +69,7 @@ $$ y ~ \mu + x + \epsilon $$
 
 The data from the markdown are chunked prior to ingestion in the database. Each chunk generates an embedding, so that when a query is made, the correct chunks are retrieved from the database (see the [encoding](EncodingEmbedding.md) page for details).
 
-Because the material may be changed and updated, the question arises as to how new material is integrated with the old. LM markdown for education uses properties from metadata to identify the chunks so that, if the text is changed, it replaces old text in the vector database.
+Because the material may be changed and updated, the question arises as to how new material is integrated with the old. LM Markdown for Education uses properties from metadata to identify the chunks so that, if the text is changed, it replaces old text in the vector database.
 
 In the header, the property `docid` is created automatically by LM markdown to identify a document, and initialized to a random string. You can, however, initialize to an intelligible string, as long as it remains unique across documents:
 
