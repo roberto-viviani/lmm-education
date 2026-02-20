@@ -918,9 +918,7 @@ with gr.Blocks() as videocast:
         outputs=[video, progress_info, video_selector, chatbot],
     )
 
-if __name__ == "__main__":
-    # run the app
-
+def main() -> None:
     settings = base.chat_settings
     try:
         if settings.server.mode == "local":
@@ -942,3 +940,7 @@ if __name__ == "__main__":
         logger.error(f"Could not run the app: {e}")
     finally:
         logging_database.close()
+
+
+if __name__ == "__main__":
+    main()

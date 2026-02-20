@@ -282,10 +282,7 @@ with gr.Blocks() as app:
     comment = gr.Textbox(label="Comment:", submit_btn="Post comment")
     comment.submit(fn=postcomment, inputs=comment, outputs=comment)
 
-
-if __name__ == "__main__":
-    # run the app
-
+def main() -> None:
     settings: ChatSettings = base.chat_settings
     try:
         if settings.server.mode == "local":
@@ -306,3 +303,7 @@ if __name__ == "__main__":
         logger.error(f"Could not run the app: {e}")
     finally:
         logging_database.close()
+
+
+if __name__ == "__main__":
+    main()
