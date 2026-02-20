@@ -1,5 +1,7 @@
 LM markdown for education is a system that allows faculty to record their contents and insights on a topic for sharing with others. While primarily developed to support teaching, it can more generally store one's own experience in a fromat that can be retold by large language models.
 
+[![Documentation](https://img.shields.io/badge/docs-MkDocs-blue)](https://roberto-viviani.github.io/lmm-education/)
+
 The vision is to craft a system where, starting from one own's notes, pdfs, or videos, or from authoring one's own markdown, one can produce an interactive chatbot with one own's content, or interactive videos of one's lectures.
 
 To install the system after cloning it from github, use poetry:
