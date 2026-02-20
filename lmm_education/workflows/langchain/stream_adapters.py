@@ -91,8 +91,8 @@ Tier 1 to tier 3 adapters:
 
 # rev c 1.25
 
-import asyncio
 import copy
+import inspect
 from typing import Protocol, TypeVar, Any, Hashable, Literal
 from collections.abc import (
     AsyncIterator,
@@ -448,7 +448,7 @@ async def field_change_tier_1_adapter(
                             callback_fun = on_field_change[field]
                             try:
                                 content: str | None = None
-                                if asyncio.iscoroutinefunction(
+                                if inspect.iscoroutinefunction(
                                     callback_fun
                                 ):
                                     content = await callback_fun(
@@ -523,7 +523,7 @@ async def terminal_tier1_adapter(
         yield (mode, event)
 
     if on_terminal_state and final_state:
-        if asyncio.iscoroutinefunction(on_terminal_state):
+        if inspect.iscoroutinefunction(on_terminal_state):
             schedule_task(
                 on_terminal_state(final_state),
                 error_callback=lambda e: logger.error(
@@ -823,7 +823,7 @@ async def terminal_field_change_adapter(
                             callback_fun = on_field_change[field]
                             try:
                                 content: str | None = None
-                                if asyncio.iscoroutinefunction(
+                                if inspect.iscoroutinefunction(
                                     callback_fun
                                 ):
                                     content = await callback_fun(
@@ -847,7 +847,7 @@ async def terminal_field_change_adapter(
             pass
 
     if on_terminal_state and final_state:
-        if asyncio.iscoroutinefunction(on_terminal_state):
+        if inspect.iscoroutinefunction(on_terminal_state):
             schedule_task(
                 on_terminal_state(final_state),
                 error_callback=lambda e: logger.error(
