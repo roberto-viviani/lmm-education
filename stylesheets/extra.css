@@ -1,0 +1,54 @@
+/* Light gray background */
+:root {
+  --md-default-bg-color: #f4f5f7;
+  /* Light gray background */
+
+  /* Blue writings */
+  --md-typeset-color: #1a365d;
+  /* Deep professional blue for regular text */
+  --md-typeset-a-color: #2b6cb0;
+  /* Lighter blue for links */
+
+  /* Banner / Menu colors */
+  --md-primary-fg-color: #1e293b;
+  /* Dark banner and menu color */
+}
+
+/* Literary Font for Text */
+body,
+.md-typeset {
+  font-family: "Georgia Pro Light", "Georgia", "Merriweather", serif;
+}
+
+/* Headings specific adjustments to remain crisp and clean */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #0f172a;
+  /* Slightly darker shade for headers for contrast */
+  font-family: "Georgia Pro", "Georgia", "Merriweather", serif;
+  font-weight: 300;
+  /* Light variant */
+}
+
+/* Code Snippet Styles - distinctive technical font */
+:root {
+  /* Set variable overriding for large code blocks (bash/python) */
+  --md-code-bg-color: #1e1e1e;
+  --md-code-fg-color: #d4d4d4;
+  --md-code-hl-color: var(--md-primary-fg-color);
+}
+
+.md-typeset pre>code,
+.md-typeset code {
+  font-family: "Fira Code", "JetBrains Mono", "Roboto Mono", monospace;
+}
+
+/* Small inline code highlight (excluding large pre blocks) */
+.md-typeset :not(pre)>code {
+  color: #e83e8c;
+  background-color: #eaecef;
+}
