@@ -91,7 +91,10 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
     @unittest.skipUnless(DATABASE_AVAILABLE, "Empty Qdrant database")
     async def test_garden_path(self):
         # import after setUpModule
-        from appChat import gradio_callback_fn, AsyncLogfunType
+        from lmm_education.appChat import (
+            gradio_callback_fn,
+            AsyncLogfunType,
+        )
         from lmm_education.logging_db import CsvChatDatabase
 
         stream = io.StringIO()
@@ -131,7 +134,7 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
     # This only testable after prompting a real model
     # async def test_rejection(self):
     #     # import after setUpModule
-    #     from appChat import gradio_callback_fn, AsyncLogfunType
+    #     from lmm_education.appChat import gradio_callback_fn, AsyncLogfunType
     #     from lmm_education.logging_db import CsvChatDatabase
 
     #     stream = io.StringIO()
@@ -169,7 +172,10 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_message(self):
         # import after setUpModule
-        from appChat import gradio_callback_fn, AsyncLogfunType
+        from lmm_education.appChat import (
+            gradio_callback_fn,
+            AsyncLogfunType,
+        )
         from lmm_education.logging_db import CsvChatDatabase
 
         chat_settings = ChatSettings()
@@ -206,7 +212,10 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_long_query(self):
         # import after setUpModule
-        from appChat import gradio_callback_fn, AsyncLogfunType
+        from lmm_education.appChat import (
+            gradio_callback_fn,
+            AsyncLogfunType,
+        )
         from lmm_education.logging_db import CsvChatDatabase
 
         chat_settings = ChatSettings()
@@ -242,7 +251,7 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(ctx_log), 0)
 
     async def test_vote(self):
-        from appChat import vote
+        from lmm_education.appChat import vote
         from lmm_education.logging_db import CsvChatDatabase
 
         stream = io.StringIO()
@@ -264,7 +273,7 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(ctx_log), 0)
 
     async def test_postcomment(self):
-        from appChat import postcomment
+        from lmm_education.appChat import postcomment
         from lmm_education.logging_db import CsvChatDatabase
 
         stream = io.StringIO()
