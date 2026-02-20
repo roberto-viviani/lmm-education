@@ -9,7 +9,7 @@ To start a new project, plan a new folder (for those who use git, they might wan
 The first step is to install the LM Markdown for Education software. You need the following software installed on your computer:
 
 - Python, at best in version 3.13, but not older than 3.12. LM Markdown for Education will not work on newer versions of Python such as 3.14.
-- poetry. See https://python-poetry.org/docs/#installing-with-the-official-installer for instructions.
+- poetry. See https://python-poetry.org/docs/#installing-with-the-official-installer for instructions. The following installation instructions were followed with poetry version 2.3.2.
 - git. See https://git-scm.com/install/.
 
 Navigate with your terminal in the folder that will contain the new folder, then clone the code from git:
@@ -53,11 +53,19 @@ poetry lock
 poetry install
 ```
 
-As in all Python project, you now have to activate the environment. Use the command `poetry env activate` to discover how to do that (alas, this tends to be a bit platform specific). In some circumstances, you might get away with this by simple giving the command
+As in all Python project, you now have to activate the environment. I would recommend it to do it with Poetry's shell plugin, which may be installed with this line:
+
+```bash
+poetry self add poetry-plugin-shell
+```
+
+After that, activate the environment:
 
 ```bash
 poetry shell
 ```
+
+Alternatively, use the command `poetry env activate` to discover how to do that (alas, this tends to be a bit platform specific).
 
 Now you can start using the application. You can check that everything is running by operating the CLI:
 
@@ -65,7 +73,24 @@ Now you can start using the application. You can check that everything is runnin
 lmme --help
 ```
 
-which gives you an overview of available commands.
+which gives you an overview of available commands. This command also writes default configuration files to the folder which you can later modify (see below).
+
+Note:
+    The first time you use `lmme`, it will take quite some time for the application to start. This is because the application is prepared before starting. Subsequent activations are quicker. You can also enter a dedicated terminal to talk to the application by starting `lmme terminal`.
+
+### Problems with activating the environment
+
+When Poetry uses a Python version that differs from the ones used by the project, it may happen that by giving the command `poetry env activate` the environment activator is damaged. If you have problems activating the environment, do it through Poetry's shell plugin. Install it with `poetry self add poetry-plugin-shell`. Then use `poetry shell` to activate the environment.
+
+### Installing in an existing project
+
+You might have an existing project to which you want to add LM Markdown for Education. In this case, use Poetry to add the project. Navigate to the project folder. In a poetry-managed project, make sure that the Python section specifies the version constraints '>=3.12,<3.14'. Then add LM Markdown for Education:
+
+```
+poetry add git+https://github.com/roberto-viviani/lmm-education.git
+```
+
+If your project is not poetry-managed, run `poetry init` first and follow the prompts to give the required information. Again, make sure to specify the Python version constraints as indicated above.
 
 ## Working on documents
 
