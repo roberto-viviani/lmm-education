@@ -83,13 +83,14 @@ lmme scan-changed-titles MyLecture.md
 
 ```bash
 # Start chat web application (Gradio)
-python -m appChat
+appChat
 
 # Start webcast application (video + chat)
-python -m appWebcast
+appWebcast
 
-# Start videocast application
-python -m appVideocast
+# or via python
+python -m lmm_education.appChat
+python -m lmm_education.appWebcast
 ```
 
 ## Architecture
@@ -111,7 +112,7 @@ python -m appVideocast
   - **appbase/** - Shared setup for Gradio applications
 - **tests/** - Pytest test suite
 - **docs/** - MkDocs documentation
-- **appChat.py**, **appWebcast.py**, **appVideocast.py** - Gradio applications
+  - `appChat.py`, `appWebcast.py` - Gradio web applications (CLI entry points: `appChat`, `appWebcast`)
 
 ### Key Architectural Concepts
 
@@ -258,3 +259,9 @@ markdown_upload(
 ## Type Checking
 
 The codebase uses strict type checking. When working with Pydantic models, type checkers may flag dictionary-based initialization, but this is intentional and validated at runtime.
+
+## Poetry CLI Entry Points for Gradio Apps
+
+- Gradio apps need a `main()` function as the entry point (`:main`), not the `gr.Blocks` object (`:app`)
+- Calling `app()` on a `gr.Blocks` object re-enters its context manager — it does NOT launch the server
+- After updating `pyproject.toml` entry points, run `poetry install` to register changes

@@ -3,7 +3,7 @@
 To start the chat app, open a console in the folder where LM Markdown for Education was installed, and activate the Python environment (when using poetry, this may be done with `poetry shell`). Then start the app:
 
 ```bash
-python -m appChat
+appChat
 ```
 
 The app will print on the console a list of messages like the following

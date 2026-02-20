@@ -32,15 +32,12 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-include = [
-    "lmm_education/py.typed",
-    "appChat.py",
-    "appWebcast.py",
-    "appVideocast.py"
-]
+include = ["lmm_education/py.typed"]
 
 [tool.poetry.scripts]
 lmme = "lmm_education.lmme:app"
+appChat = "lmm_education.appChat:main"
+appWebcast = "lmm_education.appWebcast:main"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6.1"
