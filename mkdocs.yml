@@ -39,7 +39,6 @@ nav:
       - Apps: API/Apps/index.md
       - App Chat: API/Apps/appChat.md
       - App Webcast: API/Apps/appWebcast.md
-      - App Videocast: API/Apps/appVideocast.md
     - Utilities:
       - App Base: API/appbase.md
       - App Utils: API/apputils.md
