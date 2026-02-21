@@ -39,6 +39,12 @@ nav:
       - Apps: API/Apps/index.md
       - App Chat: API/Apps/appChat.md
       - App Webcast: API/Apps/appWebcast.md
+      - App Videocast: API/Apps/appVideocast.md
+    - Utilities:
+      - App Base: API/appbase.md
+      - App Utils: API/apputils.md
+      - Background Task Manager: API/background_task_manager.md
+      - Logging DB: API/logging_db.md
     - CLI:
       - LMME: API/cli_lmme.md
       - Terminal: API/cli_terminal.md
