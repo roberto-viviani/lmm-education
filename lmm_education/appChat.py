@@ -66,7 +66,9 @@ context = ChatWorkflowContext(
 # Logging of exchange in database. The exchange may be graph-
 # -specific: we load graph_logger from the same graph definition
 # we will be using later.
-from lmm_education.logging_db import ChatDatabaseInterface
+from lmm_education.workflows.langchain.graph_logging import (
+    ChatDatabaseInterface,
+)
 from lmm_education.workflows.langchain.base import (
     graph_logger,
 )
@@ -281,6 +283,7 @@ with gr.Blocks() as app:
     gr.Markdown(base.chat_settings.comment)
     comment = gr.Textbox(label="Comment:", submit_btn="Post comment")
     comment.submit(fn=postcomment, inputs=comment, outputs=comment)
+
 
 def main() -> None:
     settings: ChatSettings = base.chat_settings

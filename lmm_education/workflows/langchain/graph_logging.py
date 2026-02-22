@@ -1,5 +1,25 @@
 """
-Database interface and CSV implementation for chat logging.
+Chat logging database interface and CSV implementations.
+
+This module provides abstractions for logging chat interactions to persistent storage.
+It includes an abstract base class (ChatDatabaseInterface) that defines the logging contract,
+and concrete implementations for CSV file storage.
+
+Classes:
+    ChatDatabaseInterface: Abstract base class defining the logging interface for chat
+        interactions, including basic messages and messages with retrieval context.
+    CsvChatDatabase: CSV-based implementation writing to provided text streams.
+        Formats data for CSV storage and handles both async and scheduled logging.
+    CsvFileChatDatabase: File-based CSV database that manages file lifecycle,
+        including automatic header creation and resource cleanup.
+
+The module supports two logging modes:
+    - Basic logging: Records user queries, model responses, and performance metrics
+    - Context-aware logging: Additionally captures retrieval context, validation results,
+      and content classification
+
+All database implementations are context managers and support asynchronous logging
+through schedule_task() for non-blocking operation.
 """
 
 from abc import ABC, abstractmethod
@@ -27,6 +47,8 @@ class ChatDatabaseInterface(ABC):
         interaction_type: str,
         query: str,
         response: str,
+        time_to_FB: float | None = None,
+        time_to_response: float | None = None,
     ) -> None:
         """Log a basic chat interaction/message."""
         pass
@@ -46,6 +68,9 @@ class ChatDatabaseInterface(ABC):
         validation: str,
         context: str,
         classification: str,
+        time_to_context: float | None = None,
+        time_to_FB: float | None = None,
+        time_to_response: float | None = None,
     ) -> None:
         """Log a chat interaction including retrieval context details."""
         pass
@@ -74,6 +99,8 @@ class ChatDatabaseInterface(ABC):
         interaction_type: str,
         query: str,
         response: str,
+        time_to_FB: float | None = None,
+        time_to_response: float | None = None,
     ) -> None:
         """Log a basic chat interaction/message (async)."""
         schedule_task(
@@ -87,6 +114,8 @@ class ChatDatabaseInterface(ABC):
                 interaction_type=interaction_type,
                 query=query,
                 response=response,
+                time_to_FB=time_to_FB,
+                time_to_response=time_to_response,
             ),
             error_callback=lambda e: print(f"schedule_message: {e}"),
         )
@@ -105,6 +134,9 @@ class ChatDatabaseInterface(ABC):
         validation: str,
         context: str,
         classification: str,
+        time_to_context: float | None = None,
+        time_to_FB: float | None = None,
+        time_to_response: float | None = None,
     ) -> None:
         """Log a basic chat interaction/message (async)."""
         schedule_task(
@@ -121,6 +153,9 @@ class ChatDatabaseInterface(ABC):
                 validation=validation,
                 context=context,
                 classification=classification,
+                time_to_context=time_to_context,
+                time_to_FB=time_to_FB,
+                time_to_response=time_to_response,
             ),
             error_callback=lambda e: print(
                 f"schedule_message_with_context: {e}"
@@ -181,6 +216,8 @@ class CsvChatDatabase(ChatDatabaseInterface):
         interaction_type: str,
         query: str,
         response: str,
+        time_to_FB: float | None,
+        time_to_response: float | None,
     ) -> None:
         """Synchronous implementation of message writing."""
         self.message_stream.write(
@@ -188,7 +225,8 @@ class CsvChatDatabase(ChatDatabaseInterface):
             f"{timestamp},{message_count},"
             f"{model_name},{interaction_type},"
             f'"{self._fmat_for_csv(query)}",'
-            f'"{self._fmat_for_csv(response)}"\n'
+            f'"{self._fmat_for_csv(response)}",'
+            f"{time_to_FB or ''},{time_to_response or ''}\n"
         )
         self.message_stream.flush()
 
@@ -198,13 +236,14 @@ class CsvChatDatabase(ChatDatabaseInterface):
         validation: str,
         context: str,
         classification: str,
+        time_to_context: float | None,
     ) -> None:
         """Synchronous implementation of context writing."""
         if self.context_stream:
             self.context_stream.write(
                 f"{record_id},{validation},"
                 f'"{self._fmat_for_csv(context)}",'
-                f"{classification}\n"
+                f"{classification},{time_to_context or ''}\n"
             )
             self.context_stream.flush()
 
@@ -219,6 +258,8 @@ class CsvChatDatabase(ChatDatabaseInterface):
         interaction_type: str,
         query: str,
         response: str,
+        time_to_FB: float | None = None,
+        time_to_response: float | None = None,
     ) -> None:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
@@ -233,6 +274,8 @@ class CsvChatDatabase(ChatDatabaseInterface):
             interaction_type,
             query,
             response,
+            time_to_FB,
+            time_to_response,
         )
 
     async def log_message_with_context(
@@ -249,6 +292,9 @@ class CsvChatDatabase(ChatDatabaseInterface):
         validation: str,
         context: str,
         classification: str,
+        time_to_context: float | None = None,
+        time_to_FB: float | None = None,
+        time_to_response: float | None = None,
     ) -> None:
         loop = asyncio.get_running_loop()
 
@@ -263,12 +309,15 @@ class CsvChatDatabase(ChatDatabaseInterface):
                 interaction_type,
                 query,
                 response,
+                time_to_FB,
+                time_to_response,
             )
             self._write_context_sync(
                 record_id,
                 validation,
                 context,
                 classification,
+                time_to_context,
             )
 
         await loop.run_in_executor(None, _log_both)
@@ -318,7 +367,7 @@ class CsvFileChatDatabase(CsvChatDatabase):
                 f.write(
                     "record_id,client_host,session_hash,timestamp,"
                     "history_length,model_name,interaction_type,"
-                    "query,response\n"
+                    "query,response,time_to_FB,time_to_response\n"
                 )
 
         if self.database_context_file and not os.path.exists(
@@ -328,7 +377,7 @@ class CsvFileChatDatabase(CsvChatDatabase):
                 self.database_context_file, "w", encoding="utf-8"
             ) as f:
                 f.write(
-                    "record_id,evaluation,context,classification\n"
+                    "record_id,evaluation,context,classification,time_to_context\n"
                 )
 
     def close(self) -> None:

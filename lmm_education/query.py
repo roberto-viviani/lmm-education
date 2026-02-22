@@ -62,6 +62,7 @@ from collections.abc import (
 )
 from typing import Literal
 from io import TextIOBase
+from datetime import datetime
 
 # Langchain
 from langchain_core.messages import (
@@ -93,6 +94,9 @@ from .config.appchat import (
     CheckResponse,
     load_settings as load_chat_settings,
 )
+from .workflows.langchain.base import (
+    create_initial_state as initialize_state,
+)
 from .workflows.langchain.base import graph_logger
 from .workflows.langchain.chat_graph import (
     ChatStateGraphType,
@@ -113,7 +117,7 @@ from .workflows.langchain.stream_adapters import (
 from lmm_education.workflows.langchain.chat_stream_adapters import (
     stateful_validation_adapter,
 )
-from .logging_db import (
+from lmm_education.workflows.langchain.graph_logging import (
     ChatDatabaseInterface,
     CsvChatDatabase,
     CsvFileChatDatabase,
@@ -143,34 +147,6 @@ def history_to_messages(
     return messages
 
 
-def create_initial_state(
-    querytext: str,
-    history: list[dict[str, str]] | None = None,
-) -> ChatState:
-    """
-    Create initial ChatState from query and optional history.
-
-    Args:
-        querytext: The user's query text
-        history: Optional Gradio-format conversation history
-
-    Returns:
-        ChatState initialized for the workflow
-    """
-    messages: list[HumanMessage | AIMessage | BaseMessage] = (
-        history_to_messages(history) if history else []
-    )
-
-    return ChatState(
-        messages=messages,
-        status="valid",  # Will be validated by workflow
-        model_identification="<unknown>",
-        query=querytext,
-        refined_query="",
-        query_classification="",
-        context="",
-        response="",
-    )
 
 
 def create_chat_stream(
@@ -288,19 +264,14 @@ def create_chat_stream(
             chat_database = CsvFileChatDatabase(
                 database_log[0], database_log[1]
             )
-        case _:
-            raise ValueError(
-                "chat_function: database_log "
-                "must be a boolean, tuple of streams, or "
-                "tuple of file paths"
-            )
 
     # map dblogger to typed lambda (required for typing)
     dblogger: Callable[[ChatState], Awaitable[None]] | None = None
     if chat_database:
 
         async def _log_state(state: ChatState) -> None:
-            # chat_database is captured from closure, but we verified it is not None
+            # chat_database is captured from closure,
+            # but we verify it is not None for type checker
             if chat_database:
                 await graph_logger(
                     database=chat_database,
@@ -312,7 +283,7 @@ def create_chat_stream(
 
         dblogger = _log_state
 
-    # Fetch workflow graph form factory. The default is the
+    # Fetch workflow graph from factory. The default is the
     # use the 'workflow' graph, but also 'agent' is supported
     # if set in appchat.toml.
     wfname: Literal['workflow'] | Literal['agent'] = (
@@ -326,9 +297,10 @@ def create_chat_stream(
         ) from e
 
     # Create initial state
-    initial_state: ChatState = create_initial_state(
+    initial_state: ChatState = initialize_state(
         querytext,
-        history if history else None,
+        messages=history_to_messages(history) if history else [],
+        timestamp=datetime.now(),
     )
 
     # Set up the stream

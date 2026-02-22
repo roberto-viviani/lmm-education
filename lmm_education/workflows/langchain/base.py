@@ -1,5 +1,12 @@
 """
-Docstring for lmm_education.models.langchain.workflows.base
+workflows.langchain.base module. Definitions and
+utility functions for LangChain graph models.
+
+Important definitions:
+
+- ChatState and ChatWorkflContext: state and context for graphs
+- create_initial_state: default initialized state
+- graph_logger: a function to log ChatState to a .csv database
 """
 
 # LangGraph missing type stubs
@@ -14,6 +21,7 @@ from pydantic.config import ConfigDict
 from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
+    AIMessage,
 )
 from langchain_core.retrievers import BaseRetriever
 
@@ -21,13 +29,8 @@ from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
 
 from lmm.utils.logging import LoggerBase, ConsoleLogger
-from lmm.utils.hash import generate_random_string
-from lmm.models.langchain.runnables import (
-    RunnableType,
-    create_runnable,
-)
 from lmm_education.config.appchat import ChatSettings
-from lmm_education.logging_db import ChatDatabaseInterface
+from .graph_logging import ChatDatabaseInterface
 
 
 class ChatState(TypedDict):
@@ -68,19 +71,48 @@ class ChatState(TypedDict):
     # not be in the 'messages' field.
     response: str
 
+    # system performance evaluation
+    timestamp: datetime
+    time_to_context: float | None
+    time_to_FB: float | None
+    time_to_response: float | None
 
-def create_initial_state(query: str) -> ChatState:
-    """Creates a default initial state, set to a user query."""
+
+def create_initial_state(
+    querytext: str,
+    *,
+    messages: (
+        list[HumanMessage | AIMessage | BaseMessage] | None
+    ) = None,
+    history: list[dict[str, str]] | None = None,
+    timestamp: datetime | None = None,
+) -> ChatState:
+    """
+    Create initial ChatState from query and optional history.
+
+    Args:
+        querytext: The user's query text
+        history: optional Gradio-format conversation history
+        timestamp: optional timestamp (will be provided if
+            omitted)
+
+    Returns:
+        ChatState initialized for the workflow
+    """
 
     return ChatState(
-        messages=[],
-        status="valid",
+        messages=messages or [],
+        status="valid",  # Will be validated by workflow
         model_identification="<unknown>",
-        query=query,
+        query=querytext,
         refined_query="",
         query_classification="",
         context="",
         response="",
+        timestamp=timestamp or datetime.now(),
+        time_to_context=None,
+        time_to_FB=None,
+        time_to_response=None,
     )
 
 
@@ -174,6 +206,18 @@ def prepare_messages_for_llm(
 
 # -----------------------------------------------------------------
 # Logging for this state, using its specific information
+# DO NOT MOVE THIS FUNCTION -- for example, to graph_logging.
+# The move creates nearby intractable circular import errors.
+
+# ruff: noqa: E402
+from .base import ChatState, ChatWorkflowContext
+from lmm.utils.logging import LoggerBase
+from langchain_core.messages import BaseMessage
+from lmm.utils.hash import generate_random_string
+from lmm.models.langchain.runnables import (
+    RunnableType,
+    create_runnable,
+)
 
 
 async def graph_logger(
@@ -192,6 +236,8 @@ async def graph_logger(
     the database interface. Adds context validation information to the
     log.
     """
+    # Deferred imports to avoid circular import with base.py
+    # from .base import ChatState, ChatWorkflowContext
 
     if timestamp is None:
         timestamp = datetime.now()
@@ -214,6 +260,13 @@ async def graph_logger(
         state.get("query_classification", "") or "NA"
     )
     message_count = len(messages)
+
+    # audit system performance
+    time_to_context: float | None = state.get("time_to_context", None)
+    time_to_FB: float | None = state.get("time_to_FB", None)
+    time_to_response: float | None = state.get(
+        "time_to_response", None
+    )
 
     try:
         match status:
@@ -258,6 +311,9 @@ async def graph_logger(
                         validation=validation,
                         context=context_text,
                         classification=classification,
+                        time_to_context=time_to_context,
+                        time_to_FB=time_to_FB,
+                        time_to_response=time_to_response,
                     )
                 else:
                     await database.log_message(
@@ -270,6 +326,8 @@ async def graph_logger(
                         interaction_type="MESSAGES",
                         query=query,
                         response=response,
+                        time_to_FB=time_to_FB,
+                        time_to_response=time_to_response,
                     )
 
             case "empty_query":

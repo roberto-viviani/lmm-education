@@ -479,7 +479,7 @@ class TestQueryDatabaseLog(unittest.IsolatedAsyncioTestCase):
             tier_3_iterator,
             terminal_field_change_adapter,
         )
-        from lmm_education.logging_db import (
+        from lmm_education.workflows.langchain.graph_logging import (
             ChatDatabaseInterface,
             CsvChatDatabase,
         )
@@ -571,6 +571,8 @@ class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
         )
         from lmm_education.query import (
             create_chat_stream,
+        )
+        from lmm_education.workflows.langchain.base import (
             create_initial_state,
         )
         from lmm_education.workflows.langchain.chat_graph import (
@@ -648,6 +650,8 @@ class TestQueryRejection(unittest.IsolatedAsyncioTestCase):
         )
         from lmm_education.query import (
             create_chat_stream,
+        )
+        from lmm_education.workflows.langchain.base import (
             create_initial_state,
         )
         from lmm_education.workflows.langchain.chat_graph import (

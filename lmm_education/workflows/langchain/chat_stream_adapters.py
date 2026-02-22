@@ -7,6 +7,7 @@ directly and understands the semantics of the "status" field.
 # rev c 1.25
 
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any, Literal, TypedDict
 
 from langchain_core.messages import AIMessageChunk
@@ -90,7 +91,7 @@ async def stateful_validation_adapter(
     # captured in 'values' stream (state from graph)
     captured_state: ChatState = create_initial_state("")
     # state values changes by validation
-    modified_state: dict[str, str] = {}
+    modified_state: dict[str, str | float] = {}
 
     class ValidationResult(TypedDict):
         status: ValidationStatus
@@ -187,10 +188,15 @@ async def stateful_validation_adapter(
                     match validation_result["status"]:
                         case "valid":
                             # Validation passed - release buffer
+                            latency: timedelta = (
+                                datetime.now()
+                                - captured_state['timestamp']
+                            )
                             modified_state = {
                                 "query_classification": validation_result[
                                     "classification"
                                 ],
+                                "time_to_FB": latency.total_seconds(),
                             }
                             # Yield buffered content
                             for (

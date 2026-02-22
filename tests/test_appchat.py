@@ -95,7 +95,9 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
             gradio_callback_fn,
             AsyncLogfunType,
         )
-        from lmm_education.logging_db import CsvChatDatabase
+        from lmm_education.workflows.langchain.graph_logging import (
+            CsvChatDatabase,
+        )
 
         stream = io.StringIO()
         stream_context = io.StringIO()
@@ -176,7 +178,9 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
             gradio_callback_fn,
             AsyncLogfunType,
         )
-        from lmm_education.logging_db import CsvChatDatabase
+        from lmm_education.workflows.langchain.graph_logging import (
+            CsvChatDatabase,
+        )
 
         chat_settings = ChatSettings()
 
@@ -216,7 +220,9 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
             gradio_callback_fn,
             AsyncLogfunType,
         )
-        from lmm_education.logging_db import CsvChatDatabase
+        from lmm_education.workflows.langchain.graph_logging import (
+            CsvChatDatabase,
+        )
 
         chat_settings = ChatSettings()
 
@@ -252,7 +258,9 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_vote(self):
         from lmm_education.appChat import vote
-        from lmm_education.logging_db import CsvChatDatabase
+        from lmm_education.workflows.langchain.graph_logging import (
+            CsvChatDatabase,
+        )
 
         stream = io.StringIO()
         stream_context = io.StringIO()
@@ -274,7 +282,9 @@ class TestGradioCallback(unittest.IsolatedAsyncioTestCase):
 
     async def test_postcomment(self):
         from lmm_education.appChat import postcomment
-        from lmm_education.logging_db import CsvChatDatabase
+        from lmm_education.workflows.langchain.graph_logging import (
+            CsvChatDatabase,
+        )
 
         stream = io.StringIO()
         stream_context = io.StringIO()

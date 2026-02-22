@@ -12,6 +12,7 @@ responses and can reject content mid-stream.
 import unittest
 
 from typing import Any
+from datetime import datetime
 
 from langchain_core.messages import AIMessageChunk
 from lmm.utils.logging import LoglistLogger
@@ -51,6 +52,7 @@ async def mock_chat_stream(
         (mode, event) tuples simulating a chat workflow stream
     """
     # Yield initial state
+    timestamp: datetime = datetime.now()
     if include_values:
         initial_state: ChatState = {
             "messages": [],
@@ -61,6 +63,10 @@ async def mock_chat_stream(
             "query_classification": "",
             "context": "",
             "response": "",
+            "timestamp": timestamp,
+            "time_to_context": None,
+            "time_to_FB": None,
+            "time_to_response": None,
         }
         yield ("values", initial_state)
 
@@ -81,6 +87,12 @@ async def mock_chat_stream(
             "query_classification": "",
             "context": "",
             "response": "".join(messages),
+            "timestamp": timestamp,
+            "time_to_context": None,
+            "time_to_FB": None,
+            "time_to_response": (
+                datetime.now() - timestamp
+            ).total_seconds(),
         }
         yield ("values", final_state)
 
@@ -109,6 +121,10 @@ async def mock_multi_node_stream(
         "query_classification": "",
         "context": "",
         "response": "",
+        "timestamp": datetime.now(),
+        "time_to_context": None,
+        "time_to_FB": None,
+        "time_to_response": None,
     }
     yield ("values", initial_state)
 
@@ -738,6 +754,10 @@ class TestStateSync(unittest.IsolatedAsyncioTestCase):
                 "query_classification": "",
                 "context": "",
                 "response": "",
+                "timestamp": datetime.now(),
+                "time_to_context": None,
+                "time_to_FB": None,
+                "time_to_response": None,
             }
             yield ("values", state1)
 

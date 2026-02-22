@@ -110,7 +110,9 @@ if video_file_missing:
 # Logging of exchange in database. The exchange may be graph-
 # -specific: we load graph_logger from the same graph definition
 # we will be using later.
-from lmm_education.logging_db import ChatDatabaseInterface
+from lmm_education.workflows.langchain.graph_logging import (
+    ChatDatabaseInterface,
+)
 from lmm_education.workflows.langchain.base import (
     graph_logger,
 )
@@ -917,6 +919,7 @@ with gr.Blocks() as videocast:
         inputs=[video_selector, chatbot],
         outputs=[video, progress_info, video_selector, chatbot],
     )
+
 
 def main() -> None:
     settings = base.chat_settings

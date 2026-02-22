@@ -431,7 +431,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return our mock
         with patch(
-            "lmm_education.workflows.langchain.chat_agent.create_runnable",
+            "lmm_education.workflows.langchain.nodes.create_runnable",
             factory,
         ):
             # Run workflow
@@ -486,7 +486,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return our mock
         with patch(
-            "lmm_education.workflows.langchain.chat_agent.create_runnable",
+            "lmm_education.workflows.langchain.nodes.create_runnable",
             factory,
         ):
             # Run workflow
@@ -540,7 +540,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return our mock
         with patch(
-            "lmm_education.workflows.langchain.chat_agent.create_runnable",
+            "lmm_education.workflows.langchain.nodes.create_runnable",
             factory,
         ):
             # Run workflow
@@ -606,7 +606,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
 
         # Patch create_runnable to return failing mock
         with patch(
-            "lmm_education.workflows.langchain.chat_agent.create_runnable",
+            "lmm_education.workflows.langchain.nodes.create_runnable",
             failing_factory,  # type: ignore
         ):
             # Run workflow - should NOT fail, error should be caught

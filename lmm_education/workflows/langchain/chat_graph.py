@@ -58,8 +58,7 @@ Note:
 # pyright: reportMissingTypeStubs=false
 # pyright: reportUnknownMemberType=false
 
-from collections.abc import Callable
-from math import ceil
+from datetime import datetime, timedelta
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
@@ -68,17 +67,12 @@ from langchain_core.messages import (
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 
-from langgraph.constants import TAG_NOSTREAM
 from langgraph.types import RetryPolicy
 from langgraph.graph import StateGraph, START, END
 from langgraph.runtime import Runtime
 
 from lmm.models.langchain.models import (
     create_model_from_settings,
-)
-from lmm.models.langchain.runnables import (
-    RunnableType,
-    create_runnable,
 )
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
 
@@ -91,6 +85,8 @@ from .base import (
     ChatWorkflowContext,
     prepare_messages_for_llm,
 )
+from .nodes import validate_query, create_integrate_history_node
+from .graph_routing import continue_if_valid, continue_if_no_error
 
 
 def create_chat_workflow(
@@ -122,127 +118,12 @@ def create_chat_workflow(
         Compiled StateGraph ready for streaming
     """
 
-    def validate_query(
-        state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:
-        """Validate the user's query for length and content."""
-
-        query: str = state.get("query", "")
-        settings: ChatSettings = runtime.context.chat_settings
-
-        if not query or not query.strip():
-            return {
-                "status": "empty_query",
-                "response": settings.MSG_EMPTY_QUERY,
-                "messages": AIMessage(
-                    content=settings.MSG_EMPTY_QUERY
-                ),
-            }
-
-        if len(query.split()) > settings.max_query_word_count:
-            return {
-                "status": "long_query",
-                "response": settings.MSG_LONG_QUERY,
-                "messages": AIMessage(
-                    content=settings.MSG_LONG_QUERY
-                ),
-            }
-
-        return {'status': "valid"}  # no change, everything ok.
-
-    async def integrate_history(
-        state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:
-        """Integrate query with history"""
-        # not for streaming
-
-        query: str = state.get("query", "")
-        context: ChatWorkflowContext = runtime.context
-
-        messages: list[str] = [
-            str(m.content)
-            for m in state['messages']
-            if isinstance(m.content, str)
-        ]
-        if not messages:
-            return {
-                "refined_query": query,
-            }
-
-        model: RunnableType | None = None
-        try:
-            match context.chat_settings.history_integration:
-                case 'none':
-                    pass
-                case 'summary':
-                    model = create_runnable(
-                        "summarizer", settings.aux
-                    )
-                    summary: str = await model.ainvoke(
-                        {
-                            'text': "\n---\n".join(messages),
-                        },
-                        config={'tags': [TAG_NOSTREAM]},
-                    )
-
-                    # re-weight summary and query. We repeat query
-                    # to increase its wieght in the embedding.
-                    summary_len = len(summary.split())
-                    weight: int = (
-                        1
-                        if summary_len < 15
-                        else ceil(summary_len / len(query.split()))
-                    )
-                    query = " ".join([query] * weight)
-
-                    # join summary and query
-                    query = f"{summary}\n\nQuery: {query}"
-                case 'context_extraction':
-                    model = create_runnable("chat_summarizer")
-                    summary: str = await model.ainvoke(
-                        {
-                            'text': "\n---\n".join(messages),
-                            'query': query,
-                        },
-                        config={'tags': [TAG_NOSTREAM]},
-                    )
-
-                    # re-weight summary and query. We repeat query
-                    # to increase its wieght in the embedding.
-                    summary_len = len(summary.split())
-                    weight: int = (
-                        1
-                        if summary_len < 15
-                        else ceil(summary_len / len(query.split()))
-                    )
-                    query = " ".join([query] * weight)
-
-                    # join summary and query
-                    query = f"{summary}\n\nQuery: {query}"
-                case 'rewrite':
-                    model = create_runnable("rewrite_query")
-                    query: str = await model.ainvoke(
-                        {
-                            'text': "\n---\n".join(messages),
-                            'query': query,
-                        },
-                        config={'tags': [TAG_NOSTREAM]},
-                    )
-
-        except Exception as e:
-            context.logger.error(f"Error integrating history: {e}")
-            pass
-
-        return {
-            "model_identification": (
-                model.get_name() if model else "<unknown>"
-            ),
-            "refined_query": query,
-        }
+    # Shared nodes from nodes.py
+    integrate_history = create_integrate_history_node(settings)
 
     async def retrieve_context(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:
+    ) -> dict[str, str | AIMessage | float]:
         """Retrieve relevant documents from vector store."""
 
         query: str = state["refined_query"]
@@ -270,7 +151,11 @@ def create_chat_workflow(
             #     for d in documents
             # ]
 
-            return {"context": context}
+            latency: timedelta = datetime.now() - state['timestamp']
+            return {
+                "context": context,
+                "time_to_context": latency.total_seconds(),
+            }
 
         except Exception as e:
             config.logger.error(
@@ -314,7 +199,7 @@ def create_chat_workflow(
 
     async def generate(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:
+    ) -> dict[str, str | AIMessage | float]:
         """
         Generate LLM response using streaming.
 
@@ -367,33 +252,14 @@ def create_chat_workflow(
                 ),
             }
 
+        latency: timedelta = datetime.now() - state['timestamp']
         return {
-            "model_identification": (
+            'model_identification': (
                 llm.get_name() if llm_major else settings.major.model
             ),
-            "response": "".join(response_chunks),
+            'response': "".join(response_chunks),
+            'time_to_response': latency.total_seconds(),
         }
-
-    # utility functions for add_conditional_edges
-    def continue_if_valid(
-        next_node: str,
-    ) -> Callable[[ChatState], str]:
-        continuation: Callable[[ChatState], str] = lambda state: (
-            next_node
-            if state.get("status", "error") == "valid"
-            else END
-        )
-        return continuation
-
-    def continue_if_no_error(
-        next_node: str,
-    ) -> Callable[[ChatState], str]:
-        continuation: Callable[[ChatState], str] = lambda state: (
-            END
-            if state.get("status", "error") == "error"
-            else next_node
-        )
-        return continuation
 
     # Build the graph------------------------------------------------
     workflow: StateGraph[
