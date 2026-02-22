@@ -147,8 +147,6 @@ def history_to_messages(
     return messages
 
 
-
-
 def create_chat_stream(
     querytext: str,
     history: list[dict[str, str]] | None,
@@ -283,7 +281,7 @@ def create_chat_stream(
 
         dblogger = _log_state
 
-    # Fetch workflow graph from factory. The default is the
+    # Fetch workflow graph from factory. The default is to
     # use the 'workflow' graph, but also 'agent' is supported
     # if set in appchat.toml.
     wfname: Literal['workflow'] | Literal['agent'] = (

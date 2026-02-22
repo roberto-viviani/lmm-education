@@ -213,7 +213,7 @@ QUERY: "{query}"
 
     def check_tool_result(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage]:
+    ) -> dict[str, str | AIMessage | float]:
         """Check if the tool execution resulted in an error.
 
         When handle_tool_errors=True, ToolNode catches exceptions
@@ -226,7 +226,7 @@ QUERY: "{query}"
         if not messages:
             return {}
 
-        last_message = messages[-1]
+        last_message: BaseMessage = messages[-1]
 
         # Check if last message is a ToolMessage with error content
         if isinstance(last_message, ToolMessage):
@@ -248,7 +248,12 @@ QUERY: "{query}"
                     ),
                 }
 
-        return {'status': "valid"}  # Tool succeeded
+        latency: timedelta = datetime.now() - state['timestamp']
+        return {
+            'status': "valid",
+            'context': str(last_message.content),
+            'time_to_context': latency.total_seconds(),
+        }  # Tool succeeded
 
     async def generate(
         state: ChatState, runtime: Runtime[ChatWorkflowContext]
@@ -310,10 +315,7 @@ QUERY: "{query}"
 
         latency: timedelta = datetime.now() - state['timestamp']
         if response_message.tool_calls:
-            return {
-                'messages': response_message,
-                'time_to_context': latency.total_seconds(),
-            }
+            return {'messages': response_message}
         else:
             # Store complete response in state
             return {

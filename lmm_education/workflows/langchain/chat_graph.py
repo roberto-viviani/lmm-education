@@ -225,6 +225,7 @@ def create_chat_workflow(
         # Stream the response - chunks will be emitted by
         # LangGraph's astream, even if not 'yielded'
         response_chunks: list[str] = []
+        first_chunk: datetime | None = None
         try:
             async for chunk in llm.astream(messages):
                 # Extract text from AIMessageChunk
@@ -232,6 +233,8 @@ def create_chat_workflow(
                 # only stream text here. Please note that `content`
                 # contains anything streamed by the model. See
                 # https://docs.langchain.com/oss/python/langchain/messages#attributes
+                if first_chunk is None:
+                    first_chunk = datetime.now()
                 if hasattr(chunk, "text"):
                     content: str = chunk.text
                     response_chunks.append(content)
@@ -252,13 +255,21 @@ def create_chat_workflow(
                 ),
             }
 
-        latency: timedelta = datetime.now() - state['timestamp']
+        latency_resp: float = (
+            datetime.now() - state['timestamp']
+        ).total_seconds()
+        latency_FB: float = (
+            -1
+            if first_chunk is None
+            else (first_chunk - state['timestamp']).total_seconds()
+        )
         return {
             'model_identification': (
                 llm.get_name() if llm_major else settings.major.model
             ),
             'response': "".join(response_chunks),
-            'time_to_response': latency.total_seconds(),
+            'time_to_FB': latency_FB,
+            'time_to_response': latency_resp,
         }
 
     # Build the graph------------------------------------------------
