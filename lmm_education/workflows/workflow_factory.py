@@ -3,13 +3,14 @@
 from lmm.utils.logging import LoggerBase, ConsoleLogger
 from lmm_education.config.config import ConfigSettings, load_settings
 
-from .langchain.base import ChatStateGraphType
+from .langchain.base import ChatStateGraphType, ChatWorkflowContext
 from .langchain.chat_graph import create_chat_workflow
 from .langchain.chat_agent import create_chat_agent
 
 
 def workflow_factory(
     workflow_name: str,
+    workflow_context: ChatWorkflowContext,
     settings: ConfigSettings | None = None,
     logger: LoggerBase = ConsoleLogger(),
 ) -> ChatStateGraphType:
@@ -39,6 +40,6 @@ def workflow_factory(
         case "workflow":  # only query at first chat
             return create_chat_workflow(settings)
         case "agent":
-            return create_chat_agent(settings)
+            return create_chat_agent(settings, workflow_context)
         case _:
             raise ValueError(f"Invalid workflow: {workflow_name}")

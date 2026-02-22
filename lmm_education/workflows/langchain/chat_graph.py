@@ -71,9 +71,6 @@ from langgraph.types import RetryPolicy
 from langgraph.graph import StateGraph, START, END
 from langgraph.runtime import Runtime
 
-from lmm.models.langchain.models import (
-    create_model_from_settings,
-)
 from lmm.markdown.ioutils import convert_backslash_latex_delimiters
 
 from lmm_education.config.config import ConfigSettings
@@ -83,9 +80,12 @@ from .base import (
     ChatState,
     ChatStateGraphType,
     ChatWorkflowContext,
-    prepare_messages_for_llm,
 )
-from .nodes import validate_query, create_integrate_history_node
+from .nodes import (
+    validate_query,
+    create_integrate_history_node,
+    create_generate_node,
+)
 from .graph_routing import continue_if_valid, continue_if_no_error
 
 
@@ -197,80 +197,8 @@ def create_chat_workflow(
 
         return {"refined_query": formatted_query}
 
-    async def generate(
-        state: ChatState, runtime: Runtime[ChatWorkflowContext]
-    ) -> dict[str, str | AIMessage | float]:
-        """
-        Generate LLM response using streaming.
-
-        This node invokes the LLM with the formatted query and
-        conversation history. The actual streaming is handled by
-        LangGraph's astream() with stream_mode="messages".
-
-        Note: This node stores the final complete response in state,
-            but when using astream() with stream_mode="messages",
-            you'll receive chunks as they're generated.
-        """
-        # for streaming
-
-        config: ChatWorkflowContext = runtime.context
-        messages = prepare_messages_for_llm(
-            state, config, config.system_message
-        )
-
-        llm: BaseChatModel = llm_major or create_model_from_settings(
-            settings.major
-        )
-
-        # Stream the response - chunks will be emitted by
-        # LangGraph's astream, even if not 'yielded'
-        response_chunks: list[str] = []
-        first_chunk: datetime | None = None
-        try:
-            async for chunk in llm.astream(messages):
-                # Extract text from AIMessageChunk
-                # LLM.astream() returns AIMessageChunk objects. We
-                # only stream text here. Please note that `content`
-                # contains anything streamed by the model. See
-                # https://docs.langchain.com/oss/python/langchain/messages#attributes
-                if first_chunk is None:
-                    first_chunk = datetime.now()
-                if hasattr(chunk, "text"):
-                    content: str = chunk.text
-                    response_chunks.append(content)
-                else:
-                    # somewhat theoretical case, direct model stream
-                    response_chunks.append(str(chunk))
-
-        except Exception as e:
-            context: ChatWorkflowContext = runtime.context
-            context.logger.error(
-                f"Error while streaming in 'generate' node: {e}"
-            )
-            return {
-                'status': "error",
-                'response': context.chat_settings.MSG_ERROR_QUERY,
-                'messages': AIMessage(
-                    content=context.chat_settings.MSG_ERROR_QUERY
-                ),
-            }
-
-        latency_resp: float = (
-            datetime.now() - state['timestamp']
-        ).total_seconds()
-        latency_FB: float = (
-            -1
-            if first_chunk is None
-            else (first_chunk - state['timestamp']).total_seconds()
-        )
-        return {
-            'model_identification': (
-                llm.get_name() if llm_major else settings.major.model
-            ),
-            'response': "".join(response_chunks),
-            'time_to_FB': latency_FB,
-            'time_to_response': latency_resp,
-        }
+    # Extract the shared generate factory
+    generate = create_generate_node(settings, llm_major)
 
     # Build the graph------------------------------------------------
     workflow: StateGraph[

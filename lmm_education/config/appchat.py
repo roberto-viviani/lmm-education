@@ -229,6 +229,11 @@ QUERY: "{query}"
         default="workflow",
         description="Workflow to use in interacting with language model",
     )
+    max_tool_retries: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum number of retries for tool calls",
+    )
 
     # thematic control of interaction
     check_response: CheckResponse = Field(
@@ -279,6 +284,7 @@ QUERY: "{query}"
         history_integration: HistoryIntegration | None = None,
         history_length: int | None = None,
         workflow: str | None = None,
+        max_tool_retries: int | None = None,
         check_response: CheckResponse | None = None,
         server: ServerSettings | None = None,
         chat_database: ChatDatabase | None = None,
@@ -301,6 +307,7 @@ QUERY: "{query}"
             or self.history_integration,
             history_length=history_length or self.history_length,
             workflow=workflow or self.workflow,
+            max_tool_retries=max_tool_retries or self.max_tool_retries,
             check_response=check_response or self.check_response,
             server=server or self.server,
             chat_database=chat_database or self.chat_database,

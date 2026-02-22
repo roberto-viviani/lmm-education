@@ -67,6 +67,7 @@ async def mock_chat_stream(
             "time_to_context": None,
             "time_to_FB": None,
             "time_to_response": None,
+            "tool_call_count": 0,
         }
         yield ("values", initial_state)
 
@@ -93,6 +94,7 @@ async def mock_chat_stream(
             "time_to_response": (
                 datetime.now() - timestamp
             ).total_seconds(),
+            "tool_call_count": 0,
         }
         yield ("values", final_state)
 
@@ -125,6 +127,7 @@ async def mock_multi_node_stream(
         "time_to_context": None,
         "time_to_FB": None,
         "time_to_response": None,
+        "tool_call_count": 0,
     }
     yield ("values", initial_state)
 
@@ -758,6 +761,7 @@ class TestStateSync(unittest.IsolatedAsyncioTestCase):
                 "time_to_context": None,
                 "time_to_FB": None,
                 "time_to_response": None,
+                "tool_call_count": 0,
             }
             yield ("values", state1)
 

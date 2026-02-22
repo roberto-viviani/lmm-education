@@ -76,11 +76,16 @@ from .base import (
     ChatStateGraphType,
     prepare_messages_for_llm,
 )
-from .nodes import validate_query, create_integrate_history_node
+from .nodes import (
+    validate_query,
+    create_integrate_history_node,
+    create_generate_node,
+)
 from .graph_routing import (
     continue_if_valid,
     continue_if_no_error,
     continue_after_tool_call,
+    continue_to_generate_or_fallback,
 )
 
 from langchain_core.runnables import Runnable
@@ -109,6 +114,7 @@ from lmm_education.config.config import ConfigSettings
 
 def create_chat_agent(
     settings: ConfigSettings,
+    workflow_context: ChatWorkflowContext,
     llm_major: BaseChatModel | None = None,
 ) -> ChatStateGraphType:
     """
@@ -253,6 +259,7 @@ QUERY: "{query}"
             'status': "valid",
             'context': str(last_message.content),
             'time_to_context': latency.total_seconds(),
+            'tool_call_count': state.get('tool_call_count', 0) + 1,
         }  # Tool succeeded
 
     async def generate(
@@ -329,7 +336,10 @@ QUERY: "{query}"
         ChatState, ChatWorkflowContext, ChatState, ChatState
     ] = StateGraph(ChatState, ChatWorkflowContext)
 
+    generate_fallback = create_generate_node(settings, llm_major)
+
     # Add nodes
+    max_tool_retries = workflow_context.chat_settings.max_tool_retries
     workflow.add_node("validate_query", validate_query)
     workflow.add_node("integrate_history", integrate_history)
     workflow.add_node("format_query", format_query)
@@ -343,8 +353,12 @@ QUERY: "{query}"
         generate,
         # automatically retry network issues and rate limits
         retry_policy=RetryPolicy(
-            max_attempts=3, initial_interval=1.0
+            max_attempts=max_tool_retries, initial_interval=1.0
         ),
+    )
+    workflow.add_node(
+        "generate_fallback",
+        generate_fallback,
     )
 
     # Add edges
@@ -363,7 +377,11 @@ QUERY: "{query}"
     )
     workflow.add_edge("tool_caller", "check_tool_result")
     workflow.add_conditional_edges(
-        "check_tool_result", continue_if_no_error("generate")
+        "check_tool_result",
+        continue_to_generate_or_fallback(
+            "generate", "generate_fallback", max_tool_calls=3
+        ),
     )
+    workflow.add_edge("generate_fallback", END)
 
     return workflow.compile()

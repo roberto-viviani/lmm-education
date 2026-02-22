@@ -22,11 +22,15 @@ from math import ceil
 from datetime import datetime
 from types import CoroutineType
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 
 from langgraph.constants import TAG_NOSTREAM
 from langgraph.runtime import Runtime
 
+from lmm.models.langchain.models import (
+    create_model_from_settings,
+)
 from lmm.models.langchain.runnables import (
     RunnableType,
     create_runnable,
@@ -38,10 +42,16 @@ from lmm_education.config.appchat import ChatSettings
 from .base import (
     ChatState,
     ChatWorkflowContext,
+    prepare_messages_for_llm,
 )
 
 # Node return type — a partial state update
 NodeReturn = dict[str, str | AIMessage | float]
+
+# Type for nodes created by factories
+FactoryNode = Callable[
+    ..., CoroutineType[any, any, dict[str, str | AIMessage | float]]
+]
 
 
 def validate_query(
@@ -75,17 +85,9 @@ def validate_query(
     return {'status': "valid"}  # no change, everything ok.
 
 
-# Type alias for the integrate_history node function signature
-
-
-IntegratedHistoryNode = Callable[
-    ..., CoroutineType[any, any, dict[str, str | AIMessage | float]]
-]
-
-
 def create_integrate_history_node(
     settings: ConfigSettings,
-) -> IntegratedHistoryNode:
+) -> FactoryNode:
     """Factory that creates an integrate_history node function.
 
     The factory captures ConfigSettings so the node can access
@@ -191,3 +193,80 @@ def create_integrate_history_node(
         }
 
     return integrate_history
+
+
+def create_generate_node(
+    settings: ConfigSettings,
+    llm_major: BaseChatModel | None = None,
+) -> FactoryNode:
+    """Factory that creates a generic generate node function.
+
+    This node invokes a tool-less LLM with the formatted query and
+    conversation history. The streaming is handled by
+    LangGraph's astream() with stream_mode="messages".
+
+    Args:
+        settings: a ConfigSettings object (for settings.major)
+        llm_major: an override of settings.major (used to inject
+            a model for testing purposes)
+
+    Returns:
+        An async node function returning dict[str, str | AIMessage | float]
+    """
+
+    async def generate(
+        state: ChatState, runtime: Runtime[ChatWorkflowContext]
+    ) -> NodeReturn:
+
+        config: ChatWorkflowContext = runtime.context
+        messages = prepare_messages_for_llm(
+            state, config, config.system_message
+        )
+
+        llm: BaseChatModel = llm_major or create_model_from_settings(
+            settings.major
+        )
+
+        response_chunks: list[str] = []
+        first_chunk: datetime | None = None
+        try:
+            async for chunk in llm.astream(messages):
+                if first_chunk is None:
+                    first_chunk = datetime.now()
+                if hasattr(chunk, "text"):
+                    content: str = chunk.text
+                    response_chunks.append(content)
+                else:
+                    response_chunks.append(str(chunk))
+
+        except Exception as e:
+            context: ChatWorkflowContext = runtime.context
+            context.logger.error(
+                f"Error while streaming in 'generate' node: {e}"
+            )
+            return {
+                'status': "error",
+                'response': context.chat_settings.MSG_ERROR_QUERY,
+                'messages': AIMessage(
+                    content=context.chat_settings.MSG_ERROR_QUERY
+                ),
+            }
+
+        latency_resp: float = (
+            datetime.now() - state['timestamp']
+        ).total_seconds()
+        latency_FB: float = (
+            -1
+            if first_chunk is None
+            else (first_chunk - state['timestamp']).total_seconds()
+        )
+        return {
+            'model_identification': (
+                llm.get_name() if llm_major else settings.major.model
+            ),
+            'response': "".join(response_chunks),
+            'time_to_FB': latency_FB,
+            'time_to_response': latency_resp,
+        }
+
+    return generate

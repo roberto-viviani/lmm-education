@@ -61,3 +61,30 @@ def continue_after_tool_call(
         return tool_node if nextval == 'tools' else next_node
 
     return _continuation
+
+
+def continue_to_generate_or_fallback(
+    generate_node: str,
+    fallback_node: str,
+    max_tool_calls: int = 3,
+) -> Callable[[ChatState], str]:
+    """Route after check_tool_result to either generate or fallback.
+    
+    If the max tool call count is reached, forces generation using
+    the fallback node. Otherwise, returns to the core generate agent.
+    """
+
+    def _continuation(state: ChatState) -> str:
+        # Stop everything on error
+        if state.get("status", "error") == "error":
+            return END
+            
+        tool_call_count: int = state.get("tool_call_count", 0)
+        
+        # fallback path if loop gets out of control
+        if tool_call_count >= max_tool_calls:
+            return fallback_node
+            
+        return generate_node
+
+    return _continuation

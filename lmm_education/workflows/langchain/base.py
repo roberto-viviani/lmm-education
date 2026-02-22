@@ -37,9 +37,6 @@ class ChatState(TypedDict):
     """
     State object for the chat workflow.
 
-    This typed dictionary replaces the misuse of the history parameter
-    for carrying metadata. Each field has a clear purpose:
-
     Attributes:
         messages: Conversation history as LangChain messages
         status: status of the graph
@@ -57,6 +54,7 @@ class ChatState(TypedDict):
         "valid", "empty_query", "long_query", "rejected", "error"
     ]
     model_identification: str
+    tool_call_count: int
 
     # Query processing
     query: str
@@ -104,6 +102,7 @@ def create_initial_state(
         messages=messages or [],
         status="valid",  # Will be validated by workflow
         model_identification="<unknown>",
+        tool_call_count=0,
         query=querytext,
         refined_query="",
         query_classification="",

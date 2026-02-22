@@ -66,7 +66,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
 
         config: ConfigSettings = ConfigSettings()
-        workflow = create_chat_agent(config)
+        workflow = create_chat_agent(config, context)
 
         end_state: ChatState = await workflow.ainvoke(
             initial_state, context=context
@@ -103,7 +103,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
 
         config: ConfigSettings = ConfigSettings()
-        workflow = create_chat_agent(config)
+        workflow = create_chat_agent(config, context)
 
         end_state: ChatState = await workflow.ainvoke(
             initial_state, context=context
@@ -144,7 +144,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
 
         config: ConfigSettings = ConfigSettings()
-        workflow = create_chat_agent(config)
+        workflow = create_chat_agent(config, context)
 
         text: str = ""
         counter = 0
@@ -183,7 +183,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
 
         config: ConfigSettings = ConfigSettings()
-        workflow = create_chat_agent(config)
+        workflow = create_chat_agent(config, context)
 
         end_state: Any = initial_state
         counter = 0
@@ -217,7 +217,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
 
         config: ConfigSettings = ConfigSettings()
-        workflow = create_chat_agent(config)
+        workflow = create_chat_agent(config, context)
 
         counter = 0
         async for event in workflow.astream(
@@ -247,7 +247,7 @@ class TestGraph(unittest.IsolatedAsyncioTestCase):
         )
 
         config: ConfigSettings = ConfigSettings()
-        workflow = create_chat_agent(config)
+        workflow = create_chat_agent(config, context)
 
         end_state: Any = initial_state
         text: str = ""
@@ -339,7 +339,9 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
         )
 
         context = self.get_workflow_context()
-        workflow = create_chat_agent(ConfigSettings(), mock_llm)
+        workflow = create_chat_agent(
+            ConfigSettings(), context, mock_llm
+        )
 
         # Run workflow
         end_state = await workflow.ainvoke(
@@ -377,7 +379,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
             history_integration='none',
         )
         context = self.get_workflow_context(chat_settings)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Run workflow
         end_state = await workflow.ainvoke(
@@ -427,7 +429,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
             history_integration='summary',
         )
         context = self.get_workflow_context(chat_settings)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Patch create_runnable to return our mock
         with patch(
@@ -482,7 +484,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
             history_integration='context_extraction',
         )
         context = self.get_workflow_context(chat_settings)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Patch create_runnable to return our mock
         with patch(
@@ -536,7 +538,7 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
             history_integration='rewrite',
         )
         context = self.get_workflow_context(chat_settings)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Patch create_runnable to return our mock
         with patch(
@@ -602,7 +604,9 @@ class TestIntegrateHistory(unittest.IsolatedAsyncioTestCase):
         )
         context = self.get_workflow_context(chat_settings)
         context.logger = logger
-        workflow = create_chat_agent(ConfigSettings(), mock_llm)
+        workflow = create_chat_agent(
+            ConfigSettings(), context, mock_llm
+        )
 
         # Patch create_runnable to return failing mock
         with patch(
@@ -674,7 +678,9 @@ class TestGenerateNode(unittest.IsolatedAsyncioTestCase):
         logger = LoglistLogger()
         context = self.get_workflow_context()
         context.logger = logger
-        workflow = create_chat_agent(ConfigSettings(), mock_llm)
+        workflow = create_chat_agent(
+            ConfigSettings(), context, mock_llm
+        )
 
         # Run workflow
         end_state = await workflow.ainvoke(
@@ -719,7 +725,9 @@ class TestGenerateNode(unittest.IsolatedAsyncioTestCase):
         initial_state = create_initial_state("Query")
 
         context = self.get_workflow_context()
-        workflow = create_chat_agent(ConfigSettings(), mock_llm)
+        workflow = create_chat_agent(
+            ConfigSettings(), context, mock_llm
+        )
 
         end_state = await workflow.ainvoke(
             initial_state, context=context
@@ -752,7 +760,9 @@ class TestGenerateNode(unittest.IsolatedAsyncioTestCase):
         initial_state = create_initial_state("Query")
 
         context = self.get_workflow_context()
-        workflow = create_chat_agent(ConfigSettings(), mock_llm)
+        workflow = create_chat_agent(
+            ConfigSettings(), context, mock_llm
+        )
 
         end_state = await workflow.ainvoke(
             initial_state, context=context
@@ -814,7 +824,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
         )
 
         context = self.get_workflow_context(retriever=mock_retriever)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Run workflow
         end_state = await workflow.ainvoke(
@@ -867,7 +877,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
         logger = LoglistLogger()
         context = self.get_workflow_context(retriever=mock_retriever)
         context.logger = logger
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Run workflow - with handle_tool_errors=True, exceptions are caught
         end_state = await workflow.ainvoke(
@@ -943,7 +953,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
         initial_state = create_initial_state("Test query")
 
         context = self.get_workflow_context(retriever=mock_retriever)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Run workflow - should complete (not raise) with error status
         end_state = await workflow.ainvoke(
@@ -990,7 +1000,7 @@ class TestToolBehavior(unittest.IsolatedAsyncioTestCase):
         )
 
         context = self.get_workflow_context(retriever=mock_retriever)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
 
         # Run workflow
         end_state = await workflow.ainvoke(
@@ -1082,7 +1092,7 @@ class TestAgentBehavior(unittest.IsolatedAsyncioTestCase):
         # Ask a question that doesn't require database search
         initial_state = create_initial_state("What is 2 + 2?")
         context = self.get_workflow_context(retriever=mock_retriever)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
         # Run workflow
         end_state = await workflow.ainvoke(
             initial_state, context=context
@@ -1125,7 +1135,7 @@ class TestAgentBehavior(unittest.IsolatedAsyncioTestCase):
             "What is the difference between logistic regression and linear regression?"
         )
         context = self.get_workflow_context(retriever=mock_retriever)
-        workflow = create_chat_agent(ConfigSettings())
+        workflow = create_chat_agent(ConfigSettings(), context)
         # Run workflow
         end_state = await workflow.ainvoke(
             initial_state, context=context
@@ -1174,7 +1184,7 @@ class TestAgentBehavior(unittest.IsolatedAsyncioTestCase):
         context = self.get_workflow_context()
         context.logger = logger
         workflow = create_chat_agent(
-            ConfigSettings(), llm_major=mock_llm
+            ConfigSettings(), context, llm_major=mock_llm
         )
         # Run workflow - expect it to handle generate node errors
         try:

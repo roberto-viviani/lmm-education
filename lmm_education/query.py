@@ -288,7 +288,9 @@ def create_chat_stream(
         context.chat_settings.workflow
     )
     try:
-        workflow: ChatStateGraphType = workflow_factory(wfname)
+        workflow: ChatStateGraphType = workflow_factory(
+            wfname, context, config_settings
+        )
     except Exception as e:
         raise ValueError(
             f"Could not create workflow {wfname}:\n{e}"
