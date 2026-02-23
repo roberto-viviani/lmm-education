@@ -52,8 +52,9 @@ nav:
       - Module ingest.py: API/ingest.md
       - Module querydb.py: API/querydb.md
       - Module query.py: API/query.md
-    - LMM:
+    - LMM Workflows:
       - Workflows and graphs:
+        - Architecture: API/workflows.md
         - Base: API/workflow_base.md
         - Workflow: API/chat_workflow.md
         - Agent: API/chat_agent.md
