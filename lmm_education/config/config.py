@@ -55,7 +55,6 @@ from pydantic import (
     Field,
     HttpUrl,
     model_validator,
-    field_validator,
 )
 from pydantic_settings import (
     BaseSettings,
@@ -84,44 +83,7 @@ DEFAULT_PORT_RANGE = (
 )  # Valid port range excluding system ports
 
 
-# web server for chat application
-class ServerSettings(BaseSettings):
-    """
-    Server configuration settings.
 
-    Attributes:
-        mode: one of 'local' or 'remote'
-        port: port number (only if mode is 'remote')
-        host: server host address (defaults to 'localhost')
-    """
-
-    mode: Literal["local", "remote"] = Field(
-        default="local", description="Server deployment mode"
-    )
-    port: int = Field(
-        default=61543,
-        ge=0,
-        le=65535,
-        description="Server port (0 for auto-assignment)",
-    )
-    host: str = Field(
-        default="localhost", description="Server host address"
-    )
-
-    model_config = SettingsConfigDict(frozen=True, extra='forbid')
-
-    @field_validator('port')
-    @classmethod
-    def validate_port(cls, v: int) -> int:
-        """Validate port number is in acceptable range."""
-        if v != 0 and not (
-            DEFAULT_PORT_RANGE[0] <= v <= DEFAULT_PORT_RANGE[1]
-        ):
-            raise ValueError(
-                f"Port must be 0 (auto-assign) or between "
-                f"{DEFAULT_PORT_RANGE[0]} and {DEFAULT_PORT_RANGE[1]}"
-            )
-        return v
 
 
 # In the qdrant implementation used here, the database may be located
@@ -298,11 +260,6 @@ class ConfigSettings(LMMSettings):
         `get_annotation_model`. Additional properties given to this
         function will include the properties as inherited properties.
     """
-
-    server: ServerSettings = Field(
-        default_factory=ServerSettings,
-        description="Server configuration",
-    )
 
     storage: DatabaseSource = Field(
         default=LocalStorage(folder="./storage"),

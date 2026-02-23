@@ -49,9 +49,11 @@ The server settings are in the server section:
 mode = "local"
 port = 61543
 host = "localhost"
+auth_user = ""
+auth_pass = ""
 ```
 
-If you want to offer the server over the internet, change `local` into `remote`. You can also change the port to which the app is listening. The host parameter may be set to your internet address.
+If you want to offer the server over the internet, change `local` into `remote`. You can also change the port to which the app is listening. The host parameter may be set to your internet address. To enable authentication for the chat interface, specify a username in `auth_user` and a password in `auth_pass`. If left empty, the application will start without authentication.
 
 ### Instructing the server to check the chat content
 

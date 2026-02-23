@@ -287,12 +287,28 @@ with gr.Blocks() as app:
 
 def main() -> None:
     settings: ChatSettings = base.chat_settings
+
+    auth_credentials = None
+    if settings.server.auth_user and settings.server.auth_pass:
+        auth_credentials = (
+            settings.server.auth_user,
+            settings.server.auth_pass,
+        )
+    else:
+        from lmm_education.config.appchat import CHAT_CONFIG_FILE
+
+        print(
+            "WARNING: Starting application without authentication. "
+            "To enable authentication, set 'auth_user' and 'auth_pass' "
+            "in the [server] section of " + CHAT_CONFIG_FILE + "."
+        )
+
     try:
         if settings.server.mode == "local":
             app.launch(
                 server_port=settings.server.port,
                 show_api=False,
-                auth=("accesstoken", "hackerbrücke"),
+                auth=auth_credentials,
             )
         else:
             # allow public access on internet computer
@@ -300,7 +316,7 @@ def main() -> None:
                 server_name="85.124.80.91",  # keep this
                 server_port=settings.server.port,
                 show_api=False,
-                auth=("accesstoken", "hackerbrücke"),
+                auth=auth_credentials,
             )
     except Exception as e:
         logger.error(f"Could not run the app: {e}")

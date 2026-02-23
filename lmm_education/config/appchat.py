@@ -48,7 +48,8 @@ Settings specified in appchat.toml are:
             model and the model used for categorization differ, it is
             conceivable that categorization may fail even if the main
             model is streaming). Defaults to true.
-        - server: the address/port used by the server
+        - server: the address/port used by the server, and
+            authentication credentials
         - chat_database: the database used to record the messages
             exchanged with users. At present, only supports .csv
             files. Consists of the following fields:
@@ -60,7 +61,12 @@ Settings specified in appchat.toml are:
 
 from pathlib import Path
 from typing import Any, Self, Literal
-from pydantic import Field, BaseModel, model_validator
+from pydantic import (
+    Field,
+    BaseModel,
+    model_validator,
+    field_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -70,9 +76,58 @@ from pydantic_settings import (
 
 from lmm.utils.logging import LoggerBase, ExceptionConsoleLogger
 
-from .config import ServerSettings
-
 CHAT_CONFIG_FILE: str = "appchat.toml"
+
+DEFAULT_PORT_RANGE = (
+    1024,
+    65535,
+)  # Valid port range excluding system ports
+
+
+# web server for chat application
+class ServerSettings(BaseSettings):
+    """
+    Server configuration settings.
+
+    Attributes:
+        mode: one of 'local' or 'remote'
+        port: port number (only if mode is 'remote')
+        host: server host address (defaults to 'localhost')
+    """
+
+    mode: Literal["local", "remote"] = Field(
+        default="local", description="Server deployment mode"
+    )
+    port: int = Field(
+        default=61543,
+        ge=0,
+        le=65535,
+        description="Server port (0 for auto-assignment)",
+    )
+    host: str = Field(
+        default="localhost", description="Server host address"
+    )
+    auth_user: str = Field(
+        default="", description="Username for authentication"
+    )
+    auth_pass: str = Field(
+        default="", description="Password for authentication"
+    )
+
+    model_config = SettingsConfigDict(frozen=True, extra='forbid')
+
+    @field_validator('port')
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        """Validate port number is in acceptable range."""
+        if v != 0 and not (
+            DEFAULT_PORT_RANGE[0] <= v <= DEFAULT_PORT_RANGE[1]
+        ):
+            raise ValueError(
+                f"Port must be 0 (auto-assign) or between "
+                f"{DEFAULT_PORT_RANGE[0]} and {DEFAULT_PORT_RANGE[1]}"
+            )
+        return v
 
 
 class CheckResponse(BaseModel):
@@ -241,6 +296,7 @@ QUERY: "{query}"
         description="Check thematic appropriateness of chat",
     )
 
+    # server config
     server: ServerSettings = Field(
         default_factory=ServerSettings,
         description="Server configuration",
@@ -307,7 +363,8 @@ QUERY: "{query}"
             or self.history_integration,
             history_length=history_length or self.history_length,
             workflow=workflow or self.workflow,
-            max_tool_retries=max_tool_retries or self.max_tool_retries,
+            max_tool_retries=max_tool_retries
+            or self.max_tool_retries,
             check_response=check_response or self.check_response,
             server=server or self.server,
             chat_database=chat_database or self.chat_database,

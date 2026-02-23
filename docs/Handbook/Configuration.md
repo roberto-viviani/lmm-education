@@ -134,7 +134,11 @@ The server section allows specifying how the web server will be running. The `mo
 mode = "local"
 port = 61543
 host = "localhost"
+auth_user = ""
+auth_pass = ""
 ```
+
+To restrict access, set `auth_user` and `auth_pass` to your desired username and password credentials. When left empty, the application skips authentication.
 
 ### Text appearing in the web application
 
