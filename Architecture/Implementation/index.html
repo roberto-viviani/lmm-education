@@ -1,0 +1,2654 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../Architecture/">
+      
+      
+        <link rel="next" href="../../API/Configuration/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.2">
+    
+    
+      
+        <title>Outline Implementation - LM Markdown for Education</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Merriweather:300,300i,400,400i,700,700i%7CFira+Code:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Merriweather";--md-code-font:"Fira Code"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="slate" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#implementation-notes" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="LM Markdown for Education" class="md-header__button md-logo" aria-label="LM Markdown for Education" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LM Markdown for Education
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Outline Implementation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="slate" data-md-color-accent="custom"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="LM Markdown for Education" class="md-nav__button md-logo" aria-label="LM Markdown for Education" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LM Markdown for Education
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Handbook
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Handbook
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Handbook/Installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Handbook/RAGauthoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Handbook/Markdown/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Working with Markdown
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Handbook/EncodingEmbedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encoding and Embedding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Handbook/ChatApp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Main Chatbot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Handbook/Configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outline Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outline Implementation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outline Implementation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-config-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration (config module)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qdrant-vector-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qdrant vector store
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Qdrant vector store">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vector_store_qdrant-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vector_store_qdrant module
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vector_store_qdrant_langchain-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vector_store_qdrant_langchain module
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chunks-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        chunks module
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="chunks module">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#implementation-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identification-of-portions-of-markdown-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identification of portions of markdown files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingestion-ingest-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingestion (ingest module)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Configuration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/Configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/Configuration/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module config.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/Configuration/appchat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module appchat.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Apps
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Apps
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/Apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/Apps/appChat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    App Chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/Apps/appWebcast/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    App Webcast
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/appbase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    App Base
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/apputils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    App Utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/background_task_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background Task Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/logging_db/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging DB
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    CLI
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/cli_lmme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LMME
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/cli_terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/scan_rag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module scan_rag.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module ingest.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/querydb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module querydb.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module query.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LMM Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    LMM Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6_1" id="__nav_4_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows and graphs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows and graphs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/workflow_base/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/chat_workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/chat_agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/workflow_factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6_2" id="__nav_4_6_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Streams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/stream_adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stream adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/chat_stream_adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat stream adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector Stores
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Vector Stores
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/vector_store_qdrant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module vector_store_qdrant.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/vector_store_qdrant_langchain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module vector_store_qdrant_langchain.py
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/vector_store_qdrant_context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Module vector store context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../API/vector_store_qdrant_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-config-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration (config module)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qdrant-vector-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qdrant vector store
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Qdrant vector store">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vector_store_qdrant-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vector_store_qdrant module
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vector_store_qdrant_langchain-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vector_store_qdrant_langchain module
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chunks-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        chunks module
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="chunks module">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#implementation-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identification-of-portions-of-markdown-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identification of portions of markdown files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingestion-ingest-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingestion (ingest module)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="implementation-notes">Implementation notes</h1>
+<p>LM markdown for education leverages the code from LM markdown to implement facilities to provide lectures online, using language models for the interaction with students. Here, we describe briefly the architecture of the parts that are specific to LM markdown for education.</p>
+<h2 id="configuration-config-module">Configuration (config module)</h2>
+<p>This module defines a <code>ConfigSettings</code> object to read from <code>config.toml</code> the settings of the project. <code>ConfigSettings</code> inherit from the <code>Settings</code> class in LM markdown, so that the <code>config.toml</code> file includes both the settings that configure LM markdown and LM markdown for education. The <code>Settings</code> class inherits from pydantic's <code>BaseSettings</code>, which handles reading the settings from <code>config.toml</code> and validating them.</p>
+<p>A convenient aspect of these objects is that they may be initialized in code for the parts that need override the settings in config.toml, with the others being initialized from the values there. When looking in a file like <code>config.toml</code>, one can see the keys that are available for initialization. Keys that are under headings can by initialized via a dictionary.</p>
+<p>Example:</p>
+<pre><code># content of config.toml
+[RAG]
+questions = false
+summaries = false
+
+[embeddings]
+dense_model = &quot;OpenAI/text-embedding-3-small&quot;
+</code></pre>
+<p>These settings can be overriden in code as follows:</p>
+<pre><code class="language-python">config = ConfigSettings(
+    RAG = {'questions': True},
+    embeddings = {'dense_model': &quot;OpenAI/text-embedding-3-large&quot;}
+)
+</code></pre>
+<p>The resulting <code>config</code> object will be initialized with <code>questions = true</code>, and all other values overridden as in code. (This coding will be flagged a type-invalid by the type checker, because Pydantic validates the content, also enforcing coertion, behind the hood).</p>
+<h2 id="error-handling">Error handling</h2>
+<p>The code distinguishes between three types of exceptions: genuine coding errors (for example, a <code>match</code> statement with a missing case), validation errors, and errors that arise from normal adversity (like invalid yaml headers from the users, missing internet connections, etc.).</p>
+<p>The first type of errors are designed to crash the application while delivering an error trace that allows fixing them. Of note, the code is written using the most strict setting for type checking available, which means that most of this type of errors should be flagged by the type checker already. This kind of errors should be truly exceptional.</p>
+<p>The second type of errors arise when data for operating the framework is validated. For example, if an invalid setting is entered in <code>config.toml</code>, the code will crash as soon as the setting is read, leaving an error trace in the console that is informative of the problem. Also functions that are meant to be entered in Python's REPL are validated by pydantic, crashing immediately on invalid inputs instead of creating some problem down the line. This behaviour is justified by the fact that these invalid inputs are not compatible with the program's functioning. Note that function calls that are not validated by Pydantic are supposed to be used in code, not in a REPL, and in code strict type checking is followed in the whole framework.</p>
+<p>The third and final kind of "errors" are not cosidered exceptions, but are modelled in code by a <code>Logger</code> class (provided by the LM markdown framework). The term 'modelled' refers to the fact that this class is designed so that these situations may be handled like any other situation that code is supposed to handle, contrary to what the terms 'exceptions' or 'errors' imply. An object of the <code>Logger</code> class is passed to functions that follow this convention. Because different implementations of this class exist, the error handling may be customized according to the context in which the code is called, or the way in which these situation are modelled:</p>
+<ul>
+<li>providing a console trace. This is useful when calling code manually through the REPL, and is the default behaviour of the logger.</li>
+<li>collecting the error into a list of error messages. The list needs be checked manually. This is used in the code mostly in the tests.</li>
+<li>throwing a Python exception. This is useful when interfacing with code that behaves traditionally by rasing exceptions, as in the Langchain and in Qdrant APIs, and do not model the exception as it is done elsewehere in the LM markdow for education framework.</li>
+<li>logging a console message and throwing an exception. Similar use as above.</li>
+</ul>
+<p>The functions that adopt this convention are easily recognizable by the fact that they take a <code>Logger</code> object as a last argument. Many functions do not do this; they are function that may be viewed as "pure": they are not expected to raise exceptions, unless a genuine coding error intervenes.</p>
+<p>Functions that adopt the logger convention usually return a value that can be <code>None</code>. Because the type checker may be used to enforce checking for <code>None</code> return values, the programmer can consider this type of error handling explicit, as long as the type checker discipline is followed.</p>
+<p>Some functions from the LM markdown module do not return <code>None</code>, but things such as an empty list where a list is expected. This behaviour is intentional: several errors result in messages displayed in the markdown for the user to fix; from the perspective of the code, the program should keep working. This behaviour is documented in LM markown.</p>
+<h2 id="qdrant-vector-store">Qdrant vector store</h2>
+<p>LM markdown for education uses Qdrant to store the RAG data. The package is organized as follows:</p>
+<table>
+<thead>
+<tr>
+<th>subpackage</th>
+<th>module</th>
+<th>purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>.</td>
+<td>vector_store_qdrant</td>
+<td>interface to qdrant code</td>
+</tr>
+<tr>
+<td>lmm</td>
+<td>chunks</td>
+<td>main code to tranform text into chunks</td>
+</tr>
+<tr>
+<td>langchain</td>
+<td>vector_store_qdrant_langchain</td>
+<td>langchain interface to the vector store (for retrieval)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="vector_store_qdrant-module">vector_store_qdrant module</h3>
+<p>The Qdrant API uses A <code>QdrantClient</code> object as an argument to all functions that write and read to/from the database. The functions in this module also take this object as an argument; the object may be initialized directly through a call to the Qdrant API, or through the function <code>client_from_config</code>. This function takes a <code>ConfigSettings</code> object, reading from it the <code>storage</code> value that is relevant to initialize the database:</p>
+<ul>
+<li><code>":memory:"</code>: initializes the database in memory</li>
+<li><code>LocalStorage</code>: a class representing a local folder</li>
+<li><code>RemoteSource</code>: a class representing a remote Qdrant server.</li>
+</ul>
+<p>Note that if you obtain a client from the <code>client_from_config</code> function, you'll have to handle closing the connection to the database yourself. A better option is to use the function <code>global_client_from_config</code> from the vector_store_qdrant_context module. This function centralizes creation and destruction (including closing connections) of Qdrant objects. Only one connection is created and is closed automatically.</p>
+<p>Within the database represented by the <code>QdrantClient</code> object, there are collections (the equivalent of tables in a traditional database) that are initialized through a call to <code>initialize_collection</code>. </p>
+<p>The modalities in which data are stored in the database are captured by two elements: the <code>QdrantEmbeddingModel</code> and <code>Chunk</code> objects. The <code>QdrantEmbeddingModel</code>, which is declared in the call to <code>initialize_collection</code>, specifies how data are embedded in the database. These are the embedding models that are supported by Qdrant, as supported by the framework:</p>
+<table>
+<thead>
+<tr>
+<th>code</th>
+<th>config value</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DENSE</td>
+<td>"dense"</td>
+<td>text embedded with dense vector</td>
+</tr>
+<tr>
+<td>MULTIVECTOR</td>
+<td>"multivector"</td>
+<td>text and annotations embedded with dense multivector</td>
+</tr>
+<tr>
+<td>SPARSE</td>
+<td>"sparse"</td>
+<td>annotations embedding only, sparse</td>
+</tr>
+<tr>
+<td>HYBRID_DENSE</td>
+<td>"hybrid_dense"</td>
+<td>sparse annotations, dense text</td>
+</tr>
+<tr>
+<td>HYBRID_MULTIVECTOR</td>
+<td>"hybrid_multivector"</td>
+<td>sparse annotations, dense text and annotations</td>
+</tr>
+<tr>
+<td>UUID</td>
+<td>"UUID"</td>
+<td>no embedding (chunks retrieved by UUID)</td>
+</tr>
+</tbody>
+</table>
+<p>Dense embedding uses a dense vector to capture text; dense encoding is also used by Multivector, but in this case more than input is given to the encdoing model, resulting in two distinct embedding vectors (one from text, one from annotations). Sparse only embeds annotations, and the other combine dense and sparse encoding. The UUID encoding only uses an ID.</p>
+<p>These settings are used in conjunction with an annotation model to define the encoding strategy in the database. The annotation model defines what metadata properties are used in the embedding. The <code>encoding_to_qdrantembedding_model</code> function is used internally to translate an <code>EncodingModel</code> object into the embedding model understood by Qdrant.</p>
+<p>Instead of providing a <code>QdrantEmbeddingModel</code>, one can  provide a <code>ConfigSettings</code> object from which the <code>QdrantEmbeddingModel</code> may be deduced. A <code>ConfigSettings</code> object also overrides the embedding model specified in <code>config.toml</code>, which are used when a <code>QdrantEmbeddingModel</code> is specified.</p>
+<p>The <code>Chunk</code> objects are the elementary units that are stored in the database, i.e. the equivalent of records (Qdrant calls them "points"). In frameworks such as Langchain or Llamaindex, these objects are called "Document". Chunk objects emerge from chunking up large portions of text, however (the coduments proper), and also contain the metadata used for embedding them. The <code>chunk</code> module, detailed below, handles the conversion from markdown document to chunks prior to ingesting. The <code>vector_store_qdrant</code> module only handles ingesting and retrieving chunks:</p>
+<table>
+<thead>
+<tr>
+<th>function</th>
+<th>purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>upload</td>
+<td>upload chunks into database</td>
+</tr>
+<tr>
+<td>query</td>
+<td>retrieves chunks based on query text</td>
+</tr>
+<tr>
+<td>query_grouped</td>
+<td>retrieves text stored in a companion collection</td>
+</tr>
+</tbody>
+</table>
+<p>All these functions are also present in an asynchronous version, and take a logger object to model errors.</p>
+<p>The <code>upload</code> function takes a list of chunks and ingests them into the database. Importantly, the embedding takes place here: chunk contain text and annotations that define the emebdding, and the <code>upload</code> function takes care of calling the language model and the sparse embedding library to create the embeddings (this work is handled internally by the <code>chunk_to_points</code> function). The specifications are loaded from <code>config.toml</code>.</p>
+<p>Query functions return list of <code>ScoredPoint</code> object, which is what Qdrant returns. These data may be transformed into markdown blocks by the <code>points_to_blocks</code> function.</p>
+<p>Here is a schematic example of the code that ingests and retrieves chunks/records into/from the database.</p>
+<pre><code class="language-python"># get a client as specified in config.toml
+client = client_from_config()
+if client is None
+    ... #(error handling)
+
+points: list[Point] = upload(
+    client,      # the Qdrant client object 
+    collection_name = &quot;documents&quot;, # the collection to ingest into
+    model = QdrantEmbeddingModel.DENSE, 
+    chunks = chunks,      # the chunks we want to ingest
+)
+
+# Retrieval code with query text
+points: list[ScoredPoints] = query(
+    client, 
+    collection_name = &quot;documents&quot;,
+    model = QdrantEmbeddingModel.DENSE,
+    querytext = &quot;What are the main uses of logistic regression?&quot;,
+    limit = 6,        # max 6 ScoredPoints
+    payload = True,   # all payload fields
+)
+
+# Retrieve text
+for pt in points:
+    print(f&quot;{pf.score} - {pt.payload['page_content']}\n&quot;)
+
+</code></pre>
+<p>The <code>ScoredPoint</code> object is the Qdrant object in which the data from the database are returned. The 'page_content' field contains the text that was chunked, while other fields contain other parts of the metadata that were ingested in the database (based on the annotation model).</p>
+<h3 id="vector_store_qdrant_langchain-module">vector_store_qdrant_langchain module</h3>
+<p>Intead of using the functions from the vector_store_qdrant module to retrieve data from the vector database, it is possible to initialize a Langchain retriever. Instead of creating a QdrantClient object from a config settings, the Langchain retriever is initialized by a call to `from_config_settings':</p>
+<pre><code class="language-python">retriever = QdrantVectorStoreRetriever.from_config_settings()
+results: list[Document] = retriever.invoke(
+    &quot;What are the main uses of logistic regression?&quot;
+)
+</code></pre>
+<p>Here, <code>from_config_settings</code> retrieves the settings from <code>config.toml</code>, but a partially initialized <code>ConfigSettings</code> object may be passed as an argument to override these settings. <code>AsynQdrantVectorStoreRetriever</code> provides asynchronous calls. In alternative, the retriever object may be instantiated explicitly:</p>
+<pre><code class="language-python">client = QdrantClient(&quot;./storage&quot;)
+retriever = QdrantVectorStoreRetriever(
+    client, 
+    collection_name = &quot;documents',
+    embedding_model = QdrantEmbeddingModel.DENSE,
+)
+</code></pre>
+<p>Note that the embedding_model must match that used to embed the chunks originally (this is an argument in favour of creating a <code>config_settings</code> object and using only this object to interface to all Qdrant functions).</p>
+<p>The query returns here a list of <code>Document</code> object, the record representation in Langchain. These objects contain two fields: <code>page_content</code>, the text, and <code>metadata</code>, a dictionary with key/value pairs.</p>
+<h2 id="chunks-module">chunks module</h2>
+<p>This is a key module in the vector storage implementation, as it handles the conversion from a parsed markdown file (in the form of a list of blocks) into a list of chunks.</p>
+<p>The chunks module defines an <em>encoding model</em> to map properties of the markdown to the embeddings used to make parts of the markdown retrievable. The encoding model includes, on the one hand, the text that is stored in the database, and on the other hand metadata propoerties stored in the markdown that may be used in the embedding. Such metadata properties are referred to as <em>annotations</em>, to distinguish them from other metadata that are not suitable for embedding (for example, properties used for housekeeping purposes).</p>
+<p>This is the specification of the encoding model.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NONE</td>
+<td>no encoding (chunks identified by their UUID)</td>
+</tr>
+<tr>
+<td>CONTENT</td>
+<td>encode only textual content in dense vector</td>
+</tr>
+<tr>
+<td>MERGED</td>
+<td>encode textual content merged with metadata</td>
+</tr>
+<tr>
+<td>MULTIVECTOR</td>
+<td>encode content and annotations using multivectors</td>
+</tr>
+<tr>
+<td>SPARSE</td>
+<td>sparse encoding of annotations only</td>
+</tr>
+<tr>
+<td>SPARSE_CONTENT</td>
+<td>sparse encoding of content only</td>
+</tr>
+<tr>
+<td>SPARSE_MERGED</td>
+<td>sparse encoding of merged content and annotations</td>
+</tr>
+<tr>
+<td>SPARSE_MULTIVECTOR</td>
+<td>sparse encoding of merged content and annotations using multivectors</td>
+</tr>
+</tbody>
+</table>
+<p>This is the specification of the annotation model, i.e. what counts as an annotation.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>inherited properties</td>
+<td>properties own and inherited by parent nodes</td>
+</tr>
+<tr>
+<td>own properties</td>
+<td>properties owned in the node metadata</td>
+</tr>
+<tr>
+<td>filters</td>
+<td>(reserved for future use)</td>
+</tr>
+</tbody>
+</table>
+<p>The central function in the module is <code>blocks_to_chunks</code>, which takes a list of parsed metadata blocks and returns a list of chunks (which are given to <code>upload</code> in the <code>vector_store_qdrant</code> module).</p>
+<pre><code class="language-python">def blocks_to_chunks(
+    blocklist: list[Block],
+    encoding_model: EncodingModel,
+    annotation_model: AnnotationModel | list[str] = AnnotationModel(),
+    logger: LoggerBase = logger,
+) -&gt; list[Chunk]:
+</code></pre>
+<p>Internally, this function does the following. It uses <code>scan_rag</code> to generate text id's and UUIDs for the text blocks, if they are missing (<code>scan_rag</code> is idempotent). It then produces the tree representation of the blocks, and collected the metadata properties (inheriting them if appropriate) as specified by the annotation model. It also collects other metadata for possible storage in the payload of the database, even if these metadata properties are not used in the embedding. </p>
+<p>Note that <code>scan_rag</code> is not used here to produce annotations with a language model. This step should take place previously and while using an explicit call.</p>
+<p>The explicit call may be done so:</p>
+<pre><code class="language-python">from lmm.scan.scan_rag import ScanOpts, markdown_rag
+
+markdown_rag(&quot;MyMarkdown.md&quot;, ScanOpts(questions=True, titles=True))
+</code></pre>
+<p>This saves MyMarkdown.md with the annotations.</p>
+<h3 id="implementation-encoding">Implementation encoding</h3>
+<p>The following tyble summarizes the flow of directives and their effects from encodings to embeddings specifications.</p>
+<table>
+<thead>
+<tr>
+<th>encoding</th>
+<th>effect</th>
+<th>qdrant emb.</th>
+<th>effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NONE</td>
+<td>(no effect)</td>
+<td>UUID</td>
+<td>uuid -&gt; id (also in all others)</td>
+</tr>
+<tr>
+<td>CONTENT</td>
+<td>content -&gt; dense_encoding</td>
+<td>DENSE</td>
+<td>dense_encoding -&gt; vector</td>
+</tr>
+<tr>
+<td>MULTIVECTOR</td>
+<td>content -&gt; dense_encoding</td>
+<td>MULTIVECTOR</td>
+<td>annotations, dense_encoding -&gt; [vectors]</td>
+</tr>
+<tr>
+<td>MERGED</td>
+<td>annotations+content -&gt; dense_encoding</td>
+<td>DENSE</td>
+<td>dense_encoding -&gt; vector</td>
+</tr>
+<tr>
+<td>SPARSE</td>
+<td>annotations -&gt; sparse_encoding</td>
+<td>SPARSE</td>
+<td>sparse_encoding -&gt; sparse vector</td>
+</tr>
+<tr>
+<td>SPARSE_CONTENT</td>
+<td>annotations -&gt; sparse_encoding</td>
+<td>HYBRID_DENSE</td>
+<td>sparse_encoding -&gt; sparse vector</td>
+</tr>
+<tr>
+<td></td>
+<td>content -&gt; dense_encoding</td>
+<td></td>
+<td>dense_encoding -&gt; vector</td>
+</tr>
+<tr>
+<td>SPARSE_MULTIVECTOR</td>
+<td>annotations -&gt; sparse_encoding</td>
+<td>HYBRID_MULTIVECTOR</td>
+<td>sparse_encoding -&gt; sparse vector</td>
+</tr>
+<tr>
+<td></td>
+<td>content -&gt; dense_encoding</td>
+<td></td>
+<td>annotations, dense_encoding -&gt; [vectors]</td>
+</tr>
+<tr>
+<td>SPARSE_MERGED</td>
+<td>annotations -&gt; sparse_encoding</td>
+<td>HYBRID_DENSE</td>
+<td>sparse_encoding -&gt; sparse vector</td>
+</tr>
+<tr>
+<td></td>
+<td>annotations+content -&gt; dense_encoding</td>
+<td></td>
+<td>dense_encoding -&gt; vector</td>
+</tr>
+</tbody>
+</table>
+<p>Effect of encoding: in blocks_to_chunks, chunks module; qdrant emb: in encoding_to_qdrant_embedding, vector_store_qdrant module; effect of qdrant embedding: chunks_to_points, vector_store_qdrant module.</p>
+<h2 id="identification-of-portions-of-markdown-files">Identification of portions of markdown files</h2>
+<p>Markdown files can be repeatedly ingested into a vector database without giving rise to duplicates. This relies on the value of a <code>docid</code> property in the header, which is set automatically by <code>scan_rag</code> at each call, unless this property is already present. It can be set manually to an intelligible string, as long as it is unique across markdown documents.</p>
+<p>The steps to identify parts of the text are the following.</p>
+<ol>
+<li>A markdown document is created and edited. Optionally, a <code>docid</code> property is added manually.</li>
+<li>Metadata can be created if desired and edited.</li>
+<li>Missing metadata are created automatically with the help of a language model. Since metadata are not recomputed if the text did not change, there can be several cycles of steps 2 and 3.</li>
+<li>The markdown document is split by <code>scan_split</code>.</li>
+<li>After splitting, the document is sent to <code>blocks_to_chunks</code> in the chunks module. Internally, this function calls <code>scan_rag</code>, which will create a <code>docid</code> if is is missing, and a sequential <code>textid</code> property for each chunk (i.e., shorter text block). The value of this property is {docid}.{sequential number}. A UUID field will also be created based on the textid value, which will identify the chunk. As long as the document grows, it can be repeatedly ingested without creating duplications.</li>
+<li>The chunks are sent to <code>upload</code> in the vector_store_qdrant module. Internally, this function calls the <code>chunks_to_points</code> function which creates embedding for each chunk, based on its text and annotations, as directed by the encoding model. </li>
+</ol>
+<p>All these steps are handled by <code>markdown_upload</code> (see next section).</p>
+<h2 id="ingestion-ingest-module">Ingestion (ingest module)</h2>
+<p>This module contains the function <code>markdown_upload</code>, which takes a list of file names or the markdown documents, and a optional <code>ConfigSettings</code> object. This object specifies how the files are processed and ingested in the vector database, based on the settings specified in <code>config.toml</code>, or by settings that override these when an object is specified explicitly.</p>
+<p>Each markdown file is processed through a series of steps.</p>
+<p>First, it is read in and parsed by <code>markdown_scan</code>, a function from LM markdown scan module. This function checks that the markdown is well-formed and there are no problems. </p>
+<p>Second, it is processed by <code>blocklist_encode</code>, another function in the module. This function implements the specific RAG strategy used in the package and specified in the configuration options in <code>config.toml</code>. Internally, it calls <code>scan_rag</code> to use the language model to create annotations and summaries, if required, and <code>scan_split</code> to split the text into chunks. The chunks are created with the <code>blocks_to_chunks</code> function from the chunks module.</p>
+<p>Finally, the chunks are passed to <code>blocklist_upload</code>, another function in the module that is tasked with implementing the configuration options when calling the vector store qdrant functions and save the data in the vector database.</p>
+<p>(There is no equivalent functions for retrieval. One can just instantiate the Langchain retriever pointing at the database and call the <code>invoke</code> function with the query text.)</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
