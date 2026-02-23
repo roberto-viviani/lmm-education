@@ -379,7 +379,7 @@ QUERY: "{query}"
     workflow.add_conditional_edges(
         "check_tool_result",
         continue_to_generate_or_fallback(
-            "generate", "generate_fallback", max_tool_calls=3
+            "generate", "generate_fallback", max_tool_calls=max_tool_retries,
         ),
     )
     workflow.add_edge("generate_fallback", END)
