@@ -50,7 +50,7 @@ NodeReturn = dict[str, str | AIMessage | float]
 
 # Type for nodes created by factories
 FactoryNode = Callable[
-    ..., CoroutineType[any, any, dict[str, str | AIMessage | float]]
+    ..., CoroutineType
 ]
 
 
