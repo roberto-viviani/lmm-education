@@ -18,6 +18,7 @@ Nodes unique to each graph remain in their respective modules.
 # pyright: reportUnknownMemberType=false
 
 from collections.abc import Callable, Coroutine
+from typing import Any
 from math import ceil
 from datetime import datetime
 
@@ -49,7 +50,7 @@ NodeReturn = dict[str, str | AIMessage | float]
 
 # Type for nodes created by factories
 FactoryNode = Callable[
-    ..., Coroutine[any, any, dict[str, str | AIMessage | float]]
+    ..., Coroutine[Any, Any, dict[str, str | AIMessage | float]]
 ]
 
 
