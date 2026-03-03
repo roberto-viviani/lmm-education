@@ -17,10 +17,9 @@ Nodes unique to each graph remain in their respective modules.
 # pyright: reportMissingTypeStubs=false
 # pyright: reportUnknownMemberType=false
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from math import ceil
 from datetime import datetime
-from types import CoroutineType
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
@@ -50,7 +49,7 @@ NodeReturn = dict[str, str | AIMessage | float]
 
 # Type for nodes created by factories
 FactoryNode = Callable[
-    ..., CoroutineType[any, any, dict[str, str | AIMessage | float]]
+    ..., Coroutine[any, any, dict[str, str | AIMessage | float]]
 ]
 
 
