@@ -130,7 +130,7 @@ logging_database = ChatDatabaseInterface.from_config()
 # app is run through main.
 atexit.register(logging_database.close)
 
-AsyncLogfunType = partial[Coroutine[Any, Any, None]]
+AsyncLogfunType = Callable[..., Coroutine[Any, Any, None]]
 async_log_partial: AsyncLogfunType = partial(
     graph_logger, database=logging_database, context=context
 )
