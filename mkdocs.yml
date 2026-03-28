@@ -31,8 +31,10 @@ nav:
     - Outline Architecture: Architecture/Architecture.md
     - Outline Implementation: Architecture/Implementation.md
   - API:
+    - lmm_education: API/lmm_education.md
     - Configuration:
       - Configuration modules:  API/Configuration/index.md
+      - Module __init__.py: API/Configuration/config_init.md
       - Module config.py: API/Configuration/config.md
       - Module appchat.py: API/Configuration/appchat.md
       - Module appwebcast.py: API/Configuration/appwebcast.md
@@ -43,11 +45,13 @@ nav:
       - App Webcast: API/Apps/appWebcast.md
       - App Videocast: API/Apps/appVideocast.md
     - Webcast:
+      - Module __init__.py: API/Webcast/webcast_init.md
       - Module sources.py: API/Webcast/sources.md
       - Module error_handling.py: API/Webcast/error_handling.md
       - Module webcastlib.py: API/Webcast/webcastlib.md
       - Module video_validation.py: API/Webcast/video_validation.md
     - Utilities:
+      - App Base init: API/appbase_init.md
       - App Base: API/appbase.md
       - App Utils: API/apputils.md
       - Async Utils: API/asyncutils.md
@@ -62,6 +66,7 @@ nav:
       - Module querydb.py: API/querydb.md
       - Module query.py: API/query.md
     - LMM Workflows:
+      - Module __init__.py: API/workflows_init.md
       - Workflows and graphs:
         - Architecture: API/workflows.md
         - Base: API/workflow_base.md
@@ -74,6 +79,8 @@ nav:
         - Stream adapters: API/stream_adapters.md
         - Chat stream adapters: API/chat_stream_adapters.md
     - Vector Stores:
+      - Module __init__.py: API/stores_init.md
+      - Module langchain/__init__.py: API/stores_langchain_init.md
       - Module vector_store_qdrant.py: API/vector_store_qdrant.md
       - Module vector_store_qdrant_langchain.py: API/vector_store_qdrant_langchain.md
       - Module vector store context: API/vector_store_qdrant_context.md
