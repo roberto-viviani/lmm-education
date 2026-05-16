@@ -31,6 +31,7 @@ nav:
     - Outline Architecture: Architecture/Architecture.md
     - Outline Implementation: Architecture/Implementation.md
   - API:
+    - lmm_education: API/index.md
     - Configuration:
       - Configuration modules:  API/Configuration/index.md
       - Module config.py: API/Configuration/config.md
@@ -74,6 +75,8 @@ nav:
         - Stream adapters: API/stream_adapters.md
         - Chat stream adapters: API/chat_stream_adapters.md
     - Vector Stores:
+      - Module stores: API/stores.md
+      - Module stores.langchain: API/stores_langchain.md
       - Module vector_store_qdrant.py: API/vector_store_qdrant.md
       - Module vector_store_qdrant_langchain.py: API/vector_store_qdrant_langchain.md
       - Module vector store context: API/vector_store_qdrant_context.md
