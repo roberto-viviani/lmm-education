@@ -37,6 +37,7 @@ nav:
       - Module appchat.py: API/Configuration/appchat.md
       - Module appwebcast.py: API/Configuration/appwebcast.md
       - Module utils.py: API/Configuration/utils.md
+      - Module __init__.py: API/Configuration/init.md
     - Apps:
       - Apps: API/Apps/index.md
       - App Chat: API/Apps/appChat.md
@@ -47,9 +48,12 @@ nav:
       - Module error_handling.py: API/Webcast/error_handling.md
       - Module webcastlib.py: API/Webcast/webcastlib.md
       - Module video_validation.py: API/Webcast/video_validation.md
+      - Module __init__.py: API/Webcast/init.md
     - Utilities:
       - App Base: API/appbase.md
       - App Utils: API/apputils.md
+      - LMM Education Core: API/lmm_education.md
+      - App Base Init: API/appbase_init.md
       - Async Utils: API/asyncutils.md
       - Background Task Manager: API/background_task_manager.md
       - Logging DB: API/logging_db.md
@@ -64,6 +68,7 @@ nav:
     - LMM Workflows:
       - Workflows and graphs:
         - Architecture: API/workflows.md
+        - Init: API/workflows_init.md
         - Base: API/workflow_base.md
         - Workflow: API/chat_workflow.md
         - Agent: API/chat_agent.md
@@ -78,3 +83,5 @@ nav:
       - Module vector_store_qdrant_langchain.py: API/vector_store_qdrant_langchain.md
       - Module vector store context: API/vector_store_qdrant_context.md
       - Utilities: API/vector_store_qdrant_utils.md
+      - Stores Init: API/stores_init.md
+      - Langchain Init: API/stores_langchain_init.md
