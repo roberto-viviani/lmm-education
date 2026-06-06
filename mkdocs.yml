@@ -1,80 +1,84 @@
 site_name: LM Markdown for Education
-
 plugins:
-  - search
-  - mkdocstrings
-
+- search
+- mkdocstrings
 theme:
   name: material
   font:
     text: Merriweather
     code: Fira Code
   palette:
-    - scheme: default
-      primary: slate
-      accent: custom
-
+  - scheme: default
+    primary: slate
+    accent: custom
 extra_css:
-  - stylesheets/extra.css
-
+- stylesheets/extra.css
 nav:
-  - Home: index.md
-  - Handbook:
-    - Installation and quickstart: Handbook/Installation.md
-    - RAG authoring: Handbook/RAGauthoring.md
-    - Working with Markdown: Handbook/Markdown.md
-    - Encoding and Embedding: Handbook/EncodingEmbedding.md
-    - Main Chatbot: Handbook/ChatApp.md
-    - Configuration: Handbook/Configuration.md
-  - Architecture:
-    - Overview: Architecture/Overview.md
-    - Outline Architecture: Architecture/Architecture.md
-    - Outline Implementation: Architecture/Implementation.md
-  - API:
-    - Configuration:
-      - Configuration modules:  API/Configuration/index.md
-      - Module config.py: API/Configuration/config.md
-      - Module appchat.py: API/Configuration/appchat.md
-      - Module appwebcast.py: API/Configuration/appwebcast.md
-      - Module utils.py: API/Configuration/utils.md
-    - Apps:
-      - Apps: API/Apps/index.md
-      - App Chat: API/Apps/appChat.md
-      - App Webcast: API/Apps/appWebcast.md
-      - App Videocast: API/Apps/appVideocast.md
-    - Webcast:
-      - Module sources.py: API/Webcast/sources.md
-      - Module error_handling.py: API/Webcast/error_handling.md
-      - Module webcastlib.py: API/Webcast/webcastlib.md
-      - Module video_validation.py: API/Webcast/video_validation.md
-    - Utilities:
-      - App Base: API/appbase.md
-      - App Utils: API/apputils.md
-      - Async Utils: API/asyncutils.md
-      - Background Task Manager: API/background_task_manager.md
-      - Logging DB: API/logging_db.md
-    - CLI:
-      - LMME: API/cli_lmme.md
-      - Terminal: API/cli_terminal.md
-    - RAG:
-      - Module scan_rag.py: API/scan_rag.md
-      - Module ingest.py: API/ingest.md
-      - Module querydb.py: API/querydb.md
-      - Module query.py: API/query.md
-    - LMM Workflows:
-      - Workflows and graphs:
-        - Architecture: API/workflows.md
-        - Base: API/workflow_base.md
-        - Workflow: API/chat_workflow.md
-        - Agent: API/chat_agent.md
-        - Workflow factory: API/workflow_factory.md
-        - Graph routing: API/graph_routing.md
-        - Nodes: API/nodes.md
-      - Streams:
-        - Stream adapters: API/stream_adapters.md
-        - Chat stream adapters: API/chat_stream_adapters.md
-    - Vector Stores:
-      - Module vector_store_qdrant.py: API/vector_store_qdrant.md
-      - Module vector_store_qdrant_langchain.py: API/vector_store_qdrant_langchain.md
-      - Module vector store context: API/vector_store_qdrant_context.md
-      - Utilities: API/vector_store_qdrant_utils.md
+- Home: index.md
+- Handbook:
+  - Installation and quickstart: Handbook/Installation.md
+  - RAG authoring: Handbook/RAGauthoring.md
+  - Working with Markdown: Handbook/Markdown.md
+  - Encoding and Embedding: Handbook/EncodingEmbedding.md
+  - Main Chatbot: Handbook/ChatApp.md
+  - Configuration: Handbook/Configuration.md
+- Architecture:
+  - Overview: Architecture/Overview.md
+  - Outline Architecture: Architecture/Architecture.md
+  - Outline Implementation: Architecture/Implementation.md
+- API:
+  - Root Package: API/index.md
+  - Configuration:
+    - Config Init: API/config/index.md
+    - Configuration modules: API/Configuration/index.md
+    - Module config.py: API/Configuration/config.md
+    - Module appchat.py: API/Configuration/appchat.md
+    - Module appwebcast.py: API/Configuration/appwebcast.md
+    - Module utils.py: API/Configuration/utils.md
+  - Apps:
+    - Apps: API/Apps/index.md
+    - App Chat: API/Apps/appChat.md
+    - App Webcast: API/Apps/appWebcast.md
+    - App Videocast: API/Apps/appVideocast.md
+  - Webcast:
+    - Webcast Init: API/webcast/index.md
+    - Module sources.py: API/Webcast/sources.md
+    - Module error_handling.py: API/Webcast/error_handling.md
+    - Module webcastlib.py: API/Webcast/webcastlib.md
+    - Module video_validation.py: API/Webcast/video_validation.md
+  - Utilities:
+    - App Base Init: API/appbase/index.md
+    - App Base: API/appbase.md
+    - App Utils: API/apputils.md
+    - Async Utils: API/asyncutils.md
+    - Background Task Manager: API/background_task_manager.md
+    - Logging DB: API/logging_db.md
+  - CLI:
+    - LMME: API/cli_lmme.md
+    - Terminal: API/cli_terminal.md
+  - RAG:
+    - Module scan_rag.py: API/scan_rag.md
+    - Module ingest.py: API/ingest.md
+    - Module querydb.py: API/querydb.md
+    - Module query.py: API/query.md
+  - LMM Workflows:
+    - Workflows Init: API/workflows/index.md
+    - Workflows and graphs:
+      - Langchain Workflows Init: API/workflows/langchain/index.md
+      - Architecture: API/workflows.md
+      - Base: API/workflow_base.md
+      - Workflow: API/chat_workflow.md
+      - Agent: API/chat_agent.md
+      - Workflow factory: API/workflow_factory.md
+      - Graph routing: API/graph_routing.md
+      - Nodes: API/nodes.md
+    - Streams:
+      - Stream adapters: API/stream_adapters.md
+      - Chat stream adapters: API/chat_stream_adapters.md
+  - Vector Stores:
+    - Langchain Stores Init: API/stores/langchain/index.md
+    - Stores Init: API/stores/index.md
+    - Module vector_store_qdrant.py: API/vector_store_qdrant.md
+    - Module vector_store_qdrant_langchain.py: API/vector_store_qdrant_langchain.md
+    - Module vector store context: API/vector_store_qdrant_context.md
+    - Utilities: API/vector_store_qdrant_utils.md
